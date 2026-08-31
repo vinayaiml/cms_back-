@@ -19,6 +19,19 @@ async function bootstrap() {
 }
 
 export default async function handler(req: express.Request, res: express.Response) {
-  const app = await (bootstrapPromise ??= bootstrap());
-  return app(req, res);
+  const path = req.url?.split('?')[0] ?? '/';
+  if (req.method === 'GET' && (path === '/' || path === '/api/health')) {
+    res.status(200).json({ status: 'ok' });
+    return;
+  }
+
+  try {
+    const app = await (bootstrapPromise ??= bootstrap());
+    return app(req, res);
+  } catch (error) {
+    bootstrapPromise = null;
+    // eslint-disable-next-line no-console
+    console.error('API bootstrap failed', error);
+    res.status(500).json({ error: { code: 'API_BOOTSTRAP_FAILED', message: 'API failed to start' } });
+  }
 }
