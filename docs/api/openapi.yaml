@@ -1,0 +1,2345 @@
+openapi: 3.0.3
+info:
+  title: WhizRobot CMS API
+  version: 1.0.0
+  description: |
+    Official API contract for Android, CMS frontend, and CMS/backend development.
+
+    This contract is versioned at docs/api/openapi.yaml. Changes to API paths,
+    request bodies, response bodies, auth behavior, or error formats should be
+    reviewed with this file.
+
+    Version 1 baseline routes live under /api/v1. The approved legacy test
+    routes without /v1 are deprecated and planned for removal in API v2.
+servers:
+  - url: http://localhost:3001/api
+    description: Local backend
+tags:
+  - name: Auth
+  - name: Robot
+  - name: Organizations
+  - name: Users
+  - name: Roles
+  - name: Permissions
+  - name: Dashboard
+  - name: Content
+  - name: Course Access
+  - name: Notifications
+  - name: Analytics
+security:
+  - bearerAuth: []
+paths:
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              superAdmin:
+                value:
+                  email: superadmin@whizrobo.com
+                  password: '<password>'
+      responses:
+        '201':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+              examples:
+                success:
+                  value:
+                    token: '<jwt>'
+                    user:
+                      id: 1
+                      email: superadmin@whizrobo.com
+                      fullName: Super Admin
+                      orgId: null
+                      isSuperAdmin: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/robot/auth/login:
+    post:
+      tags: [Robot]
+      summary: Robot login by license key
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotLoginRequest'
+            examples:
+              robot:
+                value:
+                  licenseKey: '<license-key>'
+      responses:
+        '201':
+          description: Robot login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotLoginResponse'
+              examples:
+                success:
+                  value:
+                    token: '<robot-jwt>'
+                    robot:
+                      id: 10
+                      orgId: 1
+                      serialNumber: WR-001
+                      name: Demo Robot
+                    license:
+                      licenseKey: '<license-key>'
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      status: ACTIVE
+                      locked: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/robot/sync:
+    get:
+      tags: [Robot]
+      summary: Get robot sync/configuration payload
+      security:
+        - robotBearerAuth: []
+      responses:
+        '200':
+          description: Sync payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotSyncResponse'
+              examples:
+                success:
+                  value:
+                    locked: false
+                    license:
+                      status: ACTIVE
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                    myCourses: []
+                    publicCatalog: []
+                    syncedAt: '2026-08-27T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/robot/logs/batch:
+    post:
+      tags: [Robot]
+      summary: Upload robot usage logs
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUsageLogsRequest'
+      responses:
+        '201':
+          description: Logs accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              examples:
+                success:
+                  value:
+                    ok: true
+                    inserted: 3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use POST /api/v1/auth/login.
+        Planned removal: API v2.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              superAdmin:
+                value:
+                  email: superadmin@whizrobo.com
+                  password: '<password>'
+      responses:
+        '201':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+              examples:
+                success:
+                  value:
+                    token: '<jwt>'
+                    user:
+                      id: 1
+                      email: superadmin@whizrobo.com
+                      fullName: Super Admin
+                      orgId: null
+                      isSuperAdmin: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robot/auth/login:
+    post:
+      tags: [Robot]
+      summary: Robot login legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use POST /api/v1/robot/auth/login.
+        Planned removal: API v2.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotLoginRequest'
+            examples:
+              robot:
+                value:
+                  licenseKey: '<license-key>'
+      responses:
+        '201':
+          description: Robot login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotLoginResponse'
+              examples:
+                success:
+                  value:
+                    token: '<robot-jwt>'
+                    robot:
+                      id: 10
+                      orgId: 1
+                      serialNumber: WR-001
+                      name: Demo Robot
+                    license:
+                      licenseKey: '<license-key>'
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      status: ACTIVE
+                      locked: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robot/sync:
+    get:
+      tags: [Robot]
+      summary: Get robot sync/configuration payload legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use GET /api/v1/robot/sync.
+        Planned removal: API v2.
+      security:
+        - robotBearerAuth: []
+      responses:
+        '200':
+          description: Sync payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotSyncResponse'
+              examples:
+                success:
+                  value:
+                    locked: false
+                    license:
+                      status: ACTIVE
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                    myCourses: []
+                    publicCatalog: []
+                    syncedAt: '2026-08-27T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robot/logs/batch:
+    post:
+      tags: [Robot]
+      summary: Upload robot usage logs legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use POST /api/v1/robot/logs/batch.
+        Planned removal: API v2.
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUsageLogsRequest'
+      responses:
+        '201':
+          description: Logs accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              examples:
+                success:
+                  value:
+                    ok: true
+                    inserted: 3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me:
+    get:
+      tags: [Dashboard]
+      summary: Get current user profile
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /me/navigation:
+    get:
+      tags: [Dashboard]
+      summary: Get navigation for current user
+      responses:
+        '200':
+          description: Navigation sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardSection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs:
+    get:
+      tags: [Organizations]
+      summary: List organizations
+      responses:
+        '200':
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
+              examples:
+                success:
+                  value:
+                    - id: 1
+                      name: Demo School
+                      state: Maharashtra
+                      city: Mumbai
+                      authorizedPersonName: Rajesh Kumar
+                      contactNo: '9876543210'
+                      isActive: true
+                      createdAt: '2026-01-01T00:00:00.000Z'
+                      updatedAt: '2026-01-01T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Organizations]
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /orgs/me:
+    get:
+      tags: [Organizations]
+      summary: Get current organization
+      responses:
+        '200':
+          description: Current organization or null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Organization'
+                  - nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs/{id}:
+    get:
+      tags: [Organizations]
+      summary: Get organization by ID
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Organizations]
+      summary: Update organization
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Organizations]
+      summary: Delete organization
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Deleted organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs/{id}/toggle-active:
+    patch:
+      tags: [Organizations]
+      summary: Toggle organization active status
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs/{id}/permissions:
+    get:
+      tags: [Organizations]
+      summary: List organization permissions
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      tags: [Organizations]
+      summary: Replace organization permission policy
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrgPermissionsRequest'
+      responses:
+        '200':
+          description: Permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters:
+        - name: orgId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /users/{id}:
+    patch:
+      tags: [Users]
+      summary: Update user
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Users]
+      summary: Delete user
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}/roles:
+    post:
+      tags: [Users]
+      summary: Assign role to user
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleRequest'
+      responses:
+        '201':
+          description: Role assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}/permissions:
+    post:
+      tags: [Users]
+      summary: Replace direct user permissions
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissionKeys]
+              properties:
+                permissionKeys:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Permissions updated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}/toggle-lock:
+    post:
+      tags: [Users]
+      summary: Toggle user lock status
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '201':
+          description: Lock status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  isLocked:
+                    type: boolean
+              examples:
+                success:
+                  value:
+                    ok: true
+                    isLocked: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /roles:
+    get:
+      tags: [Roles]
+      summary: List roles
+      parameters:
+        - name: orgId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Roles]
+      summary: Create role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /roles/{id}/permissions:
+    post:
+      tags: [Roles]
+      summary: Add permission to role
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolePermissionRequest'
+      responses:
+        '201':
+          description: Permission added
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Roles]
+      summary: Remove permission from role
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolePermissionRequest'
+      responses:
+        '200':
+          description: Permission removed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /permissions:
+    get:
+      tags: [Permissions]
+      summary: List permissions
+      responses:
+        '200':
+          description: Permissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Permissions]
+      summary: Create permission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePermissionRequest'
+      responses:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /permissions/catalog:
+    get:
+      tags: [Permissions]
+      summary: List permission catalog
+      responses:
+        '200':
+          description: Permission catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /robots:
+    get:
+      tags: [Robot]
+      summary: List robots
+      parameters:
+        - name: orgId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Robots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Robot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Robot]
+      summary: Create robot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRobotRequest'
+      responses:
+        '201':
+          description: Robot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /robots/{id}/license/renew:
+    put:
+      tags: [Robot]
+      summary: Renew robot license
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenewLicenseRequest'
+      responses:
+        '200':
+          description: Robot updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /robots/{id}/lock:
+    put:
+      tags: [Robot]
+      summary: Lock or unlock robot
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockRobotRequest'
+      responses:
+        '200':
+          description: Robot updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Robot]
+      summary: Backward-compatible lock or unlock endpoint
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: lock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Robot updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+
+  /content/my:
+    get:
+      tags: [Content]
+      summary: List courses visible to current user
+      responses:
+        '200':
+          description: Courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/platform:
+    get:
+      tags: [Content]
+      summary: List platform courses
+      responses:
+        '200':
+          description: Platform courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/course/{id}:
+    get:
+      tags: [Content]
+      summary: Get course details
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Content]
+      summary: Update course
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCourseRequest'
+      responses:
+        '200':
+          description: Course updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Content]
+      summary: Delete course
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Course deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /content/level/{id}:
+    patch:
+      tags: [Content]
+      summary: Update level
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLevelRequest'
+      responses:
+        '200':
+          description: Level updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Level'
+
+  /content/chapter/{id}:
+    patch:
+      tags: [Content]
+      summary: Update chapter
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChapterRequest'
+      responses:
+        '200':
+          description: Chapter updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+
+  /content/lesson/{id}:
+    patch:
+      tags: [Content]
+      summary: Update lesson
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLessonRequest'
+      responses:
+        '200':
+          description: Lesson updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+
+  /content/import:
+    post:
+      tags: [Content]
+      summary: Import organization content CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/platform:
+    post:
+      tags: [Content]
+      summary: Import platform content CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/courses:
+    post:
+      tags: [Content]
+      summary: Import organization courses CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/platform/courses:
+    post:
+      tags: [Content]
+      summary: Import platform courses CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/chapters:
+    post:
+      tags: [Content]
+      summary: Import organization chapters CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/platform/chapters:
+    post:
+      tags: [Content]
+      summary: Import platform chapters CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/lessons:
+    post:
+      tags: [Content]
+      summary: Import organization lessons CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /content/import/platform/lessons:
+    post:
+      tags: [Content]
+      summary: Import platform lessons CSV/XLSX
+      requestBody:
+        $ref: '#/components/requestBodies/FileUpload'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs/{orgId}/course-access:
+    get:
+      tags: [Course Access]
+      summary: List course access for organization
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      responses:
+        '200':
+          description: Course access rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourseAccess'
+    post:
+      tags: [Course Access]
+      summary: Grant course access
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourseAccessRequest'
+      responses:
+        '201':
+          description: Course access created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseAccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /orgs/{orgId}/course-access/{id}:
+    delete:
+      tags: [Course Access]
+      summary: Revoke course access
+      parameters:
+        - $ref: '#/components/parameters/OrgId'
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Access revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /dashboard/sections:
+    get:
+      tags: [Dashboard]
+      summary: List dashboard sections
+      responses:
+        '200':
+          description: Dashboard sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardSection'
+    post:
+      tags: [Dashboard]
+      summary: Create dashboard section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSectionRequest'
+      responses:
+        '201':
+          description: Section created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSection'
+
+  /dashboard/sections/{id}:
+    put:
+      tags: [Dashboard]
+      summary: Update dashboard section
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSectionRequest'
+      responses:
+        '200':
+          description: Section updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSection'
+
+  /sections:
+    get:
+      tags: [Dashboard]
+      summary: List section builder sections
+      responses:
+        '200':
+          description: Dashboard sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardSection'
+    post:
+      tags: [Dashboard]
+      summary: Create section builder section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSectionRequest'
+      responses:
+        '201':
+          description: Section created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSection'
+
+  /sections/{id}:
+    put:
+      tags: [Dashboard]
+      summary: Update section builder section
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSectionRequest'
+      responses:
+        '200':
+          description: Section updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSection'
+    delete:
+      tags: [Dashboard]
+      summary: Deactivate section
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Section deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSection'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark notification read
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '201':
+          description: Notification updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+  /analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Usage and license overview
+      parameters:
+        - $ref: '#/components/parameters/Days'
+        - $ref: '#/components/parameters/OrgIdQuery'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Analytics overview
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /analytics/top-courses:
+    get:
+      tags: [Analytics]
+      summary: Top courses by usage
+      parameters:
+        - $ref: '#/components/parameters/Days'
+        - $ref: '#/components/parameters/OrgIdQuery'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Top courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /analytics/top-lessons:
+    get:
+      tags: [Analytics]
+      summary: Top lessons by usage
+      parameters:
+        - $ref: '#/components/parameters/Days'
+        - $ref: '#/components/parameters/OrgIdQuery'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Top lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    robotBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    OrgId:
+      name: orgId
+      in: path
+      required: true
+      schema:
+        type: integer
+    OrgIdQuery:
+      name: orgId
+      in: query
+      required: false
+      schema:
+        type: integer
+    Days:
+      name: days
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 7
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 5
+  requestBodies:
+    FileUpload:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+  responses:
+    BadRequest:
+      description: Bad request or validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            validation:
+              value:
+                statusCode: 400
+                message:
+                  - email must be an email
+                error: Bad Request
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidCredentials:
+              value:
+                statusCode: 401
+                message: Invalid credentials
+                error: Unauthorized
+    Forbidden:
+      description: Authenticated principal is not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                statusCode: 403
+                message: Insufficient permissions
+                error: Forbidden
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            duplicate:
+              value:
+                statusCode: 409
+                message: Admin email already exists
+                error: Conflict
+    Locked:
+      description: Domain resource is locked
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LockedErrorResponse'
+          examples:
+            orgInactive:
+              value:
+                error:
+                  code: ORG_INACTIVE
+                  message: Organization is inactive
+                  locked: true
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            error:
+              value:
+                statusCode: 500
+                message: Internal server error
+    ImportResult:
+      description: Import result
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+          examples:
+            success:
+              value:
+                ok: true
+                created: 3
+                updated: 0
+                errors: []
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        statusCode:
+          type: integer
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+    LockedErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, locked]
+          properties:
+            code:
+              type: string
+              example: ORG_INACTIVE
+            message:
+              type: string
+              example: Organization is inactive
+            locked:
+              type: boolean
+              example: true
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    RobotLoginRequest:
+      type: object
+      required: [licenseKey]
+      properties:
+        licenseKey:
+          type: string
+    UserLoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+    RobotLoginResponse:
+      type: object
+      required: [token, robot, license]
+      properties:
+        token:
+          type: string
+        robot:
+          $ref: '#/components/schemas/Robot'
+        license:
+          $ref: '#/components/schemas/License'
+    Organization:
+      type: object
+      required: [id, name, state, city, authorizedPersonName, contactNo, isActive]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        state:
+          type: string
+        city:
+          type: string
+        authorizedPersonName:
+          type: string
+        contactNo:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateOrganizationRequest:
+      type: object
+      required: [name, state, city, authorizedPersonName, contactNo, email]
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+        city:
+          type: string
+        authorizedPersonName:
+          type: string
+        contactNo:
+          type: string
+        email:
+          type: string
+          format: email
+    UpdateOrganizationRequest:
+      type: object
+      required: [name, state, city, authorizedPersonName, contactNo]
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+        city:
+          type: string
+        authorizedPersonName:
+          type: string
+        contactNo:
+          type: string
+    UpdateOrgPermissionsRequest:
+      type: object
+      required: [permissionKeys]
+      properties:
+        permissionKeys:
+          type: array
+          items:
+            type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        isSuperAdmin:
+          type: boolean
+        isLocked:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateUserRequest:
+      type: object
+      required: [email, fullName, password]
+      properties:
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 8
+        orgId:
+          type: integer
+        roleIds:
+          type: array
+          items:
+            type: integer
+        permissionKeys:
+          type: array
+          items:
+            type: string
+    UpdateUserRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+    AssignRoleRequest:
+      type: object
+      required: [roleId]
+      properties:
+        roleId:
+          type: integer
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    RolePermissionRequest:
+      type: object
+      required: [permissionKey]
+      properties:
+        permissionKey:
+          type: string
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+    CreatePermissionRequest:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+    Robot:
+      type: object
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        serialNumber:
+          type: string
+        name:
+          type: string
+          nullable: true
+        licenseKey:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        licenseStatus:
+          $ref: '#/components/schemas/LicenseStatus'
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateRobotRequest:
+      type: object
+      required: [serialNumber, validFrom, validUntil]
+      properties:
+        orgId:
+          type: integer
+        serialNumber:
+          type: string
+        name:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+    RenewLicenseRequest:
+      type: object
+      required: [validUntil]
+      properties:
+        validUntil:
+          type: string
+          format: date-time
+    LockRobotRequest:
+      type: object
+      required: [lock]
+      properties:
+        lock:
+          type: boolean
+    License:
+      type: object
+      properties:
+        licenseKey:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/LicenseStatus'
+        locked:
+          type: boolean
+    LicenseStatus:
+      type: string
+      enum: [ACTIVE, EXPIRING_SOON, EXPIRED, REVOKED]
+    RobotSyncResponse:
+      type: object
+      properties:
+        locked:
+          type: boolean
+        reason:
+          type: string
+        license:
+          type: object
+          additionalProperties: true
+        myCourses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+        publicCatalog:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+        syncedAt:
+          type: string
+          format: date-time
+    UploadUsageLogsRequest:
+      type: object
+      required: [logs]
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UsageLogItem'
+    UsageLogItem:
+      type: object
+      required: [eventId, openedAt]
+      properties:
+        eventId:
+          type: string
+        courseId:
+          type: integer
+        lessonId:
+          type: integer
+        openedAt:
+          type: string
+          format: date-time
+        durationSec:
+          type: integer
+    Course:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        courseCode:
+          type: string
+        courseName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        courseImageUrl:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [PLATFORM, ORGANIZATION]
+        visibility:
+          type: string
+          enum: [PRIVATE, PUBLIC]
+        levels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Level'
+    Level:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        name:
+          type: string
+        sequence:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        chapters:
+          type: array
+          items:
+            $ref: '#/components/schemas/Chapter'
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lesson'
+    Chapter:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        levelId:
+          type: integer
+        name:
+          type: string
+        sequence:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lesson'
+    Lesson:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        courseId:
+          type: integer
+        levelId:
+          type: integer
+        chapterId:
+          type: integer
+          nullable: true
+        name:
+          type: string
+        sequence:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        durationMins:
+          type: integer
+          nullable: true
+        contentType:
+          type: string
+          enum: [VIDEO, IMAGE, TEXT]
+        contentUrl:
+          type: string
+        thumbnailUrl:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [PRIVATE, PUBLIC_PREVIEW]
+    UpdateCourseRequest:
+      type: object
+      properties:
+        courseCode:
+          type: string
+        courseName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        courseImageUrl:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [PRIVATE, PUBLIC]
+        introLevelId:
+          type: integer
+          nullable: true
+    UpdateLevelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sequence:
+          type: integer
+    UpdateChapterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sequence:
+          type: integer
+    UpdateLessonRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sequence:
+          type: integer
+        durationMins:
+          type: integer
+          nullable: true
+        contentType:
+          type: string
+          enum: [VIDEO, IMAGE, TEXT]
+        contentUrl:
+          type: string
+        thumbnailUrl:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [PRIVATE, PUBLIC_PREVIEW]
+        chapterId:
+          type: integer
+          nullable: true
+    CreateCourseAccessRequest:
+      type: object
+      required: [courseId, accessType]
+      properties:
+        courseId:
+          type: integer
+        accessType:
+          type: string
+          enum: [FULL_COURSE, LEVEL_ONLY, CHAPTER_ONLY]
+        levelId:
+          type: integer
+        chapterId:
+          type: integer
+    CourseAccess:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        courseId:
+          type: integer
+        accessType:
+          type: string
+          enum: [FULL_COURSE, LEVEL_ONLY, CHAPTER_ONLY]
+        levelId:
+          type: integer
+          nullable: true
+        chapterId:
+          type: integer
+          nullable: true
+    DashboardSection:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        requiredPermission:
+          type: string
+          nullable: true
+        isSuperAdminOnly:
+          type: boolean
+        isActive:
+          type: boolean
+        templateType:
+          type: string
+          enum: [NONE, WIDGETS, KPI_OVERVIEW, MARKDOWN]
+        templateConfig:
+          type: object
+          nullable: true
+          additionalProperties: true
+    CreateSectionRequest:
+      type: object
+      required: [key, label, path]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
+        icon:
+          type: string
+        sortOrder:
+          type: integer
+        requiredPermission:
+          type: string
+        isSuperAdminOnly:
+          type: boolean
+        isActive:
+          type: boolean
+        templateType:
+          type: string
+        templateConfig:
+          type: object
+          additionalProperties: true
+    UpdateSectionRequest:
+      allOf:
+        - $ref: '#/components/schemas/CreateSectionRequest'
+    Notification:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        userId:
+          type: integer
+          nullable: true
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
