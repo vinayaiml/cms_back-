@@ -1,11 +1,31 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LicenseStatus } from '@prisma/client';
+import { LicenseStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class RobotsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
+
+  private readonly robotSelect = {
+    id: true,
+    orgId: true,
+    serialNumber: true,
+    name: true,
+    validFrom: true,
+    validUntil: true,
+    licenseStatus: true,
+    revokedAt: true,
+    lastSeenAt: true,
+    appVersion: true,
+    deviceModel: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
 
   private computeLicenseStatus(validUntil: Date, revokedAt: Date | null): LicenseStatus {
     if (revokedAt) return LicenseStatus.REVOKED;
@@ -23,26 +43,11 @@ export class RobotsService {
     return randomBytes(32).toString('hex');
   }
 
-  async listByOrg(orgId: number, opts: { includeLicenseKey: boolean }) {
+  async listByOrg(orgId: number) {
     return this.prisma.robot.findMany({
       where: { orgId },
       orderBy: { id: 'desc' },
-      select: {
-        id: true,
-        orgId: true,
-        serialNumber: true,
-        name: true,
-        licenseKey: opts.includeLicenseKey,
-        validFrom: true,
-        validUntil: true,
-        licenseStatus: true,
-        revokedAt: true,
-        lastSeenAt: true,
-        appVersion: true,
-        deviceModel: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.robotSelect,
     });
   }
 
@@ -51,21 +56,8 @@ export class RobotsService {
       where: orgId ? { orgId } : {},
       orderBy: { id: 'desc' },
       select: {
-        id: true,
-        orgId: true,
+        ...this.robotSelect,
         org: { select: { id: true, name: true } },
-        serialNumber: true,
-        name: true,
-        licenseKey: true, // Super Admin only endpoint
-        validFrom: true,
-        validUntil: true,
-        licenseStatus: true,
-        revokedAt: true,
-        lastSeenAt: true,
-        appVersion: true,
-        deviceModel: true,
-        createdAt: true,
-        updatedAt: true,
       },
     });
   }
@@ -90,6 +82,7 @@ export class RobotsService {
         validUntil: input.validUntil,
         licenseStatus: status,
       },
+      select: this.robotSelect,
     });
   }
 
@@ -103,6 +96,7 @@ export class RobotsService {
     return this.prisma.robot.update({
       where: { id: robotId },
       data: { validUntil, licenseStatus: status },
+      select: this.robotSelect,
     });
   }
 
@@ -114,6 +108,7 @@ export class RobotsService {
       return this.prisma.robot.update({
         where: { id: robotId },
         data: { revokedAt: new Date(), licenseStatus: LicenseStatus.REVOKED },
+        select: this.robotSelect,
       });
     }
 
@@ -123,6 +118,45 @@ export class RobotsService {
     return this.prisma.robot.update({
       where: { id: robotId },
       data: { revokedAt: null, licenseStatus: status },
+      select: this.robotSelect,
+    });
+  }
+
+  async clearDeviceMetadata(
+    robotId: number,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    const robot = await this.getRobotOrThrow(robotId);
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.robot.update({
+        where: { id: robotId },
+        data: {
+          appVersion: null,
+          deviceModel: null,
+          deviceMetadata: Prisma.DbNull,
+        },
+        select: this.robotSelect,
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'robot.device_metadata_erased',
+          targetType: 'robot',
+          targetId: robotId,
+          targetOrgId: robot.orgId,
+          correlationId,
+          metadata: {
+            serialNumber: robot.serialNumber,
+          },
+        },
+        tx,
+      );
+
+      return updated;
     });
   }
 

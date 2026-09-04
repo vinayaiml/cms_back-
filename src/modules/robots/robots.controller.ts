@@ -1,4 +1,17 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -23,7 +36,7 @@ export class RobotsController {
     }
 
     if (!actor.orgId) throw new ForbiddenException('Org scope required');
-    return this.robots.listByOrg(actor.orgId, { includeLicenseKey: false });
+    return this.robots.listByOrg(actor.orgId);
   }
 
   @Post()
@@ -72,5 +85,20 @@ export class RobotsController {
 
     const shouldLock = lock === undefined ? true : !['0', 'false', 'no', 'n'].includes(lock.toLowerCase());
     return this.robots.lockRobot(id, shouldLock);
+  }
+
+  @Delete(':id/device-metadata')
+  @RequirePermissions('robot.update')
+  async clearDeviceMetadata(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.clearDeviceMetadata(
+      id,
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      correlationId,
+    );
   }
 }

@@ -1,9 +1,9 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { JwtPayload } from '../../common/auth/jwt.types';
+import { JwtPayload, JwtUserPayload } from '../../common/auth/jwt.types';
 import { OrgsService } from './orgs.service';
 import { CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto } from './orgs.dto';
 
@@ -12,7 +12,7 @@ import { CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto } from './orgs.dto'
 export class OrgsController {
   constructor(private orgs: OrgsService) {}
 
-  private assertSuperAdmin(actor: JwtPayload) {
+  private assertSuperAdmin(actor: JwtPayload): asserts actor is JwtUserPayload {
     if (actor.type !== 'user' || !actor.isSuperAdmin) {
       throw new ForbiddenException('Only Super Admin can manage organizations');
     }
@@ -62,9 +62,13 @@ export class OrgsController {
 
   @Patch(':id/toggle-active')
   @RequirePermissions('org.update')
-  async toggleActive(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+  async toggleActive(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
     this.assertSuperAdmin(actor);
-    return this.orgs.toggleActive(id);
+    return this.orgs.toggleActive(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 
   @Get(':id/permissions')

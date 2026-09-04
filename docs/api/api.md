@@ -106,7 +106,8 @@ Expected status:
 
 ## Robot Login
 
-Use this route to exchange a robot license key for a robot JWT.
+Use this route to exchange a robot activation value and serial number for a robot JWT.
+CMS stores the provided safe device metadata on successful login.
 
 ```text
 POST http://localhost:3001/api/v1/robot/auth/login
@@ -116,7 +117,17 @@ Body:
 
 ```json
 {
-  "licenseKey": "<license-key>"
+  "licenseKey": "<license-key>",
+  "serialNumber": "WR-001",
+  "deviceMetadata": {
+    "manufacturer": "Sanbot",
+    "model": "Mini ELF",
+    "androidVersion": "7.1.2",
+    "apiLevel": 25,
+    "appVersionName": "0.1.0",
+    "appVersionCode": 2
+  },
+  "deviceMetadataConsent": true
 }
 ```
 
@@ -132,7 +143,6 @@ Success response:
     "name": "Robot 1 (ACTIVE)"
   },
   "license": {
-    "licenseKey": "<license-key>",
     "validFrom": "2026-02-28T11:26:06.106Z",
     "validUntil": "2026-11-25T11:26:06.106Z",
     "status": "ACTIVE",
@@ -147,7 +157,13 @@ Expected status:
 201 Created
 ```
 
-If the robot belongs to an inactive organization, the API returns:
+Invalid license keys and serial-number mismatches return:
+
+```text
+401 Unauthorized
+```
+
+Expired licenses, revoked licenses and inactive organizations return:
 
 ```text
 423 Locked
@@ -163,6 +179,16 @@ Example:
     "locked": true
   }
 }
+```
+
+CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. Raw license keys, JWTs and raw device identity metadata are not returned by this API.
+
+Authorized CMS administrators can erase stored robot device metadata:
+
+```text
+DELETE http://localhost:3001/api/robots/{id}/device-metadata
+Authorization: Bearer <user-token>
+X-Correlation-Id: <request-id>
 ```
 
 ## Robot Sync
@@ -304,6 +330,19 @@ Content-Type: application/json
 6. Repeat the same requests against the legacy routes and confirm they still work.
 
 7. Check the backend terminal for legacy deprecation warnings.
+
+## Android Mock Fixture Trace
+
+Android mock fixtures should map to the OpenAPI examples by operation ID:
+
+| Operation ID | Route | Fixture purpose |
+| --- | --- | --- |
+| `loginUserV1` | `POST /api/v1/auth/login` | CMS user/admin login success and credential failures |
+| `loginRobotV1` | `POST /api/v1/robot/auth/login` | Robot activation login success, invalid license or serial, expired license, revoked license and inactive organisation |
+| `syncRobotV1` | `GET /api/v1/robot/sync` | Active robot configuration, locked license and inactive organisation |
+| `uploadRobotLogsBatchV1` | `POST /api/v1/robot/logs/batch` | New log upload, duplicate retry and validation errors |
+
+Use the `/api/v1` examples as the fixture source. Legacy examples exist only to verify temporary backwards compatibility.
 
 ## Common Errors
 

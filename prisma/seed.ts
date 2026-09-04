@@ -54,6 +54,8 @@ const permissions = [
   { key: 'notification.write', description: 'Create notifications', category: 'notifications' },
 
   { key: 'analytics.read', description: 'Read analytics', category: 'analytics' },
+
+  { key: 'audit.read', description: 'Read administrative audit events', category: 'audit' },
 ];
 
 async function main() {
@@ -220,6 +222,7 @@ async function main() {
     'notification.read',
 
     'analytics.read',
+    'audit.read',
   ];
 
   for (const key of orgPermKeys) {
@@ -313,7 +316,7 @@ async function main() {
       // Assign permissions based on role
       let permKeys: string[] = [];
       if (roleName === 'Org Admin') {
-        permKeys = ['user.create', 'user.read', 'user.update', 'user.delete', 'role.create', 'role.read', 'role.update', 'role.delete', 'content.import', 'content.read', 'content.write', 'robot.create', 'robot.read', 'robot.update', 'robot.lock', 'license.issue', 'license.renew', 'notification.read', 'analytics.read', 'dashboard.section.manage'];
+        permKeys = ['user.create', 'user.read', 'user.update', 'user.delete', 'role.create', 'role.read', 'role.update', 'role.delete', 'content.import', 'content.read', 'content.write', 'robot.create', 'robot.read', 'robot.update', 'robot.lock', 'license.issue', 'license.renew', 'notification.read', 'analytics.read', 'audit.read', 'dashboard.section.manage'];
       } else if (roleName === 'Manager') {
         permKeys = ['user.read', 'user.update', 'content.read', 'content.write', 'robot.read', 'robot.update', 'license.renew', 'notification.read', 'analytics.read'];
       } else if (roleName === 'Teacher') {

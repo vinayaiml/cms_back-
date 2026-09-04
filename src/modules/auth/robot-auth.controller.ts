@@ -8,6 +8,6 @@ export class RobotAuthController {
 
   @Post('login')
   async login(@Body() dto: RobotLoginDto) {
-    return this.auth.loginRobot(dto.licenseKey);
+    return this.auth.loginRobot(dto);
   }
 }

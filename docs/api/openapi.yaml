@@ -26,13 +26,16 @@ tags:
   - name: Course Access
   - name: Notifications
   - name: Analytics
+  - name: Audit
 security:
   - bearerAuth: []
 paths:
   /v1/auth/login:
     post:
       tags: [Auth]
+      operationId: loginUserV1
       summary: User login
+      description: Authenticates a CMS user or administrator and returns a user JWT.
       security: []
       requestBody:
         required: true
@@ -74,7 +77,9 @@ paths:
   /v1/robot/auth/login:
     post:
       tags: [Robot]
+      operationId: loginRobotV1
       summary: Robot login by license key
+      description: Authenticates a robot by license key and serial number, stores safe device metadata, and returns a robot JWT. Expired, revoked and inactive-organization cases receive the domain locked error.
       security: []
       requestBody:
         required: true
@@ -86,6 +91,15 @@ paths:
               robot:
                 value:
                   licenseKey: '<license-key>'
+                  serialNumber: WR-001
+                  deviceMetadata:
+                    manufacturer: Sanbot
+                    model: Mini ELF
+                    androidVersion: 7.1.2
+                    apiLevel: 25
+                    appVersionName: 0.1.0
+                    appVersionCode: 2
+                  deviceMetadataConsent: true
       responses:
         '201':
           description: Robot login successful
@@ -103,7 +117,6 @@ paths:
                       serialNumber: WR-001
                       name: Demo Robot
                     license:
-                      licenseKey: '<license-key>'
                       validFrom: '2026-01-01T00:00:00.000Z'
                       validUntil: '2027-01-01T00:00:00.000Z'
                       status: ACTIVE
@@ -111,16 +124,56 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Invalid robot credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidLicense:
+                  value:
+                    statusCode: 401
+                    message: Invalid robot credentials
+                    error: Unauthorized
+                serialMismatch:
+                  value:
+                    statusCode: 401
+                    message: Invalid robot credentials
+                    error: Unauthorized
         '423':
-          $ref: '#/components/responses/Locked'
+          description: Robot login is locked by license or organization state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockedErrorResponse'
+              examples:
+                expired:
+                  value:
+                    error:
+                      code: LICENSE_EXPIRED
+                      message: Robot license is expired
+                      locked: true
+                revoked:
+                  value:
+                    error:
+                      code: LICENSE_REVOKED
+                      message: Robot license is revoked
+                      locked: true
+                orgInactive:
+                  value:
+                    error:
+                      code: ORG_INACTIVE
+                      message: Organization is inactive
+                      locked: true
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /v1/robot/sync:
     get:
       tags: [Robot]
+      operationId: syncRobotV1
       summary: Get robot sync/configuration payload
+      description: Returns the robot license state, assigned courses and public catalog content for the authenticated robot.
       security:
         - robotBearerAuth: []
       responses:
@@ -153,7 +206,9 @@ paths:
   /v1/robot/logs/batch:
     post:
       tags: [Robot]
+      operationId: uploadRobotLogsBatchV1
       summary: Upload robot usage logs
+      description: Accepts robot usage events. Duplicate `(robotId, eventId)` submissions are accepted without inserting duplicates.
       security:
         - robotBearerAuth: []
       requestBody:
@@ -162,31 +217,50 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UploadUsageLogsRequest'
+            examples:
+              oneLog:
+                value:
+                  logs:
+                    - eventId: thunder-test-001
+                      courseId: 1
+                      lessonId: 1
+                      openedAt: '2026-08-31T10:00:00.000Z'
+                      durationSec: 60
+              minimalLog:
+                value:
+                  logs:
+                    - eventId: thunder-test-002
+                      openedAt: '2026-08-31T10:05:00.000Z'
+                      durationSec: 30
       responses:
         '201':
           description: Logs accepted
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/UploadUsageLogsResponse'
               examples:
                 success:
                   value:
-                    ok: true
-                    inserted: 3
+                    inserted: 1
+                duplicate:
+                  value:
+                    inserted: 0
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /auth/login:
     post:
       tags: [Auth]
+      operationId: loginUserLegacy
       summary: User login legacy route
       deprecated: true
       description: |
@@ -227,12 +301,15 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /robot/auth/login:
     post:
       tags: [Robot]
+      operationId: loginRobotLegacy
       summary: Robot login legacy route
       deprecated: true
       description: |
@@ -249,6 +326,15 @@ paths:
               robot:
                 value:
                   licenseKey: '<license-key>'
+                  serialNumber: WR-001
+                  deviceMetadata:
+                    manufacturer: Sanbot
+                    model: Mini ELF
+                    androidVersion: 7.1.2
+                    apiLevel: 25
+                    appVersionName: 0.1.0
+                    appVersionCode: 2
+                  deviceMetadataConsent: true
       responses:
         '201':
           description: Robot login successful
@@ -266,7 +352,6 @@ paths:
                       serialNumber: WR-001
                       name: Demo Robot
                     license:
-                      licenseKey: '<license-key>'
                       validFrom: '2026-01-01T00:00:00.000Z'
                       validUntil: '2027-01-01T00:00:00.000Z'
                       status: ACTIVE
@@ -274,15 +359,54 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Invalid robot credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidLicense:
+                  value:
+                    statusCode: 401
+                    message: Invalid robot credentials
+                    error: Unauthorized
+                serialMismatch:
+                  value:
+                    statusCode: 401
+                    message: Invalid robot credentials
+                    error: Unauthorized
         '423':
-          $ref: '#/components/responses/Locked'
+          description: Robot login is locked by license or organization state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockedErrorResponse'
+              examples:
+                expired:
+                  value:
+                    error:
+                      code: LICENSE_EXPIRED
+                      message: Robot license is expired
+                      locked: true
+                revoked:
+                  value:
+                    error:
+                      code: LICENSE_REVOKED
+                      message: Robot license is revoked
+                      locked: true
+                orgInactive:
+                  value:
+                    error:
+                      code: ORG_INACTIVE
+                      message: Organization is inactive
+                      locked: true
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /robot/sync:
     get:
       tags: [Robot]
+      operationId: syncRobotLegacy
       summary: Get robot sync/configuration payload legacy route
       deprecated: true
       description: |
@@ -320,6 +444,7 @@ paths:
   /robot/logs/batch:
     post:
       tags: [Robot]
+      operationId: uploadRobotLogsBatchLegacy
       summary: Upload robot usage logs legacy route
       deprecated: true
       description: |
@@ -333,25 +458,37 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UploadUsageLogsRequest'
+            examples:
+              oneLog:
+                value:
+                  logs:
+                    - eventId: thunder-test-001
+                      courseId: 1
+                      lessonId: 1
+                      openedAt: '2026-08-31T10:00:00.000Z'
+                      durationSec: 60
       responses:
         '201':
           description: Logs accepted
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/UploadUsageLogsResponse'
               examples:
                 success:
                   value:
-                    ok: true
-                    inserted: 3
+                    inserted: 1
+                duplicate:
+                  value:
+                    inserted: 0
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -456,7 +593,8 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/Organization'
-                  - nullable: true
+                  - type: object
+                    nullable: true
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -528,6 +666,7 @@ paths:
       summary: Toggle organization active status
       parameters:
         - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
       responses:
         '200':
           description: Organization updated
@@ -539,6 +678,63 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /audit-events:
+    get:
+      tags: [Audit]
+      summary: List administrative audit events
+      description: Super Admin can read all audit events or filter by orgId. Organization users require audit.read and can only read their own organization audit events.
+      parameters:
+        - $ref: '#/components/parameters/OrgIdQuery'
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: targetType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEvent'
+              examples:
+                organizationDeactivated:
+                  value:
+                    - id: 1
+                      actorUserId: 1
+                      actorOrgId: null
+                      action: organization.deactivated
+                      targetType: organization
+                      targetId: '7'
+                      targetOrgId: 7
+                      correlationId: request-123
+                      metadata:
+                        previousStatus: active
+                        newStatus: inactive
+                      createdAt: '2026-09-01T10:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /orgs/{id}/permissions:
     get:
@@ -1023,6 +1219,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Robot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /robots/{id}/device-metadata:
+    delete:
+      tags: [Robot]
+      summary: Erase stored robot device metadata
+      description: Clears stored robot device identity metadata for an authorized administrator and records a critical audit event.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Robot device metadata erased
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+              examples:
+                success:
+                  value:
+                    id: 10
+                    orgId: 1
+                    serialNumber: WR-001
+                    name: Demo Robot
+                    validFrom: '2026-01-01T00:00:00.000Z'
+                    validUntil: '2027-01-01T00:00:00.000Z'
+                    licenseStatus: ACTIVE
+                    revokedAt: null
+                    lastSeenAt: '2026-01-02T00:00:00.000Z'
+                    appVersion: null
+                    deviceModel: null
+                    createdAt: '2026-01-01T00:00:00.000Z'
+                    updatedAt: '2026-01-02T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /content/my:
     get:
@@ -1565,6 +1801,13 @@ components:
       required: false
       schema:
         type: integer
+    CorrelationId:
+      name: x-correlation-id
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
     Days:
       name: days
       in: query
@@ -1723,10 +1966,45 @@ components:
           format: password
     RobotLoginRequest:
       type: object
-      required: [licenseKey]
+      required: [licenseKey, serialNumber, deviceMetadata, deviceMetadataConsent]
       properties:
         licenseKey:
           type: string
+          description: Robot activation value. Never returned in login responses.
+        serialNumber:
+          type: string
+          description: Registered robot serial number paired with the license key.
+        deviceMetadata:
+          $ref: '#/components/schemas/RobotDeviceMetadata'
+        deviceMetadataConsent:
+          type: boolean
+          description: Must be true. Confirms the robot is authorized to submit device metadata for activation/session binding.
+          enum: [true]
+    RobotDeviceMetadata:
+      type: object
+      required: [manufacturer, model, androidVersion, apiLevel, appVersionName, appVersionCode]
+      additionalProperties: false
+      properties:
+        manufacturer:
+          type: string
+          example: Sanbot
+        model:
+          type: string
+          example: Mini ELF
+        androidVersion:
+          type: string
+          example: 7.1.2
+        apiLevel:
+          type: integer
+          minimum: 1
+          example: 25
+        appVersionName:
+          type: string
+          example: 0.1.0
+        appVersionCode:
+          type: integer
+          minimum: 1
+          example: 2
     UserLoginResponse:
       type: object
       required: [token, user]
@@ -1744,7 +2022,7 @@ components:
         robot:
           $ref: '#/components/schemas/Robot'
         license:
-          $ref: '#/components/schemas/License'
+          $ref: '#/components/schemas/RobotLoginLicense'
     Organization:
       type: object
       required: [id, name, state, city, authorizedPersonName, contactNo, isActive]
@@ -1808,6 +2086,40 @@ components:
           type: array
           items:
             type: string
+    AuditEvent:
+      type: object
+      required: [id, action, targetType, targetId, createdAt]
+      properties:
+        id:
+          type: integer
+        actorUserId:
+          type: integer
+          nullable: true
+        actorOrgId:
+          type: integer
+          nullable: true
+        action:
+          type: string
+          example: organization.deactivated
+        targetType:
+          type: string
+          example: organization
+        targetId:
+          type: string
+          example: '7'
+        targetOrgId:
+          type: integer
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
     User:
       type: object
       properties:
@@ -1934,8 +2246,6 @@ components:
         name:
           type: string
           nullable: true
-        licenseKey:
-          type: string
         validFrom:
           type: string
           format: date-time
@@ -1951,6 +2261,12 @@ components:
         lastSeenAt:
           type: string
           format: date-time
+          nullable: true
+        appVersion:
+          type: string
+          nullable: true
+        deviceModel:
+          type: string
           nullable: true
     CreateRobotRequest:
       type: object
@@ -1984,8 +2300,20 @@ components:
     License:
       type: object
       properties:
-        licenseKey:
+        validFrom:
           type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/LicenseStatus'
+        locked:
+          type: boolean
+    RobotLoginLicense:
+      type: object
+      required: [validFrom, validUntil, status, locked]
+      properties:
         validFrom:
           type: string
           format: date-time
@@ -2028,6 +2356,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/UsageLogItem'
+    UploadUsageLogsResponse:
+      type: object
+      required: [inserted]
+      properties:
+        inserted:
+          type: integer
+          description: Number of new log rows inserted after duplicate filtering.
+          example: 1
     UsageLogItem:
       type: object
       required: [eventId, openedAt]

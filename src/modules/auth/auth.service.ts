@@ -3,8 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from '../../common/auth/jwt.types';
-import { LicenseStatus } from '@prisma/client';
+import { LicenseStatus, Prisma } from '@prisma/client';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
+import { RobotLoginDto } from './auth.dto';
+import { createHash } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -59,25 +61,58 @@ export class AuthService {
     return LicenseStatus.ACTIVE;
   }
 
-  async loginRobot(licenseKey: string) {
+  private digest(value: string | number): string {
+    return createHash('sha256').update(String(value).trim().toLowerCase()).digest('hex');
+  }
+
+  private toStoredDeviceMetadata(dto: RobotLoginDto): Prisma.InputJsonObject {
+    return {
+      schemaVersion: 1,
+      storage: 'sha256-digest',
+      consent: {
+        deviceMetadata: dto.deviceMetadataConsent,
+      },
+      identity: {
+        manufacturerSha256: this.digest(dto.deviceMetadata.manufacturer),
+        modelSha256: this.digest(dto.deviceMetadata.model),
+        androidVersionSha256: this.digest(dto.deviceMetadata.androidVersion),
+      },
+      apiLevel: dto.deviceMetadata.apiLevel,
+      appVersionName: dto.deviceMetadata.appVersionName,
+      appVersionCode: dto.deviceMetadata.appVersionCode,
+    };
+  }
+
+  private async recordRejectedRobotLogin(robot: { id: number; orgId: number }, reason: string) {
+    await this.prisma.event.create({
+      data: {
+        orgId: robot.orgId,
+        robotId: robot.id,
+        type: 'ROBOT_LOGIN_REJECTED',
+        payload: {
+          reason,
+          endpoint: 'robot.login',
+        },
+      },
+    });
+  }
+
+  async loginRobot(input: RobotLoginDto) {
     const robot = await this.prisma.robot.findUnique({
-      where: { licenseKey },
+      where: { licenseKey: input.licenseKey },
       include: { org: { select: { isActive: true } } },
     });
-    if (!robot) throw new UnauthorizedException('Invalid license');
+    if (!robot) {
+      throw new UnauthorizedException('Invalid robot credentials');
+    }
+
+    if (robot.serialNumber !== input.serialNumber) {
+      await this.recordRejectedRobotLogin(robot, 'SERIAL_MISMATCH');
+      throw new UnauthorizedException('Invalid robot credentials');
+    }
 
     if (!robot.org.isActive) {
-      await this.prisma.event.create({
-        data: {
-          orgId: robot.orgId,
-          robotId: robot.id,
-          type: 'ROBOT_ACCESS_REJECTED_ORG_INACTIVE',
-          payload: {
-            reason: 'ORG_INACTIVE',
-            endpoint: 'robot.login',
-          },
-        },
-      });
+      await this.recordRejectedRobotLogin(robot, 'ORG_INACTIVE');
       throw new DomainLockedException('ORG_INACTIVE', 'Organization is inactive');
     }
 
@@ -91,9 +126,26 @@ export class AuthService {
       });
     }
 
+    if (status === LicenseStatus.EXPIRED) {
+      await this.recordRejectedRobotLogin(robot, 'LICENSE_EXPIRED');
+      throw new DomainLockedException('LICENSE_EXPIRED', 'Robot license is expired');
+    }
+
+    if (status === LicenseStatus.REVOKED) {
+      await this.recordRejectedRobotLogin(robot, 'LICENSE_REVOKED');
+      throw new DomainLockedException('LICENSE_REVOKED', 'Robot license is revoked');
+    }
+
+    const deviceMetadata = this.toStoredDeviceMetadata(input);
+
     await this.prisma.robot.update({
       where: { id: robot.id },
-      data: { lastSeenAt: new Date() },
+      data: {
+        lastSeenAt: new Date(),
+        appVersion: input.deviceMetadata.appVersionName,
+        deviceModel: null,
+        deviceMetadata,
+      },
     });
 
     const payload: JwtPayload = {
@@ -101,8 +153,6 @@ export class AuthService {
       sub: robot.id,
       orgId: robot.orgId,
     };
-
-    const locked = status === LicenseStatus.EXPIRED || status === LicenseStatus.REVOKED;
 
     return {
       token: this.jwt.sign(payload),
@@ -113,11 +163,10 @@ export class AuthService {
         name: robot.name,
       },
       license: {
-        licenseKey: robot.licenseKey,
         validFrom: robot.validFrom,
         validUntil: robot.validUntil,
         status,
-        locked,
+        locked: false,
       },
     };
   }

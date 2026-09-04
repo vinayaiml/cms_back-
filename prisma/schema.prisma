@@ -190,6 +190,7 @@ model Robot {
   lastSeenAt    DateTime?
   appVersion    String?
   deviceModel   String?
+  deviceMetadata Json?
 
   usageLogs     RobotUsageLog[]
   events        Event[]
@@ -404,6 +405,24 @@ model Event {
   createdAt DateTime @default(now())
 
   @@index([orgId, type])
+}
+
+model AuditEvent {
+  id            Int      @id @default(autoincrement())
+  actorUserId   Int?
+  actorOrgId    Int?
+  action        String
+  targetType    String
+  targetId      String
+  targetOrgId   Int?
+  correlationId String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([targetOrgId, createdAt])
+  @@index([action, createdAt])
+  @@index([correlationId])
 }
 
 

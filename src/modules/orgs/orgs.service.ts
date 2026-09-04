@@ -1,10 +1,11 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateOrgDto, UpdateOrgDto } from './orgs.dto';
 
 @Injectable()
 export class OrgsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private audit: AuditService) {}
 
   async listAll() {
     return this.prisma.organization.findMany({ orderBy: { id: 'desc' } });
@@ -92,13 +93,37 @@ export class OrgsService {
     return this.prisma.organization.delete({ where: { id } });
   }
 
-  async toggleActive(id: number) {
+  async toggleActive(
+    id: number,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
     const org = await this.prisma.organization.findUnique({ where: { id } });
     if (!org) throw new NotFoundException('Organization not found');
 
-    return this.prisma.organization.update({
-      where: { id },
-      data: { isActive: !org.isActive },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.organization.update({
+        where: { id },
+        data: { isActive: !org.isActive },
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: updated.isActive ? 'organization.reactivated' : 'organization.deactivated',
+          targetType: 'organization',
+          targetId: updated.id,
+          targetOrgId: updated.id,
+          correlationId,
+          metadata: {
+            previousStatus: org.isActive ? 'active' : 'inactive',
+            newStatus: updated.isActive ? 'active' : 'inactive',
+          },
+        },
+        tx,
+      );
+
+      return updated;
     });
   }
 
