@@ -7,7 +7,7 @@ import { AuthService } from './auth.service';
 import { RobotLoginDto } from './auth.dto';
 
 const activeLogin: RobotLoginDto = {
-  licenseKey: 'LICENSE-1-1',
+  licenseKey: 'WHRB000001',
   serialNumber: 'WR-001',
   deviceMetadata: {
     manufacturer: 'Sanbot',
@@ -26,7 +26,7 @@ function buildRobot(overrides: Record<string, unknown> = {}) {
     orgId: 1,
     serialNumber: 'WR-001',
     name: 'Demo Robot',
-    licenseKey: 'LICENSE-1-1',
+    licenseKey: 'WHRB000001',
     validFrom: new Date('2026-01-01T00:00:00.000Z'),
     validUntil: new Date('2099-01-01T00:00:00.000Z'),
     licenseStatus: LicenseStatus.ACTIVE,
@@ -65,7 +65,7 @@ describe('AuthService robot login', () => {
     const result = await service.loginRobot(activeLogin);
 
     expect(prisma.robot.findUnique).toHaveBeenCalledWith({
-      where: { licenseKey: 'LICENSE-1-1' },
+      where: { licenseKey: 'WHRB000001' },
       include: { org: { select: { isActive: true } } },
     });
     expect(prisma.robot.update).toHaveBeenCalledWith({

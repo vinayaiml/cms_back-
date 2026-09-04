@@ -20,7 +20,7 @@ Required request fields:
 - `deviceMetadata.apiLevel`
 - `deviceMetadata.appVersionName`
 - `deviceMetadata.appVersionCode`
-- `deviceMetadataConsent` must be `true`
+- optional legacy `deviceMetadataConsent`, accepted only when `true`
 
 ## Expected Results
 
@@ -31,14 +31,14 @@ Required request fields:
 - Inactive organization returns `423 Locked` with `ORG_INACTIVE`.
 - Rejected login paths do not issue a JWT.
 - Robot login and normal robot response schemas do not return `licenseKey`.
-- Missing or false device metadata consent returns `400 Bad Request`.
+- False device metadata consent returns `400 Bad Request`; Android clients may omit the legacy consent field.
 - Authorized administrators can erase stored device metadata with `DELETE /api/robots/{id}/device-metadata`.
 
 ## Data Controls
 
 - Device metadata is limited to the technical fields listed in the OpenAPI contract.
 - Extra metadata fields are rejected by the backend validation pipe.
-- Device metadata consent is required before metadata is accepted.
+- Device metadata consent is implied by the robot login contract for Android clients; an explicit legacy consent field is accepted only when true.
 - CMS stores device identity fields as one-way SHA-256 digests in the robot `deviceMetadata` JSON column.
 - Raw manufacturer, model and Android version values are not stored in `deviceMetadata`.
 - Device metadata erasure clears the stored metadata fields and writes a critical audit event.

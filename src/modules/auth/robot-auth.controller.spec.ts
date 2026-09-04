@@ -5,7 +5,7 @@ import { AuthService } from './auth.service';
 import { RobotAuthController } from './robot-auth.controller';
 
 const robotLoginBody = {
-  licenseKey: 'LICENSE-1-1',
+  licenseKey: 'WHRB000001',
   serialNumber: 'WR-001',
   deviceMetadata: {
     manufacturer: 'Sanbot',
@@ -103,7 +103,7 @@ describe('RobotAuthController', () => {
   it('rejects login without serial number and device metadata', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/robot/auth/login')
-      .send({ licenseKey: 'LICENSE-1-1' })
+      .send({ licenseKey: 'WHRB000001' })
       .expect(400);
 
     expect(authService.loginRobot).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('RobotAuthController', () => {
       .post('/api/v1/robot/auth/login')
       .send({
         ...robotLoginBody,
-        licenseKey: 'LICENSE 1 with spaces',
+        licenseKey: 'WRONG12345',
         serialNumber: 'WR/001',
       })
       .expect(400);

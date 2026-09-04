@@ -27,6 +27,16 @@ export class RobotsService {
     updatedAt: true,
   } as const;
 
+  private readonly robotEnrollmentSelect = {
+    ...this.robotSelect,
+    licenseKey: true,
+  } as const;
+
+  private readonly robotLicenseSelect = {
+    ...this.robotSelect,
+    licenseKey: true,
+  } as const;
+
   private computeLicenseStatus(validUntil: Date, revokedAt: Date | null): LicenseStatus {
     if (revokedAt) return LicenseStatus.REVOKED;
     const now = new Date();
@@ -38,25 +48,62 @@ export class RobotsService {
     return LicenseStatus.ACTIVE;
   }
 
-  private generateLicenseKey(): string {
-    // 32 bytes -> 64 hex chars
-    return randomBytes(32).toString('hex');
+  private generateLicenseKeyCandidate(): string {
+    const value = randomBytes(4).readUInt32BE(0) % 1_000_000;
+    return `WHRB${value.toString().padStart(6, '0')}`;
   }
 
-  async listByOrg(orgId: number) {
+  private async generateUniqueLicenseKey(): Promise<string> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const licenseKey = this.generateLicenseKeyCandidate();
+      const existing = await this.prisma.robot.findUnique({
+        where: { licenseKey },
+        select: { id: true },
+      });
+      if (!existing) return licenseKey;
+    }
+
+    throw new Error('Unable to generate unique robot license key');
+  }
+
+  async canViewLicenseKeys(actor: { userId: number; isSuperAdmin: boolean }) {
+    if (actor.isSuperAdmin) return true;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.userId },
+      include: {
+        directPermissions: { include: { permission: true } },
+        roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
+      },
+    });
+
+    if (!user) return false;
+
+    const permissions = new Set<string>();
+    for (const direct of user.directPermissions) permissions.add(direct.permission.key);
+    for (const userRole of user.roles) {
+      for (const rolePermission of userRole.role.permissions) {
+        permissions.add(rolePermission.permission.key);
+      }
+    }
+
+    return permissions.has('robot.read') && permissions.has('license.renew');
+  }
+
+  async listByOrg(orgId: number, includeLicenseKey = false) {
     return this.prisma.robot.findMany({
       where: { orgId },
       orderBy: { id: 'desc' },
-      select: this.robotSelect,
+      select: includeLicenseKey ? this.robotLicenseSelect : this.robotSelect,
     });
   }
 
-  async listAll(orgId?: number) {
+  async listAll(orgId?: number, includeLicenseKey = false) {
     return this.prisma.robot.findMany({
       where: orgId ? { orgId } : {},
       orderBy: { id: 'desc' },
       select: {
-        ...this.robotSelect,
+        ...(includeLicenseKey ? this.robotLicenseSelect : this.robotSelect),
         org: { select: { id: true, name: true } },
       },
     });
@@ -73,7 +120,7 @@ export class RobotsService {
     actor?: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
     correlationId?: string,
   ) {
-    const licenseKey = this.generateLicenseKey();
+    const licenseKey = await this.generateUniqueLicenseKey();
     const status = this.computeLicenseStatus(input.validUntil, null);
 
     return this.prisma.$transaction(async (tx) => {
@@ -87,7 +134,7 @@ export class RobotsService {
           validUntil: input.validUntil,
           licenseStatus: status,
         },
-        select: this.robotSelect,
+        select: this.robotEnrollmentSelect,
       });
 
       if (actor) {

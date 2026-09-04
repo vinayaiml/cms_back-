@@ -58,8 +58,8 @@ export class RobotDeviceMetadataDto {
 export class RobotLoginDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(128)
-  @Matches(/^[A-Za-z0-9._:-]+$/)
+  @MaxLength(10)
+  @Matches(/^WHRB[0-9]{6}$/)
   licenseKey!: string;
 
   @IsString()

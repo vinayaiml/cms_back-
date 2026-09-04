@@ -90,7 +90,7 @@ paths:
             examples:
               robot:
                 value:
-                  licenseKey: '<license-key>'
+                  licenseKey: WHRB900001
                   serialNumber: WR-001
                   deviceMetadata:
                     manufacturer: Sanbot
@@ -324,7 +324,7 @@ paths:
             examples:
               robot:
                 value:
-                  licenseKey: '<license-key>'
+                  licenseKey: WHRB900001
                   serialNumber: WR-001
                   deviceMetadata:
                     manufacturer: Sanbot
@@ -1108,6 +1108,7 @@ paths:
     get:
       tags: [Robot]
       summary: List robots
+      description: Lists robots visible to the current user. Super Admin can list all robots. Organization users are scoped to their own organization. License keys are included only for Super Admin or organization users with both robot.read and license.renew.
       parameters:
         - name: orgId
           in: query
@@ -1129,7 +1130,7 @@ paths:
     post:
       tags: [Robot]
       summary: Enroll/register a robot
-      description: Protected administrative enrollment for a robot serial number and license window. The generated license secret is stored server-side and is not returned by this normal API response.
+      description: Protected administrative enrollment for a robot serial number and license window. The generated activation license key is returned once in this create response so it can be copied to the robot operator, and is omitted from normal robot list/detail responses.
       requestBody:
         required: true
         content:
@@ -1138,11 +1139,11 @@ paths:
               $ref: '#/components/schemas/CreateRobotRequest'
       responses:
         '201':
-          description: Robot enrolled. Response excludes licenseKey and any other credential secret.
+          description: Robot enrolled. Response includes the one-time activation licenseKey.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
+                $ref: '#/components/schemas/RobotEnrollmentResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1971,9 +1972,10 @@ components:
       properties:
         licenseKey:
           type: string
-          maxLength: 128
-          pattern: '^[A-Za-z0-9._:-]+$'
-          description: Robot activation value. Never returned in login responses, logs or normal robot resource APIs.
+          minLength: 10
+          maxLength: 10
+          pattern: '^WHRB[0-9]{6}$'
+          description: Robot activation value in WHRB plus six digits format. Never returned in login responses, logs or unauthorized robot resource APIs.
         serialNumber:
           type: string
           maxLength: 64
@@ -2247,7 +2249,7 @@ components:
           type: string
     Robot:
       type: object
-      description: Robot resource returned by normal administrative APIs. Credential secrets such as licenseKey are intentionally excluded.
+      description: Robot resource returned by administrative APIs. License keys are included only for authorized license viewers and should be masked by clients until explicitly revealed.
       properties:
         id:
           type: integer
@@ -2284,6 +2286,12 @@ components:
           type: string
           nullable: true
           deprecated: true
+        licenseKey:
+          type: string
+          minLength: 10
+          maxLength: 10
+          pattern: '^WHRB[0-9]{6}$'
+          description: Returned only to Super Admin or organization users with both robot.read and license.renew. Organization users receive only robots from their own organization.
     CreateRobotRequest:
       type: object
       required: [serialNumber, validFrom, validUntil]
@@ -2304,6 +2312,18 @@ components:
         validUntil:
           type: string
           format: date-time
+    RobotEnrollmentResponse:
+      allOf:
+        - $ref: '#/components/schemas/Robot'
+        - type: object
+          required: [licenseKey]
+          properties:
+            licenseKey:
+              type: string
+              minLength: 10
+              maxLength: 10
+              pattern: '^WHRB[0-9]{6}$'
+              description: Activation license key generated during enrollment in WHRB plus six digits format.
     RenewLicenseRequest:
       type: object
       required: [validUntil]

@@ -29,14 +29,18 @@ export class RobotsController {
   @RequirePermissions('robot.read')
   async list(@CurrentUser() actor: JwtPayload, @Query('orgId') orgId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    const includeLicenseKey = await this.robots.canViewLicenseKeys({
+      userId: actor.sub,
+      isSuperAdmin: actor.isSuperAdmin,
+    });
 
     if (actor.isSuperAdmin) {
       const parsedOrgId = orgId ? Number(orgId) : undefined;
-      return this.robots.listAll(parsedOrgId);
+      return this.robots.listAll(parsedOrgId, includeLicenseKey);
     }
 
     if (!actor.orgId) throw new ForbiddenException('Org scope required');
-    return this.robots.listByOrg(actor.orgId);
+    return this.robots.listByOrg(actor.orgId, includeLicenseKey);
   }
 
   @Post()

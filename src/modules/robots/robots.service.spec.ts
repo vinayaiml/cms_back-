@@ -27,6 +27,10 @@ describe('RobotsService device metadata', () => {
   const prisma = {
     robot: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -95,7 +99,8 @@ describe('RobotsService device metadata', () => {
     expect(audit.recordCritical).not.toHaveBeenCalled();
   });
 
-  it('enrolls a robot without returning the license key and records a redacted audit event', async () => {
+  it('enrolls a robot with a one-time license key and records a redacted audit event', async () => {
+    const licenseKey = 'WHRB123456';
     const enrolledRobot = {
       id: robot.id,
       orgId: robot.orgId,
@@ -111,6 +116,7 @@ describe('RobotsService device metadata', () => {
       deviceMetadata: null,
       createdAt: robot.createdAt,
       updatedAt: robot.updatedAt,
+      licenseKey,
     };
     const tx = {
       robot: {
@@ -118,6 +124,7 @@ describe('RobotsService device metadata', () => {
       },
     };
 
+    prisma.robot.findUnique.mockResolvedValue(null);
     prisma.$transaction.mockImplementation((callback) => callback(tx));
 
     const result = await service.createRobot(
@@ -137,12 +144,12 @@ describe('RobotsService device metadata', () => {
         orgId: 1,
         serialNumber: 'WR-001',
         name: 'Demo Robot',
-        licenseKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        licenseKey: expect.stringMatching(/^WHRB[0-9]{6}$/),
         validFrom: new Date('2026-01-01T00:00:00.000Z'),
         validUntil: new Date('2027-01-01T00:00:00.000Z'),
         licenseStatus: LicenseStatus.ACTIVE,
       },
-      select: expect.not.objectContaining({ licenseKey: true }),
+      select: expect.objectContaining({ licenseKey: true }),
     });
     expect(audit.recordCritical).toHaveBeenCalledWith(
       {
@@ -161,6 +168,63 @@ describe('RobotsService device metadata', () => {
       },
       tx,
     );
-    expect(result).not.toHaveProperty('licenseKey');
+    expect(result).toHaveProperty('licenseKey', licenseKey);
+  });
+
+  it('includes license keys for authorized org users only within their organization', async () => {
+    prisma.robot.findMany.mockResolvedValue([]);
+
+    await service.listByOrg(1, true);
+
+    expect(prisma.robot.findMany).toHaveBeenCalledWith({
+      where: { orgId: 1 },
+      orderBy: { id: 'desc' },
+      select: expect.objectContaining({ licenseKey: true }),
+    });
+  });
+
+  it('does not include license keys when license view is not requested', async () => {
+    prisma.robot.findMany.mockResolvedValue([]);
+
+    await service.listByOrg(1, false);
+
+    expect(prisma.robot.findMany).toHaveBeenCalledWith({
+      where: { orgId: 1 },
+      orderBy: { id: 'desc' },
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+  });
+
+  it('allows license-key viewing for org users with robot.read and license.renew', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      directPermissions: [],
+      roles: [
+        {
+          role: {
+            permissions: [
+              { permission: { key: 'robot.read' } },
+              { permission: { key: 'license.renew' } },
+            ],
+          },
+        },
+      ],
+    });
+
+    await expect(service.canViewLicenseKeys({ userId: 2, isSuperAdmin: false })).resolves.toBe(true);
+  });
+
+  it('blocks license-key viewing for org users without license.renew', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      directPermissions: [],
+      roles: [
+        {
+          role: {
+            permissions: [{ permission: { key: 'robot.read' } }],
+          },
+        },
+      ],
+    });
+
+    await expect(service.canViewLicenseKeys({ userId: 2, isSuperAdmin: false })).resolves.toBe(false);
   });
 });

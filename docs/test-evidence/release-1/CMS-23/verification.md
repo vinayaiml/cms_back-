@@ -7,10 +7,14 @@ Ticket: Define robot enrollment and login contract including serial number and d
 - Protected robot enrollment is represented by `POST /api/robots`.
 - Robot session login is represented by `POST /api/v1/robot/auth/login`.
 - Login requires `licenseKey`, `serialNumber` and `deviceMetadata`.
+- License keys are generated as `WHRB` plus six digits, for example `WHRB900001`.
 - Android sends the Sanbot robot ID from device settings as `serialNumber`.
 - Optional legacy `deviceMetadataConsent` is accepted only when `true`.
 - Device metadata accepts only the contract fields in OpenAPI and rejects additional fields.
-- Normal robot resource responses and login license responses exclude `licenseKey`.
+- Robot enrollment returns the activation `licenseKey` in the create response.
+- Robot lists include `licenseKey` only for Super Admin or organization users with both `robot.read` and `license.renew`.
+- Organization users can receive only their own organization's robot keys.
+- Login license responses exclude `licenseKey`.
 - Rejected login events record controlled reason codes only, not credentials or raw request bodies.
 
 ## Contract Cases
@@ -36,7 +40,8 @@ Expected result: all listed robot auth/enrollment contract tests pass.
 
 ## Secret Handling
 
-- `licenseKey` is generated and stored server-side during robot enrollment but omitted from the selected `Robot` response.
+- `licenseKey` is generated as `WHRB` plus six digits and stored server-side during robot enrollment.
+- Normal robot list/detail responses omit `licenseKey`.
 - Robot login responses include a session token by design, but do not include the license key or raw submitted metadata.
 - Stored device identity fields are SHA-256 digests for manufacturer, model and Android version.
 - Audit metadata for `robot.enrolled` includes serial number, license status and license dates only.

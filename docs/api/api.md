@@ -120,7 +120,7 @@ Body:
 
 ```json
 {
-  "licenseKey": "<license-key>",
+  "licenseKey": "WHRB900001",
   "serialNumber": "TEST-ACTIVE-001",
   "deviceMetadata": {
     "manufacturer": "Sanbot",
@@ -183,7 +183,9 @@ Example:
 }
 ```
 
-Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, stores the generated license secret server-side, records `robot.enrolled` audit metadata without the secret, and returns the normal `Robot` resource without `licenseKey`.
+Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, generates the activation license key server-side in `WHRB` plus six digits format, records `robot.enrolled` audit metadata without the secret, and returns the activation `licenseKey` in the create response.
+
+Robot lists include `licenseKey` only for Super Admin or organization users with both `robot.read` and `license.renew`. Organization users receive only their own organization's robot keys. Clients must mask the key by default and reveal it only on explicit user action.
 
 CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. Raw license keys, JWTs and raw device identity metadata are not returned by this API.
 
