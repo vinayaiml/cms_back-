@@ -41,17 +41,25 @@ export class RobotsController {
 
   @Post()
   @RequirePermissions('robot.create')
-  async create(@CurrentUser() actor: JwtPayload, @Body() dto: CreateRobotDto) {
+  async create(
+    @CurrentUser() actor: JwtPayload,
+    @Body() dto: CreateRobotDto,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
     const effectiveOrgId = actor.isSuperAdmin ? dto.orgId : actor.orgId;
     if (!effectiveOrgId) throw new ForbiddenException('Org scope required');
-    return this.robots.createRobot({
-      orgId: effectiveOrgId,
-      serialNumber: dto.serialNumber,
-      name: dto.name,
-      validFrom: new Date(dto.validFrom),
-      validUntil: new Date(dto.validUntil),
-    });
+    return this.robots.createRobot(
+      {
+        orgId: effectiveOrgId,
+        serialNumber: dto.serialNumber,
+        name: dto.name,
+        validFrom: new Date(dto.validFrom),
+        validUntil: new Date(dto.validUntil),
+      },
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      correlationId,
+    );
   }
 
   @Put(':id/license/renew')

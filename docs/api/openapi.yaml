@@ -78,8 +78,8 @@ paths:
     post:
       tags: [Robot]
       operationId: loginRobotV1
-      summary: Robot login by license key
-      description: Authenticates a robot by license key and serial number, stores safe device metadata, and returns a robot JWT. Expired, revoked and inactive-organization cases receive the domain locked error.
+      summary: Robot login by license key and Sanbot robot ID
+      description: Authenticates a robot by tester-entered license key and the Sanbot robot ID sent as serialNumber, stores safe device metadata, and returns a robot JWT. Expired, revoked and inactive-organization cases receive the domain locked error.
       security: []
       requestBody:
         required: true
@@ -99,7 +99,6 @@ paths:
                     apiLevel: 25
                     appVersionName: 0.1.0
                     appVersionCode: 2
-                  deviceMetadataConsent: true
       responses:
         '201':
           description: Robot login successful
@@ -1129,7 +1128,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
     post:
       tags: [Robot]
-      summary: Create robot
+      summary: Enroll/register a robot
+      description: Protected administrative enrollment for a robot serial number and license window. The generated license secret is stored server-side and is not returned by this normal API response.
       requestBody:
         required: true
         content:
@@ -1138,7 +1138,7 @@ paths:
               $ref: '#/components/schemas/CreateRobotRequest'
       responses:
         '201':
-          description: Robot created
+          description: Robot enrolled. Response excludes licenseKey and any other credential secret.
           content:
             application/json:
               schema:
@@ -1966,19 +1966,24 @@ components:
           format: password
     RobotLoginRequest:
       type: object
-      required: [licenseKey, serialNumber, deviceMetadata, deviceMetadataConsent]
+      required: [licenseKey, serialNumber, deviceMetadata]
+      additionalProperties: false
       properties:
         licenseKey:
           type: string
-          description: Robot activation value. Never returned in login responses.
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+          description: Robot activation value. Never returned in login responses, logs or normal robot resource APIs.
         serialNumber:
           type: string
-          description: Registered robot serial number paired with the license key.
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._:-]+$'
+          description: Sanbot robot ID fetched from device settings and paired with the registered license key.
         deviceMetadata:
           $ref: '#/components/schemas/RobotDeviceMetadata'
         deviceMetadataConsent:
           type: boolean
-          description: Must be true. Confirms the robot is authorized to submit device metadata for activation/session binding.
+          description: Optional legacy field. If present, it must be true. Android robot clients may omit this field.
           enum: [true]
     RobotDeviceMetadata:
       type: object
@@ -1987,12 +1992,16 @@ components:
       properties:
         manufacturer:
           type: string
+          maxLength: 80
           example: Sanbot
         model:
           type: string
+          maxLength: 80
           example: Mini ELF
         androidVersion:
           type: string
+          maxLength: 32
+          pattern: '^[0-9A-Za-z._ -]+$'
           example: 7.1.2
         apiLevel:
           type: integer
@@ -2000,6 +2009,8 @@ components:
           example: 25
         appVersionName:
           type: string
+          maxLength: 40
+          pattern: '^[0-9A-Za-z._+-]+$'
           example: 0.1.0
         appVersionCode:
           type: integer
@@ -2236,6 +2247,7 @@ components:
           type: string
     Robot:
       type: object
+      description: Robot resource returned by normal administrative APIs. Credential secrets such as licenseKey are intentionally excluded.
       properties:
         id:
           type: integer
@@ -2243,6 +2255,8 @@ components:
           type: integer
         serialNumber:
           type: string
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._:-]+$'
         name:
           type: string
           nullable: true
@@ -2265,19 +2279,25 @@ components:
         appVersion:
           type: string
           nullable: true
+          maxLength: 40
         deviceModel:
           type: string
           nullable: true
+          deprecated: true
     CreateRobotRequest:
       type: object
       required: [serialNumber, validFrom, validUntil]
+      additionalProperties: false
       properties:
         orgId:
           type: integer
         serialNumber:
           type: string
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._:-]+$'
         name:
           type: string
+          maxLength: 80
         validFrom:
           type: string
           format: date-time

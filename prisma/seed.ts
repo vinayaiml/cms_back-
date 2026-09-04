@@ -1,4 +1,4 @@
-import { PrismaClient, DashboardTemplateType } from '@prisma/client';
+import { PrismaClient, DashboardTemplateType, LicenseStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -444,7 +444,35 @@ async function main() {
   // Create robots with different license statuses
   console.log('🤖 Creating test robots...');
   const robotsByOrg: Record<number, any[]> = {};
-  const licenseStatuses = ['ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'REVOKED'];
+  const licenseStatuses = [
+    LicenseStatus.ACTIVE,
+    LicenseStatus.EXPIRING_SOON,
+    LicenseStatus.EXPIRED,
+    LicenseStatus.REVOKED,
+  ];
+
+  function licenseWindow(status: LicenseStatus) {
+    const now = new Date();
+    let validUntil = new Date(now);
+    let revokedAt: Date | null = null;
+
+    if (status === LicenseStatus.ACTIVE) {
+      validUntil = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    } else if (status === LicenseStatus.EXPIRING_SOON) {
+      validUntil = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    } else if (status === LicenseStatus.EXPIRED) {
+      validUntil = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+    } else if (status === LicenseStatus.REVOKED) {
+      validUntil = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+      revokedAt = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+    }
+
+    return {
+      validFrom: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
+      validUntil,
+      revokedAt,
+    };
+  }
 
   for (const org of [demoOrg, ...orgs]) {
     robotsByOrg[org.id] = [];
@@ -459,20 +487,7 @@ async function main() {
       });
 
       if (!robot) {
-        const now = new Date();
-        let validUntil = new Date(now);
-        let revokedAt = null;
-
-        if (status === 'ACTIVE') {
-          validUntil = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-        } else if (status === 'EXPIRING_SOON') {
-          validUntil = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
-        } else if (status === 'EXPIRED') {
-          validUntil = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
-        } else if (status === 'REVOKED') {
-          validUntil = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-          revokedAt = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
-        }
+        const window = licenseWindow(status);
 
         robot = await prisma.robot.create({
           data: {
@@ -480,10 +495,10 @@ async function main() {
             serialNumber: `ROBOT-${org.id}-${i + 1}`,
             name: `Robot ${i + 1} (${status})`,
             licenseKey: `LICENSE-${org.id}-${i + 1}`,
-            validFrom: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
-            validUntil,
-            licenseStatus: status as any,
-            revokedAt,
+            validFrom: window.validFrom,
+            validUntil: window.validUntil,
+            licenseStatus: status,
+            revokedAt: window.revokedAt,
           },
         });
       }
@@ -491,6 +506,89 @@ async function main() {
       robotsByOrg[org.id].push(robot);
     }
   }
+
+  const inactiveRobotOrg =
+    (await prisma.organization.findFirst({ where: { name: 'Robot Login Inactive Test Org' } })) ??
+    (await prisma.organization.create({
+      data: {
+        name: 'Robot Login Inactive Test Org',
+        state: 'Maharashtra',
+        city: 'Mumbai',
+        authorizedPersonName: 'Inactive Robot Tester',
+        contactNo: '9876543299',
+        isActive: false,
+      },
+    }));
+
+  if (inactiveRobotOrg.isActive) {
+    await prisma.organization.update({
+      where: { id: inactiveRobotOrg.id },
+      data: { isActive: false },
+    });
+  }
+
+  const stableRobotCases = [
+    {
+      orgId: demoOrg.id,
+      serialNumber: 'TEST-ACTIVE-001',
+      name: 'API Test Robot (ACTIVE)',
+      licenseKey: 'TEST-LICENSE-ACTIVE-001',
+      status: LicenseStatus.ACTIVE,
+    },
+    {
+      orgId: demoOrg.id,
+      serialNumber: 'TEST-EXPIRED-001',
+      name: 'API Test Robot (EXPIRED)',
+      licenseKey: 'TEST-LICENSE-EXPIRED-001',
+      status: LicenseStatus.EXPIRED,
+    },
+    {
+      orgId: demoOrg.id,
+      serialNumber: 'TEST-REVOKED-001',
+      name: 'API Test Robot (REVOKED)',
+      licenseKey: 'TEST-LICENSE-REVOKED-001',
+      status: LicenseStatus.REVOKED,
+    },
+    {
+      orgId: inactiveRobotOrg.id,
+      serialNumber: 'TEST-INACTIVE-ORG-001',
+      name: 'API Test Robot (INACTIVE ORG)',
+      licenseKey: 'TEST-LICENSE-INACTIVE-ORG-001',
+      status: LicenseStatus.ACTIVE,
+    },
+  ];
+
+  for (const testRobot of stableRobotCases) {
+    const window = licenseWindow(testRobot.status);
+    const robot = await prisma.robot.upsert({
+      where: { serialNumber: testRobot.serialNumber },
+      update: {
+        orgId: testRobot.orgId,
+        name: testRobot.name,
+        licenseKey: testRobot.licenseKey,
+        validFrom: window.validFrom,
+        validUntil: window.validUntil,
+        licenseStatus: testRobot.status,
+        revokedAt: window.revokedAt,
+      },
+      create: {
+        orgId: testRobot.orgId,
+        serialNumber: testRobot.serialNumber,
+        name: testRobot.name,
+        licenseKey: testRobot.licenseKey,
+        validFrom: window.validFrom,
+        validUntil: window.validUntil,
+        licenseStatus: testRobot.status,
+        revokedAt: window.revokedAt,
+      },
+    });
+
+    if (testRobot.orgId === demoOrg.id) {
+      robotsByOrg[demoOrg.id].push(robot);
+    }
+  }
+
+  console.log('✅ Stable robot API test serials: TEST-ACTIVE-001, TEST-EXPIRED-001, TEST-REVOKED-001, TEST-INACTIVE-ORG-001');
 
   // Create usage logs (offline-first, will be accumulated)
   console.log('📊 Creating test usage logs...');

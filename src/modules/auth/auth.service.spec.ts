@@ -58,7 +58,7 @@ describe('AuthService robot login', () => {
     jwt.sign.mockReturnValue('robot-jwt');
   });
 
-  it('stores consented device metadata as digests and does not return the license key', async () => {
+  it('stores Android robot metadata as digests and does not return the license key', async () => {
     prisma.robot.findUnique.mockResolvedValue(buildRobot());
     prisma.robot.update.mockResolvedValue({});
 
@@ -94,6 +94,26 @@ describe('AuthService robot login', () => {
     expect(result.token).toBe('robot-jwt');
     expect(result.robot.serialNumber).toBe('WR-001');
     expect(result.license).not.toHaveProperty('licenseKey');
+  });
+
+  it('accepts Android login without device metadata consent and stores implied consent', async () => {
+    prisma.robot.findUnique.mockResolvedValue(buildRobot());
+    prisma.robot.update.mockResolvedValue({});
+
+    const { deviceMetadataConsent: _omitted, ...androidLogin } = activeLogin;
+
+    await service.loginRobot(androidLogin);
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: expect.objectContaining({
+        deviceMetadata: expect.objectContaining({
+          consent: {
+            deviceMetadata: true,
+          },
+        }),
+      }),
+    });
   });
 
   it('rejects a stolen license key when the serial number does not match', async () => {

@@ -70,7 +70,7 @@ export class AuthService {
       schemaVersion: 1,
       storage: 'sha256-digest',
       consent: {
-        deviceMetadata: dto.deviceMetadataConsent,
+        deviceMetadata: dto.deviceMetadataConsent ?? true,
       },
       identity: {
         manufacturerSha256: this.digest(dto.deviceMetadata.manufacturer),

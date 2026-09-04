@@ -48,7 +48,7 @@ describe('RobotAuthController', () => {
     await app.close();
   });
 
-  it('accepts license, serial number, device metadata and consent on the v1 login route', async () => {
+  it('accepts Android login with license, serial number and device metadata on the v1 login route', async () => {
     authService.loginRobot.mockResolvedValue({
       token: 'robot-jwt',
       robot: {
@@ -77,7 +77,30 @@ describe('RobotAuthController', () => {
     expect(authService.loginRobot).toHaveBeenCalledWith(robotLoginBody);
   });
 
-  it('rejects login without serial number, device metadata and consent', async () => {
+  it('accepts Android login without device metadata consent', async () => {
+    authService.loginRobot.mockResolvedValue({
+      token: 'robot-jwt',
+      robot: {
+        id: 10,
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+      },
+      license: {
+        validFrom: '2026-01-01T00:00:00.000Z',
+        validUntil: '2027-01-01T00:00:00.000Z',
+        status: 'ACTIVE',
+        locked: false,
+      },
+    });
+    const { deviceMetadataConsent: _omitted, ...androidBody } = robotLoginBody;
+
+    await request(app.getHttpServer()).post('/api/v1/robot/auth/login').send(androidBody).expect(201);
+
+    expect(authService.loginRobot).toHaveBeenCalledWith(androidBody);
+  });
+
+  it('rejects login without serial number and device metadata', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/robot/auth/login')
       .send({ licenseKey: 'LICENSE-1-1' })
@@ -90,6 +113,34 @@ describe('RobotAuthController', () => {
     await request(app.getHttpServer())
       .post('/api/v1/robot/auth/login')
       .send({ ...robotLoginBody, deviceMetadataConsent: false })
+      .expect(400);
+
+    expect(authService.loginRobot).not.toHaveBeenCalled();
+  });
+
+  it('rejects prohibited extra device metadata fields', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/robot/auth/login')
+      .send({
+        ...robotLoginBody,
+        deviceMetadata: {
+          ...robotLoginBody.deviceMetadata,
+          ownerEmail: 'student@example.com',
+        },
+      })
+      .expect(400);
+
+    expect(authService.loginRobot).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid serial and license-key formats', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/robot/auth/login')
+      .send({
+        ...robotLoginBody,
+        licenseKey: 'LICENSE 1 with spaces',
+        serialNumber: 'WR/001',
+      })
       .expect(400);
 
     expect(authService.loginRobot).not.toHaveBeenCalled();

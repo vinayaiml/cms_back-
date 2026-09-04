@@ -62,27 +62,55 @@ export class RobotsService {
     });
   }
 
-  async createRobot(input: {
-    orgId: number;
-    serialNumber: string;
-    name?: string;
-    validFrom: Date;
-    validUntil: Date;
-  }) {
+  async createRobot(
+    input: {
+      orgId: number;
+      serialNumber: string;
+      name?: string;
+      validFrom: Date;
+      validUntil: Date;
+    },
+    actor?: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
     const licenseKey = this.generateLicenseKey();
     const status = this.computeLicenseStatus(input.validUntil, null);
 
-    return this.prisma.robot.create({
-      data: {
-        orgId: input.orgId,
-        serialNumber: input.serialNumber,
-        name: input.name,
-        licenseKey,
-        validFrom: input.validFrom,
-        validUntil: input.validUntil,
-        licenseStatus: status,
-      },
-      select: this.robotSelect,
+    return this.prisma.$transaction(async (tx) => {
+      const robot = await tx.robot.create({
+        data: {
+          orgId: input.orgId,
+          serialNumber: input.serialNumber,
+          name: input.name,
+          licenseKey,
+          validFrom: input.validFrom,
+          validUntil: input.validUntil,
+          licenseStatus: status,
+        },
+        select: this.robotSelect,
+      });
+
+      if (actor) {
+        await this.audit.recordCritical(
+          {
+            actor,
+            action: 'robot.enrolled',
+            targetType: 'robot',
+            targetId: robot.id,
+            targetOrgId: robot.orgId,
+            correlationId,
+            metadata: {
+              serialNumber: robot.serialNumber,
+              licenseStatus: robot.licenseStatus,
+              validFrom: robot.validFrom,
+              validUntil: robot.validUntil,
+            },
+          },
+          tx,
+        );
+      }
+
+      return robot;
     });
   }
 

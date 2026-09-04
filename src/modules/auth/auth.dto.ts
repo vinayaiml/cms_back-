@@ -1,5 +1,18 @@
 import { Type } from 'class-transformer';
-import { Equals, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsObject, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  Equals,
+  IsBoolean,
+  IsEmail,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -13,14 +26,18 @@ export class LoginDto {
 export class RobotDeviceMetadataDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   manufacturer!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   model!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(32)
+  @Matches(/^[0-9A-Za-z._ -]+$/)
   androidVersion!: string;
 
   @IsInt()
@@ -29,6 +46,8 @@ export class RobotDeviceMetadataDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(40)
+  @Matches(/^[0-9A-Za-z._+-]+$/)
   appVersionName!: string;
 
   @IsInt()
@@ -39,10 +58,14 @@ export class RobotDeviceMetadataDto {
 export class RobotLoginDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(128)
+  @Matches(/^[A-Za-z0-9._:-]+$/)
   licenseKey!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9._:-]+$/)
   serialNumber!: string;
 
   @IsObject()
@@ -52,5 +75,6 @@ export class RobotLoginDto {
 
   @IsBoolean()
   @Equals(true)
-  deviceMetadataConsent!: boolean;
+  @IsOptional()
+  deviceMetadataConsent?: boolean;
 }

@@ -94,4 +94,73 @@ describe('RobotsService device metadata', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(audit.recordCritical).not.toHaveBeenCalled();
   });
+
+  it('enrolls a robot without returning the license key and records a redacted audit event', async () => {
+    const enrolledRobot = {
+      id: robot.id,
+      orgId: robot.orgId,
+      serialNumber: robot.serialNumber,
+      name: robot.name,
+      validFrom: robot.validFrom,
+      validUntil: robot.validUntil,
+      licenseStatus: robot.licenseStatus,
+      revokedAt: robot.revokedAt,
+      lastSeenAt: null,
+      appVersion: null,
+      deviceModel: null,
+      deviceMetadata: null,
+      createdAt: robot.createdAt,
+      updatedAt: robot.updatedAt,
+    };
+    const tx = {
+      robot: {
+        create: jest.fn().mockResolvedValue(enrolledRobot),
+      },
+    };
+
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.createRobot(
+      {
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2027-01-01T00:00:00.000Z'),
+      },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'enroll-123',
+    );
+
+    expect(tx.robot.create).toHaveBeenCalledWith({
+      data: {
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+        licenseKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2027-01-01T00:00:00.000Z'),
+        licenseStatus: LicenseStatus.ACTIVE,
+      },
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+    expect(audit.recordCritical).toHaveBeenCalledWith(
+      {
+        actor: { userId: 1, orgId: null, isSuperAdmin: true },
+        action: 'robot.enrolled',
+        targetType: 'robot',
+        targetId: 10,
+        targetOrgId: 1,
+        correlationId: 'enroll-123',
+        metadata: {
+          serialNumber: 'WR-001',
+          licenseStatus: LicenseStatus.ACTIVE,
+          validFrom: new Date('2026-01-01T00:00:00.000Z'),
+          validUntil: new Date('2027-01-01T00:00:00.000Z'),
+        },
+      },
+      tx,
+    );
+    expect(result).not.toHaveProperty('licenseKey');
+  });
 });

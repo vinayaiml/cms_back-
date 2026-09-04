@@ -106,8 +106,11 @@ Expected status:
 
 ## Robot Login
 
-Use this route to exchange a robot activation value and serial number for a robot JWT.
+Use this route to exchange a tester-entered robot activation value and the Sanbot robot ID for a robot JWT.
 CMS stores the provided safe device metadata on successful login.
+The Android app sends the Sanbot robot ID in the `serialNumber` field.
+The request rejects unknown metadata fields and invalid serial/license formats.
+Raw license keys are never returned in login responses, robot resource responses, logs or audit metadata.
 
 ```text
 POST http://localhost:3001/api/v1/robot/auth/login
@@ -118,7 +121,7 @@ Body:
 ```json
 {
   "licenseKey": "<license-key>",
-  "serialNumber": "WR-001",
+  "serialNumber": "TEST-ACTIVE-001",
   "deviceMetadata": {
     "manufacturer": "Sanbot",
     "model": "Mini ELF",
@@ -126,8 +129,7 @@ Body:
     "apiLevel": 25,
     "appVersionName": "0.1.0",
     "appVersionCode": 2
-  },
-  "deviceMetadataConsent": true
+  }
 }
 ```
 
@@ -180,6 +182,8 @@ Example:
   }
 }
 ```
+
+Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, stores the generated license secret server-side, records `robot.enrolled` audit metadata without the secret, and returns the normal `Robot` resource without `licenseKey`.
 
 CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. Raw license keys, JWTs and raw device identity metadata are not returned by this API.
 
