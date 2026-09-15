@@ -71,6 +71,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -79,7 +81,7 @@ paths:
       tags: [Robot]
       operationId: loginRobotV1
       summary: Robot login by license key and Sanbot robot ID
-      description: Authenticates a robot by tester-entered license key and the Sanbot robot ID sent as serialNumber, stores safe device metadata, and returns a robot JWT. Expired, revoked and inactive-organization cases receive the domain locked error.
+      description: Authenticates a robot by tester-entered license key and the Sanbot robot ID sent as serialNumber, stores safe device metadata, and returns a short-lived robot access token plus refresh token. Expired, revoked and inactive-organization cases receive the domain locked error.
       security: []
       requestBody:
         required: true
@@ -91,7 +93,7 @@ paths:
               robot:
                 value:
                   licenseKey: WHRB900001
-                  serialNumber: WR-001
+                  serialNumber: TEST-ACTIVE-001
                   deviceMetadata:
                     manufacturer: Sanbot
                     model: Mini ELF
@@ -109,11 +111,16 @@ paths:
               examples:
                 success:
                   value:
-                    token: '<robot-jwt>'
+                    token: '<robot-access-jwt>'
+                    accessToken: '<robot-access-jwt>'
+                    refreshToken: '<robot-refresh-jwt>'
+                    expiresIn: 900
+                    refreshExpiresIn: 604800
+                    tokenType: Bearer
                     robot:
                       id: 10
                       orgId: 1
-                      serialNumber: WR-001
+                      serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
                       validFrom: '2026-01-01T00:00:00.000Z'
@@ -164,6 +171,91 @@ paths:
                       code: ORG_INACTIVE
                       message: Organization is inactive
                       locked: true
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/robot/auth/refresh:
+    post:
+      tags: [Robot]
+      operationId: refreshRobotTokenV1
+      summary: Renew robot access token
+      description: Exchanges a valid robot refresh token for a new short-lived robot access token. Refresh tokens are not accepted by sync or log upload endpoints.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotTokenRefreshRequest'
+            examples:
+              refresh:
+                value:
+                  refreshToken: '<robot-refresh-jwt>'
+      responses:
+        '201':
+          description: Robot access token renewed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotTokenRefreshResponse'
+              examples:
+                success:
+                  value:
+                    token: '<robot-access-jwt>'
+                    accessToken: '<robot-access-jwt>'
+                    expiresIn: 900
+                    tokenType: Bearer
+                    robot:
+                      id: 10
+                      orgId: 1
+                      serialNumber: TEST-ACTIVE-001
+                      name: Demo Robot
+                    license:
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      status: ACTIVE
+                      locked: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidRefreshToken:
+                  value:
+                    statusCode: 401
+                    message: Invalid refresh token
+                    error: Unauthorized
+        '423':
+          description: Robot refresh is locked by license or organization state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockedErrorResponse'
+              examples:
+                expired:
+                  value:
+                    error:
+                      code: LICENSE_EXPIRED
+                      message: Robot license is expired
+                      locked: true
+                revoked:
+                  value:
+                    error:
+                      code: LICENSE_REVOKED
+                      message: Robot license is revoked
+                      locked: true
+                orgInactive:
+                  value:
+                    error:
+                      code: ORG_INACTIVE
+                      message: Organization is inactive
+                      locked: true
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -172,9 +264,28 @@ paths:
       tags: [Robot]
       operationId: syncRobotV1
       summary: Get robot sync/configuration payload
-      description: Returns the robot license state, assigned courses and public catalog content for the authenticated robot.
+      description: Returns the robot license state, assigned courses and public catalog content for the authenticated robot. Updates the robot last-seen timestamp and, when supplied, safe app version/device model heartbeat fields.
       security:
         - robotBearerAuth: []
+      parameters:
+        - name: X-Robot-App-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+            pattern: '^[0-9A-Za-z._+-]+$'
+          example: 0.1.0
+          description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-Device-Model
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+            pattern: '^[0-9A-Za-z._+() -]+$'
+          example: Mini ELF
+          description: Optional robot model heartbeat. Stored on the authenticated robot record only.
       responses:
         '200':
           description: Sync payload
@@ -193,6 +304,18 @@ paths:
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
+        '400':
+          description: Invalid robot heartbeat header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidHeartbeat:
+                  value:
+                    statusCode: 400
+                    message: x-robot-app-version is invalid
+                    error: Bad Request
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -325,7 +448,7 @@ paths:
               robot:
                 value:
                   licenseKey: WHRB900001
-                  serialNumber: WR-001
+                  serialNumber: TEST-ACTIVE-001
                   deviceMetadata:
                     manufacturer: Sanbot
                     model: Mini ELF
@@ -344,11 +467,16 @@ paths:
               examples:
                 success:
                   value:
-                    token: '<robot-jwt>'
+                    token: '<robot-access-jwt>'
+                    accessToken: '<robot-access-jwt>'
+                    refreshToken: '<robot-refresh-jwt>'
+                    expiresIn: 900
+                    refreshExpiresIn: 604800
+                    tokenType: Bearer
                     robot:
                       id: 10
                       orgId: 1
-                      serialNumber: WR-001
+                      serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
                       validFrom: '2026-01-01T00:00:00.000Z'
@@ -399,6 +527,71 @@ paths:
                       code: ORG_INACTIVE
                       message: Organization is inactive
                       locked: true
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robot/auth/refresh:
+    post:
+      tags: [Robot]
+      operationId: refreshRobotTokenLegacy
+      summary: Robot token refresh legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use POST /api/v1/robot/auth/refresh.
+        Planned removal: API v2.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotTokenRefreshRequest'
+            examples:
+              refresh:
+                value:
+                  refreshToken: '<robot-refresh-jwt>'
+      responses:
+        '201':
+          description: Robot access token renewed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotTokenRefreshResponse'
+              examples:
+                success:
+                  value:
+                    token: '<robot-access-jwt>'
+                    accessToken: '<robot-access-jwt>'
+                    expiresIn: 900
+                    tokenType: Bearer
+                    robot:
+                      id: 10
+                      orgId: 1
+                      serialNumber: TEST-ACTIVE-001
+                      name: Demo Robot
+                    license:
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      status: ACTIVE
+                      locked: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidRefreshToken:
+                  value:
+                    statusCode: 401
+                    message: Invalid refresh token
+                    error: Unauthorized
+        '423':
+          $ref: '#/components/responses/Locked'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -413,6 +606,25 @@ paths:
         Planned removal: API v2.
       security:
         - robotBearerAuth: []
+      parameters:
+        - name: X-Robot-App-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+            pattern: '^[0-9A-Za-z._+-]+$'
+          example: 0.1.0
+          description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-Device-Model
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+            pattern: '^[0-9A-Za-z._+() -]+$'
+          example: Mini ELF
+          description: Optional robot model heartbeat. Stored on the authenticated robot record only.
       responses:
         '200':
           description: Sync payload
@@ -431,6 +643,18 @@ paths:
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
+        '400':
+          description: Invalid robot heartbeat header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidHeartbeat:
+                  value:
+                    statusCode: 400
+                    message: x-robot-app-version is invalid
+                    error: Bad Request
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1108,7 +1332,7 @@ paths:
     get:
       tags: [Robot]
       summary: List robots
-      description: Lists robots visible to the current user. Super Admin can list all robots. Organization users are scoped to their own organization. License keys are included only for Super Admin or organization users with both robot.read and license.renew.
+      description: Lists robots visible to the current user. Super Admin can list all robots and receives protected license key display fields for the CMS masked/reveal UI. Organization users are scoped to their own organization and never receive license keys from this list API.
       parameters:
         - name: orgId
           in: query
@@ -1130,7 +1354,7 @@ paths:
     post:
       tags: [Robot]
       summary: Enroll/register a robot
-      description: Protected administrative enrollment for a robot serial number and license window. The generated activation license key is returned once in this create response so it can be copied to the robot operator, and is omitted from normal robot list/detail responses.
+      description: Protected administrative enrollment for a robot serial number and license window. The generated activation license key is stored as a protected secret and returned to Super Admin so it can be copied to the robot operator.
       requestBody:
         required: true
         content:
@@ -1139,7 +1363,7 @@ paths:
               $ref: '#/components/schemas/CreateRobotRequest'
       responses:
         '201':
-          description: Robot enrolled. Response includes the one-time activation licenseKey.
+          description: Robot enrolled. Response includes the generated activation licenseKey for Super Admin.
           content:
             application/json:
               schema:
@@ -1178,6 +1402,104 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /robots/{id}/credentials/rotate:
+    post:
+      tags: [Robot]
+      summary: Rotate robot credential
+      description: Super Admin-only credential rotation. Replaces the robot activation license key, records a redacted audit event, and returns the new license key in this rotation response. The previous license key stops working immediately.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Robot credential rotated. Response includes the new activation licenseKey.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotCredentialRotationResponse'
+              examples:
+                success:
+                  value:
+                    id: 1
+                    orgId: 1
+                    serialNumber: TEST-ACTIVE-001
+                    name: API Test Robot (ACTIVE)
+                    licenseKey: WHRB123456
+                    licenseKeyMasked: WHRB12...3456
+                    validFrom: '2026-02-28T11:26:06.106Z'
+                    validUntil: '2026-11-25T11:26:06.106Z'
+                    licenseStatus: ACTIVE
+                    revokedAt: null
+                    lastSeenAt: null
+                    appVersion: null
+                    deviceModel: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Robot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    statusCode: 404
+                    message: Robot not found
+                    error: Not Found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robots/{id}/credentials/revoke:
+    post:
+      tags: [Robot]
+      summary: Revoke robot credential
+      description: Super Admin-only credential revocation. Marks the robot license as revoked, records a redacted audit event, and does not return the license key.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Robot credential revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+              examples:
+                success:
+                  value:
+                    id: 1
+                    orgId: 1
+                    serialNumber: TEST-ACTIVE-001
+                    name: API Test Robot (ACTIVE)
+                    validFrom: '2026-02-28T11:26:06.106Z'
+                    validUntil: '2026-11-25T11:26:06.106Z'
+                    licenseStatus: REVOKED
+                    revokedAt: '2026-09-11T00:00:00.000Z'
+                    lastSeenAt: null
+                    appVersion: null
+                    deviceModel: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Robot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    statusCode: 404
+                    message: Robot not found
+                    error: Not Found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /robots/{id}/lock:
     put:
@@ -1245,7 +1567,7 @@ paths:
                   value:
                     id: 10
                     orgId: 1
-                    serialNumber: WR-001
+                    serialNumber: TEST-ACTIVE-001
                     name: Demo Robot
                     validFrom: '2026-01-01T00:00:00.000Z'
                     validUntil: '2027-01-01T00:00:00.000Z'
@@ -1898,6 +2220,18 @@ components:
                   code: ORG_INACTIVE
                   message: Organization is inactive
                   locked: true
+    TooManyRequests:
+      description: Too many repeated authentication attempts
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            throttled:
+              value:
+                statusCode: 429
+                message: Too many login attempts. Try again later.
+                error: Too Many Requests
     InternalServerError:
       description: Internal server error
       content:
@@ -2028,10 +2362,57 @@ components:
           $ref: '#/components/schemas/User'
     RobotLoginResponse:
       type: object
-      required: [token, robot, license]
+      required: [token, accessToken, refreshToken, expiresIn, refreshExpiresIn, tokenType, robot, license]
       properties:
         token:
           type: string
+          description: Deprecated compatibility alias for accessToken.
+        accessToken:
+          type: string
+          description: Short-lived robot access token for sync and log upload.
+        refreshToken:
+          type: string
+          description: Robot refresh token used only with POST /api/v1/robot/auth/refresh.
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds.
+          example: 900
+        refreshExpiresIn:
+          type: integer
+          description: Refresh token lifetime in seconds.
+          example: 604800
+        tokenType:
+          type: string
+          enum: [Bearer]
+        robot:
+          $ref: '#/components/schemas/Robot'
+        license:
+          $ref: '#/components/schemas/RobotLoginLicense'
+    RobotTokenRefreshRequest:
+      type: object
+      required: [refreshToken]
+      additionalProperties: false
+      properties:
+        refreshToken:
+          type: string
+          description: Robot refresh token returned by robot login.
+    RobotTokenRefreshResponse:
+      type: object
+      required: [token, accessToken, expiresIn, tokenType, robot, license]
+      properties:
+        token:
+          type: string
+          description: Deprecated compatibility alias for accessToken.
+        accessToken:
+          type: string
+          description: New short-lived robot access token.
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds.
+          example: 900
+        tokenType:
+          type: string
+          enum: [Bearer]
         robot:
           $ref: '#/components/schemas/Robot'
         license:
@@ -2291,7 +2672,12 @@ components:
           minLength: 10
           maxLength: 10
           pattern: '^WHRB[0-9]{6}$'
-          description: Returned only to Super Admin or organization users with both robot.read and license.renew. Organization users receive only robots from their own organization.
+          description: Returned only to Super Admin in robot management responses. Organization users never receive this field from list APIs.
+        licenseKeyMasked:
+          type: string
+          nullable: true
+          example: WHRB12...3456
+          description: Masked license key for Super Admin CMS display.
     CreateRobotRequest:
       type: object
       required: [serialNumber, validFrom, validUntil]
@@ -2324,6 +2710,26 @@ components:
               maxLength: 10
               pattern: '^WHRB[0-9]{6}$'
               description: Activation license key generated during enrollment in WHRB plus six digits format.
+            licenseKeyMasked:
+              type: string
+              nullable: true
+              example: WHRB12...3456
+    RobotCredentialRotationResponse:
+      allOf:
+        - $ref: '#/components/schemas/Robot'
+        - type: object
+          required: [licenseKey]
+          properties:
+            licenseKey:
+              type: string
+              minLength: 10
+              maxLength: 10
+              pattern: '^WHRB[0-9]{6}$'
+              description: New activation license key generated during credential rotation. The previous key is no longer valid.
+            licenseKeyMasked:
+              type: string
+              nullable: true
+              example: WHRB12...3456
     RenewLicenseRequest:
       type: object
       required: [validUntil]

@@ -99,7 +99,7 @@ export function configureApp(app: INestApplication) {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Robot-App-Version', 'X-Robot-Device-Model'],
   });
 
   app.useGlobalPipes(

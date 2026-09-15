@@ -22,10 +22,12 @@ describe('RobotAuthController', () => {
   let app: INestApplication;
   const authService = {
     loginRobot: jest.fn(),
+    refreshRobotToken: jest.fn(),
   };
 
   beforeEach(async () => {
     authService.loginRobot.mockReset();
+    authService.refreshRobotToken.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       controllers: [RobotAuthController],
@@ -50,7 +52,12 @@ describe('RobotAuthController', () => {
 
   it('accepts Android login with license, serial number and device metadata on the v1 login route', async () => {
     authService.loginRobot.mockResolvedValue({
-      token: 'robot-jwt',
+      token: 'robot-access-jwt',
+      accessToken: 'robot-access-jwt',
+      refreshToken: 'robot-refresh-jwt',
+      expiresIn: 900,
+      refreshExpiresIn: 604800,
+      tokenType: 'Bearer',
       robot: {
         id: 10,
         orgId: 1,
@@ -70,16 +77,27 @@ describe('RobotAuthController', () => {
       .send(robotLoginBody)
       .expect(201)
       .expect(({ body }) => {
-        expect(body.token).toBe('robot-jwt');
+        expect(body.token).toBe('robot-access-jwt');
+        expect(body.accessToken).toBe('robot-access-jwt');
+        expect(body.refreshToken).toBe('robot-refresh-jwt');
+        expect(body.expiresIn).toBe(900);
         expect(body.license.licenseKey).toBeUndefined();
       });
 
-    expect(authService.loginRobot).toHaveBeenCalledWith(robotLoginBody);
+    expect(authService.loginRobot).toHaveBeenCalledWith(
+      robotLoginBody,
+      expect.objectContaining({ ip: expect.any(String) }),
+    );
   });
 
   it('accepts Android login without device metadata consent', async () => {
     authService.loginRobot.mockResolvedValue({
-      token: 'robot-jwt',
+      token: 'robot-access-jwt',
+      accessToken: 'robot-access-jwt',
+      refreshToken: 'robot-refresh-jwt',
+      expiresIn: 900,
+      refreshExpiresIn: 604800,
+      tokenType: 'Bearer',
       robot: {
         id: 10,
         orgId: 1,
@@ -97,7 +115,48 @@ describe('RobotAuthController', () => {
 
     await request(app.getHttpServer()).post('/api/v1/robot/auth/login').send(androidBody).expect(201);
 
-    expect(authService.loginRobot).toHaveBeenCalledWith(androidBody);
+    expect(authService.loginRobot).toHaveBeenCalledWith(
+      androidBody,
+      expect.objectContaining({ ip: expect.any(String) }),
+    );
+  });
+
+  it('renews a robot access token on the v1 refresh route', async () => {
+    authService.refreshRobotToken.mockResolvedValue({
+      token: 'new-robot-access-jwt',
+      accessToken: 'new-robot-access-jwt',
+      expiresIn: 900,
+      tokenType: 'Bearer',
+      robot: {
+        id: 10,
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+      },
+      license: {
+        validFrom: '2026-01-01T00:00:00.000Z',
+        validUntil: '2027-01-01T00:00:00.000Z',
+        status: 'ACTIVE',
+        locked: false,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/robot/auth/refresh')
+      .send({ refreshToken: 'robot-refresh-jwt' })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.accessToken).toBe('new-robot-access-jwt');
+        expect(body.refreshToken).toBeUndefined();
+      });
+
+    expect(authService.refreshRobotToken).toHaveBeenCalledWith('robot-refresh-jwt');
+  });
+
+  it('rejects refresh requests without a refresh token', async () => {
+    await request(app.getHttpServer()).post('/api/v1/robot/auth/refresh').send({}).expect(400);
+
+    expect(authService.refreshRobotToken).not.toHaveBeenCalled();
   });
 
   it('rejects login without serial number and device metadata', async () => {

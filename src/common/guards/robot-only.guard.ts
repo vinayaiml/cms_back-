@@ -20,6 +20,7 @@ export class RobotOnlyGuard implements CanActivate {
 
     if (!actor) throw new ForbiddenException('Missing auth token');
     if (actor.type !== 'robot') throw new ForbiddenException('Robot token required');
+    if (actor.tokenUse !== 'access') throw new ForbiddenException('Robot access token required');
 
     return true;
   }

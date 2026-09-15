@@ -50,6 +50,33 @@ function readBoolean(env: Env, key: string, defaultValue: boolean, errors: strin
   return defaultValue;
 }
 
+function durationToSeconds(value: string) {
+  const match = value.trim().match(/^(\d+)([smhd])?$/);
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  const unit = match[2] || 's';
+  const multipliers: Record<string, number> = {
+    s: 1,
+    m: 60,
+    h: 60 * 60,
+    d: 24 * 60 * 60,
+  };
+
+  return amount * multipliers[unit];
+}
+
+function readDuration(env: Env, key: string, defaultValue: string, errors: string[]) {
+  const value = clean(env[key]) || defaultValue;
+  const seconds = durationToSeconds(value);
+
+  if (!seconds || seconds <= 0) {
+    errors.push(`${key} must be a positive duration such as 15m, 1h or 7d`);
+  }
+
+  return value;
+}
+
 export function validateEnv(config: Env) {
   const errors: string[] = [];
   const nodeEnv = clean(config.NODE_ENV) || 'development';
@@ -57,6 +84,14 @@ export function validateEnv(config: Env) {
 
   const jwtSecret = requireValue(config, 'JWT_SECRET', errors);
   if (jwtSecret) rejectUnsafeSecret('JWT_SECRET', jwtSecret, errors);
+
+  const licenseSecretKey = requireValue(config, 'LICENSE_SECRET_KEY', errors);
+  if (licenseSecretKey) {
+    rejectUnsafeSecret('LICENSE_SECRET_KEY', licenseSecretKey, errors);
+    if (licenseSecretKey.length < 32) {
+      errors.push('LICENSE_SECRET_KEY must be at least 32 characters');
+    }
+  }
 
   const databaseUrl = requireValue(config, 'DATABASE_URL', errors);
   if (databaseUrl) {
@@ -69,6 +104,19 @@ export function validateEnv(config: Env) {
   const port = clean(config.PORT);
   if (port && (!Number.isInteger(Number(port)) || Number(port) <= 0)) {
     errors.push('PORT must be a positive integer');
+  }
+
+  const robotAccessTokenExpiresIn = readDuration(config, 'ROBOT_ACCESS_TOKEN_EXPIRES_IN', '15m', errors);
+  const robotRefreshTokenExpiresIn = readDuration(config, 'ROBOT_REFRESH_TOKEN_EXPIRES_IN', '7d', errors);
+  const robotAccessSeconds = durationToSeconds(robotAccessTokenExpiresIn);
+  const robotRefreshSeconds = durationToSeconds(robotRefreshTokenExpiresIn);
+
+  if (robotAccessSeconds && robotAccessSeconds > 60 * 60) {
+    errors.push('ROBOT_ACCESS_TOKEN_EXPIRES_IN must not be longer than 1h');
+  }
+
+  if (robotAccessSeconds && robotRefreshSeconds && robotRefreshSeconds <= robotAccessSeconds) {
+    errors.push('ROBOT_REFRESH_TOKEN_EXPIRES_IN must be longer than ROBOT_ACCESS_TOKEN_EXPIRES_IN');
   }
 
   const redisEnabled = readBoolean(config, 'REDIS_ENABLED', false, errors);
@@ -108,7 +156,10 @@ export function validateEnv(config: Env) {
   return {
     ...config,
     JWT_SECRET: jwtSecret,
+    LICENSE_SECRET_KEY: licenseSecretKey,
     DATABASE_URL: databaseUrl,
+    ROBOT_ACCESS_TOKEN_EXPIRES_IN: robotAccessTokenExpiresIn,
+    ROBOT_REFRESH_TOKEN_EXPIRES_IN: robotRefreshTokenExpiresIn,
     REDIS_ENABLED: String(redisEnabled),
     CORS_ALLOWED_ORIGINS: allowedOrigins.join(','),
   };

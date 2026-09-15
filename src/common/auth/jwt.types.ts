@@ -7,6 +7,7 @@ export type JwtUserPayload = {
 
 export type JwtRobotPayload = {
   type: 'robot';
+  tokenUse: 'access' | 'refresh';
   sub: number; // robotId
   orgId: number;
 };

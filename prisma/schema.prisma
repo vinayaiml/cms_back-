@@ -1,5 +1,3 @@
-// Prisma schema for Whizrobot CMS (PostgreSQL)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +5,324 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id                   Int               @id @default(autoincrement())
+  name                 String
+  state                String
+  city                 String
+  authorizedPersonName String
+  contactNo            String
+  isActive             Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  courses              Course[]          @relation("OrgOwnedCourses")
+  events               Event[]
+  notifications        Notification[]
+  assignments          OrgCourseAccess[]
+  permissions          OrgPermission[]
+  robots               Robot[]
+  usageLogs            RobotUsageLog[]
+  roles                Role[]
+  users                User[]
+}
+
+model User {
+  id                Int              @id @default(autoincrement())
+  orgId             Int?
+  createdByUserId   Int?
+  email             String           @unique
+  fullName          String
+  passwordHash      String
+  isSuperAdmin      Boolean          @default(false)
+  isLocked          Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  notifications     Notification[]   @relation("UserNotifications")
+  createdBy         User?            @relation("UserCreator", fields: [createdByUserId], references: [id])
+  createdUsers      User[]           @relation("UserCreator")
+  org               Organization?    @relation(fields: [orgId], references: [id])
+  directPermissions UserPermission[]
+  roles             UserRole[]
+
+  @@index([createdByUserId])
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  orgId       Int?
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  org         Organization?    @relation(fields: [orgId], references: [id])
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([orgId, name])
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  key         String           @unique
+  description String?
+  category    String?
+  orgs        OrgPermission[]
+  roles       RolePermission[]
+  users       UserPermission[]
+}
+
+model OrgPermission {
+  id           Int          @id @default(autoincrement())
+  orgId        Int
+  permissionId Int
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, permissionId])
+  @@index([orgId])
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+}
+
+model Robot {
+  id                    Int             @id @default(autoincrement())
+  orgId                 Int
+  serialNumber          String          @unique
+  name                  String?
+  licenseKey            String?         @unique
+  validFrom             DateTime
+  validUntil            DateTime
+  licenseStatus         LicenseStatus   @default(ACTIVE)
+  revokedAt             DateTime?
+  lastSeenAt            DateTime?
+  appVersion            String?
+  deviceModel           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  deviceMetadata        Json?
+  licenseKeyCiphertext  String?
+  licenseKeyFingerprint String?         @unique
+  events                Event[]
+  org                   Organization    @relation(fields: [orgId], references: [id])
+  usageLogs             RobotUsageLog[]
+
+  @@index([orgId])
+}
+
+model Course {
+  id             Int               @id @default(autoincrement())
+  courseCode     String            @unique
+  courseName     String
+  description    String?
+  courseImageUrl String?
+  logoUrl        String?
+  source         CourseSource      @default(PLATFORM)
+  ownerOrgId     Int?
+  visibility     CourseVisibility  @default(PRIVATE)
+  introLevelId   Int?              @unique
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  introLevel     Level?            @relation("IntroLevel", fields: [introLevelId], references: [id])
+  ownerOrg       Organization?     @relation("OrgOwnedCourses", fields: [ownerOrgId], references: [id])
+  events         Event[]
+  lessons        Lesson[]
+  levels         Level[]
+  assignments    OrgCourseAccess[]
+  usageLogs      RobotUsageLog[]
+
+  @@index([ownerOrgId])
+}
+
+model Level {
+  id             Int       @id @default(autoincrement())
+  courseId       Int
+  name           String
+  sequence       Int
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  chapters       Chapter[]
+  introForCourse Course?   @relation("IntroLevel")
+  lessons        Lesson[]  @relation("LevelLessons")
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, sequence])
+}
+
+model Chapter {
+  id          Int      @id @default(autoincrement())
+  levelId     Int
+  name        String
+  sequence    Int
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  level       Level    @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+
+  @@unique([levelId, sequence])
+}
+
+model Lesson {
+  id           Int              @id @default(autoincrement())
+  courseId     Int
+  levelId      Int
+  chapterId    Int?
+  name         String
+  sequence     Int
+  description  String?
+  durationMins Int?
+  contentType  ContentType      @default(VIDEO)
+  contentUrl   String
+  thumbnailUrl String?
+  logoUrl      String?
+  visibility   LessonVisibility @default(PRIVATE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  events       Event[]
+  chapter      Chapter?         @relation(fields: [chapterId], references: [id])
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  level        Level            @relation("LevelLessons", fields: [levelId], references: [id], onDelete: Cascade)
+  usageLogs    RobotUsageLog[]
+
+  @@unique([courseId, levelId, sequence])
+  @@index([courseId, levelId])
+}
+
+model OrgCourseAccess {
+  id         Int              @id @default(autoincrement())
+  orgId      Int
+  courseId   Int
+  accessType CourseAccessType @default(FULL_COURSE)
+  levelId    Int?
+  chapterId  Int?
+  createdAt  DateTime         @default(now())
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  org        Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, courseId, accessType, levelId, chapterId])
+  @@index([orgId])
+}
+
+model RobotUsageLog {
+  id          Int          @id @default(autoincrement())
+  orgId       Int
+  robotId     Int
+  courseId    Int?
+  lessonId    Int?
+  eventId     String
+  openedAt    DateTime
+  durationSec Int?
+  createdAt   DateTime     @default(now())
+  course      Course?      @relation(fields: [courseId], references: [id])
+  lesson      Lesson?      @relation(fields: [lessonId], references: [id])
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  robot       Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
+
+  @@unique([robotId, eventId])
+  @@index([orgId, robotId])
+}
+
+model Notification {
+  id        Int           @id @default(autoincrement())
+  orgId     Int?
+  userId    Int?
+  type      String
+  title     String
+  message   String
+  payload   Json?
+  createdAt DateTime      @default(now())
+  readAt    DateTime?
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User?         @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, userId])
+}
+
+model DashboardSection {
+  id                 Int                   @id @default(autoincrement())
+  key                String                @unique
+  label              String
+  path               String
+  icon               String?
+  sortOrder          Int                   @default(0)
+  requiredPermission String?
+  isSuperAdminOnly   Boolean               @default(false)
+  isActive           Boolean               @default(true)
+  templateType       DashboardTemplateType @default(NONE)
+  templateConfig     Json?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+}
+
+model Event {
+  id        Int           @id @default(autoincrement())
+  orgId     Int?
+  robotId   Int?
+  courseId  Int?
+  lessonId  Int?
+  type      String
+  payload   Json?
+  createdAt DateTime      @default(now())
+  course    Course?       @relation(fields: [courseId], references: [id])
+  lesson    Lesson?       @relation(fields: [lessonId], references: [id])
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  robot     Robot?        @relation(fields: [robotId], references: [id])
+
+  @@index([orgId, type])
+}
+
+model AuditEvent {
+  id            Int      @id @default(autoincrement())
+  actorUserId   Int?
+  actorOrgId    Int?
+  action        String
+  targetType    String
+  targetId      String
+  targetOrgId   Int?
+  correlationId String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([targetOrgId, createdAt])
+  @@index([action, createdAt])
+  @@index([correlationId])
+}
+
+model GlobalCounter {
+  key   String @id
+  value Int    @default(0)
 }
 
 enum LicenseStatus {
@@ -48,385 +364,4 @@ enum DashboardTemplateType {
   WIDGETS
   KPI_OVERVIEW
   MARKDOWN
-}
-
-model Organization {
-  id                    Int      @id @default(autoincrement())
-  name                  String
-  state                 String
-  city                  String
-  authorizedPersonName  String
-  contactNo             String
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  users       User[]
-  robots      Robot[]
-  courses     Course[] @relation("OrgOwnedCourses")
-  assignments OrgCourseAccess[]
-  notifications Notification[]
-  events      Event[]
-  roles       Role[]
-  permissions OrgPermission[]
-  usageLogs   RobotUsageLog[]
-}
-
-model User {
-  id          Int      @id @default(autoincrement())
-  orgId       Int?
-  org         Organization? @relation(fields: [orgId], references: [id])
-  createdByUserId Int?
-  createdBy   User? @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers User[] @relation("UserCreator")
-
-  email       String   @unique
-  fullName    String
-  passwordHash String
-  isSuperAdmin Boolean @default(false)
-  isLocked    Boolean @default(false)
-
-  roles       UserRole[]
-  directPermissions UserPermission[]
-  notifications Notification[] @relation("UserNotifications")
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([createdByUserId])
-}
-
-model Role {
-  id          Int      @id @default(autoincrement())
-  orgId       Int?
-  org         Organization? @relation(fields: [orgId], references: [id])
-
-  name        String
-  description String?
-
-  permissions RolePermission[]
-  users       UserRole[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([orgId, name])
-}
-
-model Permission {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique
-  description String?
-  category    String?
-
-  roles       RolePermission[]
-  users       UserPermission[]
-  orgs        OrgPermission[]
-}
-
-model OrgPermission {
-  id           Int @id @default(autoincrement())
-  orgId        Int
-  permissionId Int
-
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  permission Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([orgId, permissionId])
-  @@index([orgId])
-}
-
-model RolePermission {
-  id           Int @id @default(autoincrement())
-  roleId       Int
-  permissionId Int
-
-  role         Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-}
-
-model UserRole {
-  id      Int @id @default(autoincrement())
-  userId  Int
-  roleId  Int
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId])
-}
-
-model UserPermission {
-  id           Int @id @default(autoincrement())
-  userId       Int
-  permissionId Int
-
-  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, permissionId])
-}
-
-model Robot {
-  id            Int      @id @default(autoincrement())
-  orgId         Int
-  org           Organization @relation(fields: [orgId], references: [id])
-
-  // Physical unique identifier
-  serialNumber  String   @unique
-
-  name          String?
-
-  // License
-  licenseKey    String   @unique
-  validFrom     DateTime
-  validUntil    DateTime
-  licenseStatus LicenseStatus @default(ACTIVE)
-  revokedAt     DateTime?
-
-  // Auth / device metadata
-  lastSeenAt    DateTime?
-  appVersion    String?
-  deviceModel   String?
-  deviceMetadata Json?
-
-  usageLogs     RobotUsageLog[]
-  events        Event[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([orgId])
-}
-
-model Course {
-  id            Int      @id @default(autoincrement())
-  courseCode    String   @unique
-  courseName    String
-  description   String?
-  courseImageUrl String?
-  logoUrl       String?
-
-  // Source and ownership
-  source        CourseSource @default(PLATFORM)
-  ownerOrgId    Int?
-  ownerOrg      Organization? @relation("OrgOwnedCourses", fields: [ownerOrgId], references: [id])
-
-  visibility    CourseVisibility @default(PRIVATE)
-
-  // Public catalog control: expose ONLY this level publicly (Intro Level)
-  introLevelId  Int?    @unique
-  introLevel    Level?  @relation("IntroLevel", fields: [introLevelId], references: [id])
-
-  levels        Level[]
-  assignments   OrgCourseAccess[]
-  events        Event[]
-  lessons       Lesson[]
-  usageLogs     RobotUsageLog[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([ownerOrgId])
-}
-
-model Level {
-  id          Int      @id @default(autoincrement())
-  courseId    Int
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  name        String
-  sequence    Int
-  description String?
-
-  // Used for intro catalog referencing
-  introForCourse Course? @relation("IntroLevel")
-
-  chapters    Chapter[]
-  lessons     Lesson[] @relation("LevelLessons")
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([courseId, sequence])
-}
-
-model Chapter {
-  id          Int      @id @default(autoincrement())
-  levelId     Int
-  level       Level    @relation(fields: [levelId], references: [id], onDelete: Cascade)
-
-  name        String
-  sequence    Int
-  description String?
-
-  lessons     Lesson[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([levelId, sequence])
-}
-
-model Lesson {
-  id            Int      @id @default(autoincrement())
-  courseId      Int
-  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  levelId       Int
-  level         Level    @relation("LevelLessons", fields: [levelId], references: [id], onDelete: Cascade)
-
-  chapterId     Int?
-  chapter       Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
-
-  name          String
-  sequence      Int
-  description   String?
-  durationMins  Int?
-
-  contentType   ContentType @default(VIDEO)
-  contentUrl    String
-  thumbnailUrl  String?
-  logoUrl       String?
-
-  visibility    LessonVisibility @default(PRIVATE)
-
-  usageLogs     RobotUsageLog[]
-  events        Event[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([courseId, levelId])
-  @@unique([courseId, levelId, sequence])
-}
-
-model OrgCourseAccess {
-  id         Int      @id @default(autoincrement())
-  orgId      Int
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  courseId   Int
-  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  accessType CourseAccessType @default(FULL_COURSE)
-  levelId    Int?
-  chapterId  Int?
-
-  createdAt  DateTime @default(now())
-
-  @@index([orgId])
-  @@unique([orgId, courseId, accessType, levelId, chapterId])
-}
-
-model RobotUsageLog {
-  id          Int      @id @default(autoincrement())
-  orgId       Int
-  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  robotId     Int
-  robot       Robot    @relation(fields: [robotId], references: [id], onDelete: Cascade)
-
-  courseId    Int?
-  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-
-  lessonId    Int?
-  lesson      Lesson?  @relation(fields: [lessonId], references: [id], onDelete: SetNull)
-
-  // Deduplication key from robot (UUID)
-  eventId     String
-
-  openedAt    DateTime
-  durationSec Int?
-
-  createdAt   DateTime @default(now())
-
-  @@unique([robotId, eventId])
-  @@index([orgId, robotId])
-}
-
-model Notification {
-  id        Int      @id @default(autoincrement())
-  orgId     Int?
-  org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  userId    Int?
-  user      User? @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-
-  type      String
-  title     String
-  message   String
-  payload   Json?
-
-  createdAt DateTime @default(now())
-  readAt    DateTime?
-
-  @@index([orgId, userId])
-}
-
-model DashboardSection {
-  id                 Int      @id @default(autoincrement())
-  key                String   @unique
-  label              String
-  path               String
-  icon               String?
-  sortOrder          Int      @default(0)
-  requiredPermission String?
-  isSuperAdminOnly   Boolean  @default(false)
-  isActive           Boolean  @default(true)
-
-  // Template-driven dashboards (so new sections can be created without code)
-  templateType       DashboardTemplateType @default(NONE)
-  templateConfig     Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Event {
-  id        Int      @id @default(autoincrement())
-  orgId     Int?
-  org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  robotId   Int?
-  robot     Robot? @relation(fields: [robotId], references: [id], onDelete: SetNull)
-
-  courseId  Int?
-  course    Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
-
-  lessonId  Int?
-  lesson    Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
-
-  type      String
-  payload   Json?
-
-  createdAt DateTime @default(now())
-
-  @@index([orgId, type])
-}
-
-model AuditEvent {
-  id            Int      @id @default(autoincrement())
-  actorUserId   Int?
-  actorOrgId    Int?
-  action        String
-  targetType    String
-  targetId      String
-  targetOrgId   Int?
-  correlationId String?
-  metadata      Json?
-  createdAt     DateTime @default(now())
-
-  @@index([actorUserId, createdAt])
-  @@index([targetOrgId, createdAt])
-  @@index([action, createdAt])
-  @@index([correlationId])
-}
-
-
-model GlobalCounter {
-  key   String @id
-  value Int    @default(0)
 }

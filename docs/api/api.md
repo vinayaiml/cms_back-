@@ -39,6 +39,7 @@ Approved legacy test routes still work temporarily, but they are deprecated:
 | --- | --- |
 | `POST /api/auth/login` | `POST /api/v1/auth/login` |
 | `POST /api/robot/auth/login` | `POST /api/v1/robot/auth/login` |
+| `POST /api/robot/auth/refresh` | `POST /api/v1/robot/auth/refresh` |
 | `GET /api/robot/sync` | `GET /api/v1/robot/sync` |
 | `POST /api/robot/logs/batch` | `POST /api/v1/robot/logs/batch` |
 
@@ -58,13 +59,13 @@ User APIs use a user JWT:
 Authorization: Bearer <user-token>
 ```
 
-Robot APIs use a robot JWT:
+Robot APIs use the short-lived robot access token returned by robot login or refresh:
 
 ```text
-Authorization: Bearer <robot-token>
+Authorization: Bearer <robot-access-token>
 ```
 
-Do not use the user token for robot sync or robot log upload. Those routes require a robot token.
+Do not use the user token or robot refresh token for robot sync or robot log upload. Those routes require a robot access token.
 
 ## User Login
 
@@ -108,9 +109,10 @@ Expected status:
 
 Use this route to exchange a tester-entered robot activation value and the Sanbot robot ID for a robot JWT.
 CMS stores the provided safe device metadata on successful login.
+CMS also updates the robot `lastSeenAt`, `appVersion` and `deviceModel` fields from the validated login metadata.
 The Android app sends the Sanbot robot ID in the `serialNumber` field.
 The request rejects unknown metadata fields and invalid serial/license formats.
-Raw license keys are never returned in login responses, robot resource responses, logs or audit metadata.
+Raw license keys are never returned in login responses, logs or audit metadata. Robot credentials are stored as protected secrets. Robot list responses include license key display fields only for Super Admin, and the CMS frontend masks them by default until the eye button is clicked.
 
 ```text
 POST http://localhost:3001/api/v1/robot/auth/login
@@ -137,7 +139,12 @@ Success response:
 
 ```json
 {
-  "token": "<robot-jwt>",
+  "token": "<robot-access-jwt>",
+  "accessToken": "<robot-access-jwt>",
+  "refreshToken": "<robot-refresh-jwt>",
+  "expiresIn": 900,
+  "refreshExpiresIn": 604800,
+  "tokenType": "Bearer",
   "robot": {
     "id": 1,
     "orgId": 1,
@@ -183,11 +190,84 @@ Example:
 }
 ```
 
-Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, generates the activation license key server-side in `WHRB` plus six digits format, records `robot.enrolled` audit metadata without the secret, and returns the activation `licenseKey` in the create response.
+## Robot Token Refresh
 
-Robot lists include `licenseKey` only for Super Admin or organization users with both `robot.read` and `license.renew`. Organization users receive only their own organization's robot keys. Clients must mask the key by default and reveal it only on explicit user action.
+Use this route when the short-lived robot access token expires. Send only the refresh token. The refresh token is not accepted by robot sync or robot log upload.
 
-CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. Raw license keys, JWTs and raw device identity metadata are not returned by this API.
+```text
+POST http://localhost:3001/api/v1/robot/auth/refresh
+```
+
+Body:
+
+```json
+{
+  "refreshToken": "<robot-refresh-jwt>"
+}
+```
+
+Success response:
+
+```json
+{
+  "token": "<robot-access-jwt>",
+  "accessToken": "<robot-access-jwt>",
+  "expiresIn": 900,
+  "tokenType": "Bearer",
+  "robot": {
+    "id": 1,
+    "orgId": 1,
+    "serialNumber": "TEST-ACTIVE-001",
+    "name": "Robot 1 (ACTIVE)"
+  },
+  "license": {
+    "validFrom": "2026-02-28T11:26:06.106Z",
+    "validUntil": "2026-11-25T11:26:06.106Z",
+    "status": "ACTIVE",
+    "locked": false
+  }
+}
+```
+
+Expected status:
+
+```text
+201 Created
+```
+
+Invalid or expired refresh tokens return:
+
+```text
+401 Unauthorized
+```
+
+Expired licenses, revoked licenses and inactive organizations return:
+
+```text
+423 Locked
+```
+
+Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, generates the activation license key server-side in `WHRB` plus six digits format, stores it as a protected secret, records `robot.enrolled` audit metadata without the secret, and returns the activation `licenseKey` in the create response.
+
+Robot list responses include `licenseKey` and `licenseKeyMasked` only for Super Admin. Organization users never receive robot license keys from the list API. The CMS frontend shows the masked value by default and reveals the raw value for five seconds when Super Admin clicks the eye button.
+
+CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. JWTs and raw device identity metadata are not returned by this API.
+
+Super Admin can rotate a robot credential. The response returns the new activation `licenseKey`; the previous key stops working immediately.
+
+```text
+POST http://localhost:3001/api/robots/{id}/credentials/rotate
+Authorization: Bearer <super-admin-token>
+X-Correlation-Id: <request-id>
+```
+
+Super Admin can also revoke the current robot credential. The response does not include `licenseKey`; later robot login attempts return the locked/revoked error.
+
+```text
+POST http://localhost:3001/api/robots/{id}/credentials/revoke
+Authorization: Bearer <super-admin-token>
+X-Correlation-Id: <request-id>
+```
 
 Authorized CMS administrators can erase stored robot device metadata:
 
@@ -208,8 +288,12 @@ GET http://localhost:3001/api/v1/robot/sync
 Headers:
 
 ```text
-Authorization: Bearer <robot-token>
+Authorization: Bearer <robot-access-token>
+X-Robot-App-Version: 0.1.0
+X-Robot-Device-Model: Mini ELF
 ```
+
+`X-Robot-App-Version` and `X-Robot-Device-Model` are optional heartbeat headers. When supplied, CMS stores them on the authenticated robot record and updates `lastSeenAt`. The values are never used to identify another robot or organization.
 
 Success response:
 
@@ -244,7 +328,7 @@ POST http://localhost:3001/api/v1/robot/logs/batch
 Headers:
 
 ```text
-Authorization: Bearer <robot-token>
+Authorization: Bearer <robot-access-token>
 Content-Type: application/json
 ```
 
@@ -322,20 +406,26 @@ POST http://localhost:3001/api/v1/robot/auth/login
 
 ```text
 GET http://localhost:3001/api/v1/robot/sync
-Authorization: Bearer <robot-token>
+Authorization: Bearer <robot-access-token>
 ```
 
-5. Upload robot logs:
+5. Renew the access token:
+
+```text
+POST http://localhost:3001/api/v1/robot/auth/refresh
+```
+
+6. Upload robot logs:
 
 ```text
 POST http://localhost:3001/api/v1/robot/logs/batch
-Authorization: Bearer <robot-token>
+Authorization: Bearer <robot-access-token>
 Content-Type: application/json
 ```
 
-6. Repeat the same requests against the legacy routes and confirm they still work.
+7. Repeat the same requests against the legacy routes and confirm they still work.
 
-7. Check the backend terminal for legacy deprecation warnings.
+8. Check the backend terminal for legacy deprecation warnings.
 
 ## Android Mock Fixture Trace
 
@@ -345,6 +435,7 @@ Android mock fixtures should map to the OpenAPI examples by operation ID:
 | --- | --- | --- |
 | `loginUserV1` | `POST /api/v1/auth/login` | CMS user/admin login success and credential failures |
 | `loginRobotV1` | `POST /api/v1/robot/auth/login` | Robot activation login success, invalid license or serial, expired license, revoked license and inactive organisation |
+| `refreshRobotTokenV1` | `POST /api/v1/robot/auth/refresh` | Access-token renewal success, invalid or expired refresh token, expired license, revoked license and inactive organisation |
 | `syncRobotV1` | `GET /api/v1/robot/sync` | Active robot configuration, locked license and inactive organisation |
 | `uploadRobotLogsBatchV1` | `POST /api/v1/robot/logs/batch` | New log upload, duplicate retry and validation errors |
 
@@ -361,6 +452,18 @@ Missing or invalid token:
   "statusCode": 401
 }
 ```
+
+Repeated invalid login attempts are throttled:
+
+```json
+{
+  "statusCode": 429,
+  "message": "Too many login attempts. Try again later.",
+  "error": "Too Many Requests"
+}
+```
+
+Failed login audit events store controlled reason codes and hashed identifiers only. Passwords, JWTs, refresh tokens and robot license keys are not stored in audit metadata.
 
 Wrong request body:
 

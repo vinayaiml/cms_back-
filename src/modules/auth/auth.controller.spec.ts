@@ -55,7 +55,11 @@ describe('AuthController', () => {
         expect(body.user.email).toBe('admin@example.com');
       });
 
-    expect(authService.loginUser).toHaveBeenCalledWith('admin@example.com', 'test-password');
+    expect(authService.loginUser).toHaveBeenCalledWith(
+      'admin@example.com',
+      'test-password',
+      expect.objectContaining({ ip: expect.any(String) }),
+    );
   });
 
   it('rejects invalid login bodies', async () => {

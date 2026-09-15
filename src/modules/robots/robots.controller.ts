@@ -29,18 +29,14 @@ export class RobotsController {
   @RequirePermissions('robot.read')
   async list(@CurrentUser() actor: JwtPayload, @Query('orgId') orgId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    const includeLicenseKey = await this.robots.canViewLicenseKeys({
-      userId: actor.sub,
-      isSuperAdmin: actor.isSuperAdmin,
-    });
 
     if (actor.isSuperAdmin) {
       const parsedOrgId = orgId ? Number(orgId) : undefined;
-      return this.robots.listAll(parsedOrgId, includeLicenseKey);
+      return this.robots.listAll(parsedOrgId);
     }
 
     if (!actor.orgId) throw new ForbiddenException('Org scope required');
-    return this.robots.listByOrg(actor.orgId, includeLicenseKey);
+    return this.robots.listByOrg(actor.orgId);
   }
 
   @Post()
@@ -74,6 +70,36 @@ export class RobotsController {
     await this.robots.ensureOrgAccess({ orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, robot.orgId);
 
     return this.robots.renewLicense(id, new Date(dto.validUntil));
+  }
+
+  @Post(':id/credentials/rotate')
+  @RequirePermissions('license.renew')
+  async rotateCredential(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.rotateCredential(
+      id,
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      correlationId,
+    );
+  }
+
+  @Post(':id/credentials/revoke')
+  @RequirePermissions('robot.lock')
+  async revokeCredential(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.revokeCredential(
+      id,
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      correlationId,
+    );
   }
 
   @Put(':id/lock')

@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LicenseStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { decryptLicenseKey, encryptLicenseKey, licenseFingerprint, maskLicenseKey } from '../../common/security/license-secret';
 
 @Injectable()
 export class RobotsService {
@@ -30,11 +31,20 @@ export class RobotsService {
   private readonly robotEnrollmentSelect = {
     ...this.robotSelect,
     licenseKey: true,
+    licenseKeyCiphertext: true,
   } as const;
 
-  private readonly robotLicenseSelect = {
+  private readonly protectedRobotSelect = {
     ...this.robotSelect,
     licenseKey: true,
+    licenseKeyCiphertext: true,
+    licenseKeyFingerprint: true,
+  } as const;
+
+  private readonly superAdminRobotSelect = {
+    ...this.robotSelect,
+    licenseKey: true,
+    licenseKeyCiphertext: true,
   } as const;
 
   private computeLicenseStatus(validUntil: Date, revokedAt: Date | null): LicenseStatus {
@@ -56,8 +66,13 @@ export class RobotsService {
   private async generateUniqueLicenseKey(): Promise<string> {
     for (let attempt = 0; attempt < 20; attempt++) {
       const licenseKey = this.generateLicenseKeyCandidate();
-      const existing = await this.prisma.robot.findUnique({
-        where: { licenseKey },
+      const existing = await this.prisma.robot.findFirst({
+        where: {
+          OR: [
+            { licenseKey },
+            { licenseKeyFingerprint: licenseFingerprint(licenseKey) },
+          ],
+        },
         select: { id: true },
       });
       if (!existing) return licenseKey;
@@ -66,47 +81,41 @@ export class RobotsService {
     throw new Error('Unable to generate unique robot license key');
   }
 
-  async canViewLicenseKeys(actor: { userId: number; isSuperAdmin: boolean }) {
-    if (actor.isSuperAdmin) return true;
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: actor.userId },
-      include: {
-        directPermissions: { include: { permission: true } },
-        roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
-      },
-    });
-
-    if (!user) return false;
-
-    const permissions = new Set<string>();
-    for (const direct of user.directPermissions) permissions.add(direct.permission.key);
-    for (const userRole of user.roles) {
-      for (const rolePermission of userRole.role.permissions) {
-        permissions.add(rolePermission.permission.key);
-      }
-    }
-
-    return permissions.has('robot.read') && permissions.has('license.renew');
+  private readProtectedLicenseKey(robot: { licenseKey: string | null; licenseKeyCiphertext?: string | null }) {
+    if (robot.licenseKeyCiphertext) return decryptLicenseKey(robot.licenseKeyCiphertext);
+    return robot.licenseKey;
   }
 
-  async listByOrg(orgId: number, includeLicenseKey = false) {
+  private toSuperAdminRobotResponse<T extends { licenseKey: string | null; licenseKeyCiphertext?: string | null }>(robot: T) {
+    const fullLicenseKey = this.readProtectedLicenseKey(robot);
+    const { licenseKey: _legacyLicenseKey, licenseKeyCiphertext: _ciphertext, ...rest } = robot;
+
+    return {
+      ...rest,
+      licenseKey: fullLicenseKey,
+      licenseKeyMasked: maskLicenseKey(fullLicenseKey),
+    };
+  }
+
+  async listByOrg(orgId: number) {
     return this.prisma.robot.findMany({
       where: { orgId },
       orderBy: { id: 'desc' },
-      select: includeLicenseKey ? this.robotLicenseSelect : this.robotSelect,
+      select: this.robotSelect,
     });
   }
 
-  async listAll(orgId?: number, includeLicenseKey = false) {
-    return this.prisma.robot.findMany({
+  async listAll(orgId?: number) {
+    const robots = await this.prisma.robot.findMany({
       where: orgId ? { orgId } : {},
       orderBy: { id: 'desc' },
       select: {
-        ...(includeLicenseKey ? this.robotLicenseSelect : this.robotSelect),
+        ...this.superAdminRobotSelect,
         org: { select: { id: true, name: true } },
       },
     });
+
+    return robots.map((robot) => this.toSuperAdminRobotResponse(robot));
   }
 
   async createRobot(
@@ -129,7 +138,9 @@ export class RobotsService {
           orgId: input.orgId,
           serialNumber: input.serialNumber,
           name: input.name,
-          licenseKey,
+          licenseKey: null,
+          licenseKeyCiphertext: encryptLicenseKey(licenseKey),
+          licenseKeyFingerprint: licenseFingerprint(licenseKey),
           validFrom: input.validFrom,
           validUntil: input.validUntil,
           licenseStatus: status,
@@ -157,7 +168,7 @@ export class RobotsService {
         );
       }
 
-      return robot;
+      return this.toSuperAdminRobotResponse(robot);
     });
   }
 
@@ -172,6 +183,86 @@ export class RobotsService {
       where: { id: robotId },
       data: { validUntil, licenseStatus: status },
       select: this.robotSelect,
+    });
+  }
+
+  async rotateCredential(
+    robotId: number,
+    actor: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    if (!actor.isSuperAdmin) throw new ForbiddenException('Only Super Admin can rotate robot credentials');
+
+    const robot = await this.getRobotOrThrow(robotId);
+    const licenseKey = await this.generateUniqueLicenseKey();
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.robot.update({
+        where: { id: robotId },
+        data: {
+          licenseKey: null,
+          licenseKeyCiphertext: encryptLicenseKey(licenseKey),
+          licenseKeyFingerprint: licenseFingerprint(licenseKey),
+        },
+        select: this.robotEnrollmentSelect,
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'robot.credential_rotated',
+          targetType: 'robot',
+          targetId: robotId,
+          targetOrgId: robot.orgId,
+          correlationId,
+          metadata: {
+            serialNumber: robot.serialNumber,
+            licenseStatus: robot.licenseStatus,
+          },
+        },
+        tx,
+      );
+
+      return this.toSuperAdminRobotResponse(updated);
+    });
+  }
+
+  async revokeCredential(
+    robotId: number,
+    actor: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    if (!actor.isSuperAdmin) throw new ForbiddenException('Only Super Admin can revoke robot credentials');
+
+    const robot = await this.getRobotOrThrow(robotId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.robot.update({
+        where: { id: robotId },
+        data: {
+          revokedAt: new Date(),
+          licenseStatus: LicenseStatus.REVOKED,
+        },
+        select: this.robotSelect,
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'robot.credential_revoked',
+          targetType: 'robot',
+          targetId: robotId,
+          targetOrgId: robot.orgId,
+          correlationId,
+          metadata: {
+            serialNumber: robot.serialNumber,
+            previousLicenseStatus: robot.licenseStatus,
+          },
+        },
+        tx,
+      );
+
+      return updated;
     });
   }
 

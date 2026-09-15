@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsDateString, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateRobotDto {
   @IsInt()
@@ -6,13 +6,10 @@ export class CreateRobotDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(64)
-  @Matches(/^[A-Za-z0-9._:-]+$/)
   serialNumber!: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(80)
   name?: string;
 
   @IsDateString()

@@ -78,3 +78,9 @@ export class RobotLoginDto {
   @IsOptional()
   deviceMetadataConsent?: boolean;
 }
+
+export class RobotTokenRefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken!: string;
+}

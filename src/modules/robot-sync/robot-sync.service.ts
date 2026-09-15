@@ -11,6 +11,11 @@ type Allowed = {
 
 type AssignmentRow = { courseId: number; accessType: CourseAccessType; levelId: number | null; chapterId: number | null };
 
+export type RobotSyncHeartbeat = {
+  appVersion?: string;
+  deviceModel?: string;
+};
+
 type CourseWithLevels = Prisma.CourseGetPayload<{
   include: {
     levels: {
@@ -95,7 +100,7 @@ export class RobotSyncService {
     return { ...course, levels: filteredLevels };
   }
 
-  async sync(robotId: number) {
+  async sync(robotId: number, heartbeat: RobotSyncHeartbeat = {}) {
     const robot = await this.prisma.robot.findUnique({
       where: { id: robotId },
       include: { org: { select: { isActive: true } } },
@@ -122,10 +127,15 @@ export class RobotSyncService {
     const status = this.computeLicenseStatus(robot.validUntil, robot.revokedAt);
     const locked = status === LicenseStatus.EXPIRED || status === LicenseStatus.REVOKED;
 
-    // Keep DB consistent
-    if (robot.licenseStatus !== status) {
-      await this.prisma.robot.update({ where: { id: robot.id }, data: { licenseStatus: status } });
-    }
+    await this.prisma.robot.update({
+      where: { id: robot.id },
+      data: {
+        lastSeenAt: new Date(),
+        ...(heartbeat.appVersion ? { appVersion: heartbeat.appVersion } : {}),
+        ...(heartbeat.deviceModel ? { deviceModel: heartbeat.deviceModel } : {}),
+        ...(robot.licenseStatus !== status ? { licenseStatus: status } : {}),
+      },
+    });
 
     if (locked) {
       return {

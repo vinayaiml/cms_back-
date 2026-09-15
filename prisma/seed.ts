@@ -1,7 +1,16 @@
 import { PrismaClient, DashboardTemplateType, LicenseStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { encryptLicenseKey, licenseFingerprint } from '../src/common/security/license-secret';
 
 const prisma = new PrismaClient();
+
+function protectedLicenseData(licenseKey: string) {
+  return {
+    licenseKey: null,
+    licenseKeyCiphertext: encryptLicenseKey(licenseKey),
+    licenseKeyFingerprint: licenseFingerprint(licenseKey),
+  };
+}
 
 function requiredSeedValue(name: string) {
   const value = process.env[name]?.trim();
@@ -489,12 +498,14 @@ async function main() {
       if (!robot) {
         const window = licenseWindow(status);
 
+        const licenseKey = `WHRB${String(org.id).padStart(3, '0')}${String(i + 1).padStart(3, '0')}`;
+
         robot = await prisma.robot.create({
           data: {
             orgId: org.id,
             serialNumber: `ROBOT-${org.id}-${i + 1}`,
             name: `Robot ${i + 1} (${status})`,
-            licenseKey: `WHRB${String(org.id).padStart(3, '0')}${String(i + 1).padStart(3, '0')}`,
+            ...protectedLicenseData(licenseKey),
             validFrom: window.validFrom,
             validUntil: window.validUntil,
             licenseStatus: status,
@@ -565,7 +576,7 @@ async function main() {
       update: {
         orgId: testRobot.orgId,
         name: testRobot.name,
-        licenseKey: testRobot.licenseKey,
+        ...protectedLicenseData(testRobot.licenseKey),
         validFrom: window.validFrom,
         validUntil: window.validUntil,
         licenseStatus: testRobot.status,
@@ -575,7 +586,7 @@ async function main() {
         orgId: testRobot.orgId,
         serialNumber: testRobot.serialNumber,
         name: testRobot.name,
-        licenseKey: testRobot.licenseKey,
+        ...protectedLicenseData(testRobot.licenseKey),
         validFrom: window.validFrom,
         validUntil: window.validUntil,
         licenseStatus: testRobot.status,

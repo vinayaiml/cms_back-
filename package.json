@@ -1,6 +1,6 @@
 {
   "name": "@whizrobot/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
@@ -15,7 +15,8 @@
     "test": "npm run test:ci",
     "test:unit": "jest --config jest.unit.config.js",
     "test:integration": "node test/run-integration-tests.js",
-    "test:ci": "npm run test:unit && npm run test:integration"
+    "test:ci": "npm run test:unit && npm run test:integration",
+    "db:clear": "ts-node prisma/clear-data.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
