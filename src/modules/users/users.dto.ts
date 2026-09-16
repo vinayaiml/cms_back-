@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -47,5 +47,10 @@ export class UpdateUserDto {
 export class AssignRoleDto {
   @IsInt()
   roleId!: number;
+}
+
+export class LockUserDto {
+  @IsBoolean()
+  locked!: boolean;
 }
 

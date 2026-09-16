@@ -16,6 +16,15 @@ export type RobotSyncHeartbeat = {
   deviceModel?: string;
 };
 
+type OrgContext = {
+  id: number;
+  name: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  tenantVersion: number;
+};
+
 type CourseWithLevels = Prisma.CourseGetPayload<{
   include: {
     levels: {
@@ -41,6 +50,19 @@ type PublicCourse = Prisma.CourseGetPayload<{
 @Injectable()
 export class RobotSyncService {
   constructor(private prisma: PrismaService) {}
+
+  private toOrganizationContext(org: OrgContext) {
+    return {
+      orgId: org.id,
+      orgName: org.name,
+      displayName: org.name,
+      logoUrl: org.logoUrl,
+      primaryColor: org.primaryColor,
+      secondaryColor: org.secondaryColor,
+      tenantVersion: org.tenantVersion,
+      cacheVersion: `org-${org.id}-v${org.tenantVersion}`,
+    };
+  }
 
   private computeLicenseStatus(validUntil: Date, revokedAt: Date | null): LicenseStatus {
     if (revokedAt) return LicenseStatus.REVOKED;
@@ -103,7 +125,19 @@ export class RobotSyncService {
   async sync(robotId: number, heartbeat: RobotSyncHeartbeat = {}) {
     const robot = await this.prisma.robot.findUnique({
       where: { id: robotId },
-      include: { org: { select: { isActive: true } } },
+      include: {
+        org: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            logoUrl: true,
+            primaryColor: true,
+            secondaryColor: true,
+            tenantVersion: true,
+          },
+        },
+      },
     });
     if (!robot) {
       return { locked: true, reason: 'ROBOT_NOT_FOUND' };
@@ -244,6 +278,7 @@ export class RobotSyncService {
         validFrom: robot.validFrom,
         validUntil: robot.validUntil,
       },
+      organization: this.toOrganizationContext(robot.org),
       myCourses,
       publicCatalog: publicCourses.map((c: PublicCourse) => ({
         id: c.id,

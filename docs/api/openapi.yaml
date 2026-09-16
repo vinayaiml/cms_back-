@@ -303,6 +303,15 @@ paths:
                       status: ACTIVE
                       validFrom: '2026-01-01T00:00:00.000Z'
                       validUntil: '2027-01-01T00:00:00.000Z'
+                    organization:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: '#1D4ED8'
+                      secondaryColor: '#F97316'
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
@@ -642,6 +651,15 @@ paths:
                       status: ACTIVE
                       validFrom: '2026-01-01T00:00:00.000Z'
                       validUntil: '2027-01-01T00:00:00.000Z'
+                    organization:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: '#1D4ED8'
+                      secondaryColor: '#F97316'
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
@@ -1184,6 +1202,51 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /users/{id}/lock:
+    patch:
+      tags: [Users]
+      summary: Set user lock status
+      description: Authorized administrators can explicitly lock or unlock a user. The action is tenant-scoped and records a sanitized audit event.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockUserRequest'
+            examples:
+              lock:
+                value:
+                  locked: true
+              unlock:
+                value:
+                  locked: false
+      responses:
+        '200':
+          description: Lock status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockUserResponse'
+              examples:
+                locked:
+                  value:
+                    ok: true
+                    isLocked: true
+                unlocked:
+                  value:
+                    ok: true
+                    isLocked: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /roles:
     get:
@@ -2197,6 +2260,18 @@ components:
                 statusCode: 403
                 message: Insufficient permissions
                 error: Forbidden
+    NotFound:
+      description: Resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                statusCode: 404
+                message: Resource not found
+                error: Not Found
     Conflict:
       description: Resource conflict
       content:
@@ -2482,6 +2557,21 @@ components:
           type: array
           items:
             type: string
+    LockUserRequest:
+      type: object
+      required: [locked]
+      additionalProperties: false
+      properties:
+        locked:
+          type: boolean
+    LockUserResponse:
+      type: object
+      required: [ok, isLocked]
+      properties:
+        ok:
+          type: boolean
+        isLocked:
+          type: boolean
     AuditEvent:
       type: object
       required: [id, action, targetType, targetId, createdAt]
@@ -2775,6 +2865,32 @@ components:
     LicenseStatus:
       type: string
       enum: [ACTIVE, EXPIRING_SOON, EXPIRED, REVOKED]
+    OrganizationContext:
+      type: object
+      required: [orgId, orgName, displayName, tenantVersion, cacheVersion]
+      additionalProperties: false
+      properties:
+        orgId:
+          type: integer
+        orgName:
+          type: string
+        displayName:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+        primaryColor:
+          type: string
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        secondaryColor:
+          type: string
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        tenantVersion:
+          type: integer
+        cacheVersion:
+          type: string
     RobotSyncResponse:
       type: object
       properties:
@@ -2785,6 +2901,8 @@ components:
         license:
           type: object
           additionalProperties: true
+        organization:
+          $ref: '#/components/schemas/OrganizationContext'
         myCourses:
           type: array
           items:

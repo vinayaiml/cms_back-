@@ -1,10 +1,11 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private audit: AuditService) {}
 
 async listUsers(orgId: number) {
   return this.prisma.user.findMany({
@@ -279,24 +280,60 @@ async listUsers(orgId: number) {
     return { ok: true };
   }
 
-  async toggleLock(userId: number, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+  private assertCanManageUserLock(
+    user: { id: number; orgId: number | null; createdByUserId: number | null },
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+  ) {
+    if (user.id === actor.userId) throw new ForbiddenException('You cannot lock yourself');
 
     if (!actor.isSuperAdmin) {
       if (!actor.orgId) throw new ForbiddenException('Org scope required');
       if (user.orgId !== actor.orgId) throw new ForbiddenException('Cannot modify other org user');
-      if (user.id === actor.userId) throw new ForbiddenException('You cannot lock yourself');
       if (user.createdByUserId !== actor.userId) {
         throw new ForbiddenException('You can only manage users you created');
       }
     }
+  }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { isLocked: !user.isLocked },
+  async setLock(
+    userId: number,
+    locked: boolean,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    this.assertCanManageUserLock(user, actor);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { isLocked: locked },
+        select: { id: true, orgId: true, isLocked: true },
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: updated.isLocked ? 'user.locked' : 'user.unlocked',
+          targetType: 'user',
+          targetId: updated.id,
+          targetOrgId: updated.orgId,
+          metadata: {
+            previousStatus: user.isLocked ? 'locked' : 'unlocked',
+            newStatus: updated.isLocked ? 'locked' : 'unlocked',
+          },
+        },
+        tx,
+      );
+
+      return { ok: true, isLocked: updated.isLocked };
     });
+  }
 
-    return { ok: true, isLocked: !user.isLocked };
+  async toggleLock(userId: number, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    return this.setLock(userId, !user.isLocked, actor);
   }
 }

@@ -5,7 +5,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt.types';
 import { UsersService } from './users.service';
-import { AssignRoleDto, CreateUserDto, UpdateUserDto } from './users.dto';
+import { AssignRoleDto, CreateUserDto, LockUserDto, UpdateUserDto } from './users.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -90,5 +90,12 @@ export class UsersController {
   async toggleLock(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
     return this.users.toggleLock(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+  }
+
+  @Patch(':id/lock')
+  @RequirePermissions('user.update')
+  async setLock(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Body() dto: LockUserDto) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.users.setLock(id, dto.locked, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
   }
 }

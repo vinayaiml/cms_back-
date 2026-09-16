@@ -192,6 +192,20 @@ async function main() {
         city: 'Mumbai',
         authorizedPersonName: 'Rajesh Kumar',
         contactNo: '9876543210',
+        logoUrl: 'https://assets.whizrobo.test/orgs/demo-school-logo.png',
+        primaryColor: '#1D4ED8',
+        secondaryColor: '#F97316',
+        tenantVersion: 1,
+      },
+    });
+  } else {
+    demoOrg = await prisma.organization.update({
+      where: { id: demoOrg.id },
+      data: {
+        logoUrl: 'https://assets.whizrobo.test/orgs/demo-school-logo.png',
+        primaryColor: '#1D4ED8',
+        secondaryColor: '#F97316',
+        tenantVersion: demoOrg.tenantVersion || 1,
       },
     });
   }
@@ -269,9 +283,39 @@ async function main() {
   console.log('📦 Creating test organizations...');
   const orgs = [];
   const testOrgData = [
-    { name: 'Test School 1', state: 'Delhi', city: 'New Delhi', authorizedPersonName: 'Amit Sharma', contactNo: '9876543211' },
-    { name: 'Test School 2', state: 'Karnataka', city: 'Bengaluru', authorizedPersonName: 'Priya Patel', contactNo: '9876543212' },
-    { name: 'Test School 3', state: 'Tamil Nadu', city: 'Chennai', authorizedPersonName: 'Suresh Reddy', contactNo: '9876543213' },
+    {
+      name: 'Test School 1',
+      state: 'Delhi',
+      city: 'New Delhi',
+      authorizedPersonName: 'Amit Sharma',
+      contactNo: '9876543211',
+      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-1-logo.png',
+      primaryColor: '#0F766E',
+      secondaryColor: '#FACC15',
+      tenantVersion: 1,
+    },
+    {
+      name: 'Test School 2',
+      state: 'Karnataka',
+      city: 'Bengaluru',
+      authorizedPersonName: 'Priya Patel',
+      contactNo: '9876543212',
+      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-2-logo.png',
+      primaryColor: '#7C3AED',
+      secondaryColor: '#22C55E',
+      tenantVersion: 2,
+    },
+    {
+      name: 'Test School 3',
+      state: 'Tamil Nadu',
+      city: 'Chennai',
+      authorizedPersonName: 'Suresh Reddy',
+      contactNo: '9876543213',
+      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-3-logo.png',
+      primaryColor: '#BE123C',
+      secondaryColor: '#38BDF8',
+      tenantVersion: 3,
+    },
   ];
   for (const orgData of testOrgData) {
     let org = await prisma.organization.findFirst({ where: { name: orgData.name } });
@@ -283,6 +327,20 @@ async function main() {
           city: orgData.city,
           authorizedPersonName: orgData.authorizedPersonName,
           contactNo: orgData.contactNo,
+          logoUrl: orgData.logoUrl,
+          primaryColor: orgData.primaryColor,
+          secondaryColor: orgData.secondaryColor,
+          tenantVersion: orgData.tenantVersion,
+        },
+      });
+    } else {
+      org = await prisma.organization.update({
+        where: { id: org.id },
+        data: {
+          logoUrl: orgData.logoUrl,
+          primaryColor: orgData.primaryColor,
+          secondaryColor: orgData.secondaryColor,
+          tenantVersion: orgData.tenantVersion,
         },
       });
     }
