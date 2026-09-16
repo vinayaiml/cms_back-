@@ -7,8 +7,23 @@ import { CreateOrgDto, UpdateOrgDto } from './orgs.dto';
 export class OrgsService {
   constructor(private prisma: PrismaService, private audit: AuditService) {}
 
+  private readonly organizationSelect = {
+    id: true,
+    name: true,
+    state: true,
+    city: true,
+    authorizedPersonName: true,
+    contactNo: true,
+    isActive: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
   async listAll() {
-    return this.prisma.organization.findMany({ orderBy: { id: 'desc' } });
+    return this.prisma.organization.findMany({
+      orderBy: { id: 'desc' },
+      select: this.organizationSelect,
+    });
   }
 
   async create(dto: CreateOrgDto) {
@@ -23,6 +38,7 @@ export class OrgsService {
         authorizedPersonName: dto.authorizedPersonName,
         contactNo: dto.contactNo,
       },
+      select: this.organizationSelect,
     });
 
     // Default org policy excludes superadmin.* and org.* permissions.
@@ -77,11 +93,15 @@ export class OrgsService {
         authorizedPersonName: dto.authorizedPersonName,
         contactNo: dto.contactNo,
       },
+      select: this.organizationSelect,
     });
   }
 
   async getById(id: number) {
-    const org = await this.prisma.organization.findUnique({ where: { id } });
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: this.organizationSelect,
+    });
     if (!org) throw new NotFoundException('Organization not found');
     return org;
   }
@@ -90,7 +110,10 @@ export class OrgsService {
     const org = await this.prisma.organization.findUnique({ where: { id } });
     if (!org) throw new NotFoundException('Organization not found');
 
-    return this.prisma.organization.delete({ where: { id } });
+    return this.prisma.organization.delete({
+      where: { id },
+      select: this.organizationSelect,
+    });
   }
 
   async toggleActive(
@@ -105,6 +128,7 @@ export class OrgsService {
       const updated = await tx.organization.update({
         where: { id },
         data: { isActive: !org.isActive },
+        select: this.organizationSelect,
       });
 
       await this.audit.recordCritical(

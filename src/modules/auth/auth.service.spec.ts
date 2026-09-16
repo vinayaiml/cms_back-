@@ -1,6 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LicenseStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -220,6 +221,73 @@ describe('AuthService robot login', () => {
       }),
     );
     expect(audit.recordBestEffort.mock.calls[0][0].metadata).not.toHaveProperty('password');
+  });
+
+  it('rejects users from inactive organizations without issuing a token', async () => {
+    jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true as never);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 20,
+      email: 'org-admin@example.com',
+      fullName: 'Org Admin',
+      passwordHash: 'hashed-password',
+      orgId: 5,
+      isSuperAdmin: false,
+      isLocked: false,
+      org: { isActive: false },
+    });
+
+    await expect(service.loginUser('org-admin@example.com', 'correct-password', { ip: '192.0.2.30' })).rejects.toBeInstanceOf(
+      DomainLockedException,
+    );
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { email: 'org-admin@example.com' },
+      include: { org: { select: { isActive: true } } },
+    });
+    expect(jwt.sign).not.toHaveBeenCalled();
+    expect(audit.recordBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'auth.login_failed',
+        targetType: 'user_auth',
+        targetOrgId: 5,
+        metadata: expect.objectContaining({
+          reason: 'ORG_INACTIVE',
+          endpoint: 'user.login',
+          ipSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      }),
+    );
+    expect(audit.recordBestEffort.mock.calls[0][0].metadata).not.toHaveProperty('password');
+  });
+
+  it('allows Super Admin login without organization status', async () => {
+    jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true as never);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'superadmin@whizrobo.com',
+      fullName: 'Super Admin',
+      passwordHash: 'hashed-password',
+      orgId: null,
+      isSuperAdmin: true,
+      isLocked: false,
+      org: null,
+    });
+
+    const result = await service.loginUser('superadmin@whizrobo.com', 'correct-password');
+
+    expect(jwt.sign).toHaveBeenCalledWith({
+      type: 'user',
+      sub: 1,
+      orgId: null,
+      isSuperAdmin: true,
+    });
+    expect(result.user).toEqual({
+      id: 1,
+      email: 'superadmin@whizrobo.com',
+      fullName: 'Super Admin',
+      orgId: null,
+      isSuperAdmin: true,
+    });
   });
 
   it('rejects a stolen license key when the serial number does not match', async () => {

@@ -3,6 +3,7 @@ import { OrgsService } from './orgs.service';
 describe('OrgsService', () => {
   const prisma = {
     organization: {
+      findMany: jest.fn(),
       findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -19,6 +20,39 @@ describe('OrgsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation((fn) => fn(tx));
+  });
+
+  it('lists organizations with an explicit safe field selection', async () => {
+    prisma.organization.findMany.mockResolvedValue([
+      {
+        id: 7,
+        name: 'Demo Org',
+        state: 'Maharashtra',
+        city: 'Mumbai',
+        authorizedPersonName: 'Demo Admin',
+        contactNo: '9876543210',
+        isActive: true,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ]);
+
+    const service = new OrgsService(prisma as any, audit as any);
+    await service.listAll();
+
+    expect(prisma.organization.findMany).toHaveBeenCalledWith({
+      orderBy: { id: 'desc' },
+      select: expect.objectContaining({
+        id: true,
+        name: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      }),
+    });
+    expect(prisma.organization.findMany.mock.calls[0][0].select).not.toHaveProperty('password');
+    expect(prisma.organization.findMany.mock.calls[0][0].select).not.toHaveProperty('passwordHash');
+    expect(prisma.organization.findMany.mock.calls[0][0].select).not.toHaveProperty('licenseKey');
   });
 
   it('creates a critical audit event when an organization is deactivated', async () => {

@@ -78,12 +78,13 @@ export class AuthService {
     });
   }
 
-  private async auditUserFailure(key: string, email: string, reason: string, ip?: string) {
+  private async auditUserFailure(key: string, email: string, reason: string, ip?: string, targetOrgId?: number | null) {
     await this.auditAuthFailure({
       key,
       action: 'auth.login_failed',
       targetType: 'user_auth',
       targetId: this.safeHash(email),
+      targetOrgId,
       reason,
       endpoint: 'user.login',
       ip,
@@ -140,7 +141,10 @@ export class AuthService {
       context.ip,
     );
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { org: { select: { isActive: true } } },
+    });
     if (!user) {
       this.rateLimit.recordFailure(rateKey);
       await this.auditUserFailure(rateKey, email, 'INVALID_CREDENTIALS', context.ip);
@@ -164,6 +168,12 @@ export class AuthService {
       this.rateLimit.recordFailure(rateKey);
       await this.auditUserFailure(rateKey, email, 'NO_ORG_SCOPE', context.ip);
       throw new ForbiddenException('User has no organization assigned');
+    }
+
+    if (!user.isSuperAdmin && !user.org?.isActive) {
+      this.rateLimit.recordFailure(rateKey);
+      await this.auditUserFailure(rateKey, email, 'ORG_INACTIVE', context.ip, user.orgId);
+      throw new DomainLockedException('ORG_INACTIVE', 'Organization is inactive');
     }
 
     const payload: JwtPayload = {
