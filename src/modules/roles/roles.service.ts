@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -47,9 +48,23 @@ export class RolesService {
   }
 
   async create(orgId: number, name: string, description?: string) {
-    return this.prisma.role.create({
-      data: { orgId, name, description },
+    const cleanName = name.trim();
+    const existing = await this.prisma.role.findFirst({
+      where: { orgId, name: { equals: cleanName, mode: 'insensitive' } },
+      select: { id: true },
     });
+    if (existing) throw new ConflictException('Role name already exists in this organization');
+
+    try {
+      return await this.prisma.role.create({
+        data: { orgId, name: cleanName, description },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Role name already exists in this organization');
+      }
+      throw error;
+    }
   }
 
   async addPermission(
