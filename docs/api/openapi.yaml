@@ -1612,6 +1612,60 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /robots/{id}/reassign:
+    patch:
+      tags: [Robot]
+      summary: Reassign robot to another organization
+      description: Super Admin-only robot reassignment. Moves the robot to a new organization, increments tenant cache versions, and records a sanitized audit event. The response does not include license keys or credentials.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReassignRobotRequest'
+            examples:
+              reassign:
+                value:
+                  orgId: 2
+      responses:
+        '200':
+          description: Robot reassigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotReassignmentResponse'
+              examples:
+                success:
+                  value:
+                    id: 10
+                    orgId: 2
+                    serialNumber: TEST-ACTIVE-001
+                    name: Demo Robot
+                    validFrom: '2026-01-01T00:00:00.000Z'
+                    validUntil: '2027-01-01T00:00:00.000Z'
+                    licenseStatus: ACTIVE
+                    revokedAt: null
+                    lastSeenAt: '2026-01-02T00:00:00.000Z'
+                    appVersion: '0.1.0'
+                    deviceModel: Mini ELF
+                    org:
+                      id: 2
+                      name: Test School 2
+                      tenantVersion: 6
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /robots/{id}/device-metadata:
     delete:
       tags: [Robot]
@@ -2835,6 +2889,33 @@ components:
       properties:
         lock:
           type: boolean
+    ReassignRobotRequest:
+      type: object
+      required: [orgId]
+      additionalProperties: false
+      properties:
+        orgId:
+          type: integer
+          description: Target organization ID.
+    RobotOrganizationSummary:
+      type: object
+      required: [id, name, tenantVersion]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        tenantVersion:
+          type: integer
+          description: Incremented when tenant-scoped cache should be reset.
+    RobotReassignmentResponse:
+      allOf:
+        - $ref: '#/components/schemas/Robot'
+        - type: object
+          required: [org]
+          properties:
+            org:
+              $ref: '#/components/schemas/RobotOrganizationSummary'
     License:
       type: object
       properties:

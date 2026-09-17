@@ -29,3 +29,8 @@ export class LockRobotDto {
   @IsBoolean()
   lock!: boolean;
 }
+
+export class ReassignRobotDto {
+  @IsInt()
+  orgId!: number;
+}

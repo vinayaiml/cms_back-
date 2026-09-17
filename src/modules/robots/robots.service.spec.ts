@@ -35,6 +35,9 @@ describe('RobotsService device metadata', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    organization: {
+      findUnique: jest.fn(),
+    },
     user: {
       findUnique: jest.fn(),
     },
@@ -320,5 +323,95 @@ describe('RobotsService device metadata', () => {
 
     expect(prisma.robot.findUnique).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reassigns a robot, bumps tenant versions and records a sanitized audit event', async () => {
+    const tx = {
+      organization: {
+        update: jest.fn()
+          .mockResolvedValueOnce({ id: 1 })
+          .mockResolvedValueOnce({ id: 2, tenantVersion: 6 }),
+      },
+      robot: {
+        update: jest.fn().mockResolvedValue({
+          ...robot,
+          orgId: 2,
+          org: { id: 2, name: 'Target School', tenantVersion: 6 },
+        }),
+      },
+    };
+
+    prisma.robot.findUnique.mockResolvedValue(robot);
+    prisma.organization.findUnique.mockResolvedValue({ id: 2, isActive: true });
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.reassignRobot(
+      10,
+      2,
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'reassign-123',
+    );
+
+    expect(tx.organization.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 1 },
+      data: { tenantVersion: { increment: 1 } },
+      select: { id: true },
+    });
+    expect(tx.organization.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 2 },
+      data: { tenantVersion: { increment: 1 } },
+      select: { id: true, tenantVersion: true },
+    });
+    expect(tx.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { orgId: 2 },
+      select: expect.objectContaining({
+        id: true,
+        orgId: true,
+        org: { select: { id: true, name: true, tenantVersion: true } },
+      }),
+    });
+    expect(audit.recordCritical).toHaveBeenCalledWith(
+      {
+        actor: { userId: 1, orgId: null, isSuperAdmin: true },
+        action: 'robot.reassigned',
+        targetType: 'robot',
+        targetId: 10,
+        targetOrgId: 2,
+        correlationId: 'reassign-123',
+        metadata: {
+          serialNumber: 'WR-001',
+          oldOrgId: 1,
+          newOrgId: 2,
+          newTenantVersion: 6,
+        },
+      },
+      tx,
+    );
+    expect(audit.recordCritical.mock.calls[0][0].metadata).not.toHaveProperty('licenseKey');
+    expect(result).not.toBeNull();
+    expect(result?.orgId).toBe(2);
+  });
+
+  it('blocks robot reassignment for organization users before mutation', async () => {
+    await expect(
+      service.reassignRobot(10, 2, { userId: 2, orgId: 1, isSuperAdmin: false }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.robot.findUnique).not.toHaveBeenCalled();
+    expect(prisma.organization.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects reassignment to an inactive organization before mutation', async () => {
+    prisma.robot.findUnique.mockResolvedValue(robot);
+    prisma.organization.findUnique.mockResolvedValue({ id: 2, isActive: false });
+
+    await expect(
+      service.reassignRobot(10, 2, { userId: 1, orgId: null, isSuperAdmin: true }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.recordCritical).not.toHaveBeenCalled();
   });
 });

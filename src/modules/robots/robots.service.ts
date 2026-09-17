@@ -288,6 +288,76 @@ export class RobotsService {
     });
   }
 
+  async reassignRobot(
+    robotId: number,
+    newOrgId: number,
+    actor: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    if (!actor.isSuperAdmin) throw new ForbiddenException('Only Super Admin can reassign robots');
+
+    const robot = await this.getRobotOrThrow(robotId);
+    if (robot.orgId === newOrgId) {
+      return this.prisma.robot.findUnique({
+        where: { id: robotId },
+        select: {
+          ...this.robotSelect,
+          org: { select: { id: true, name: true, tenantVersion: true } },
+        },
+      });
+    }
+
+    const targetOrg = await this.prisma.organization.findUnique({
+      where: { id: newOrgId },
+      select: { id: true, isActive: true },
+    });
+    if (!targetOrg) throw new NotFoundException('Target organization not found');
+    if (!targetOrg.isActive) throw new ForbiddenException('Target organization is inactive');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({
+        where: { id: robot.orgId },
+        data: { tenantVersion: { increment: 1 } },
+        select: { id: true },
+      });
+
+      const updatedOrg = await tx.organization.update({
+        where: { id: newOrgId },
+        data: { tenantVersion: { increment: 1 } },
+        select: { id: true, tenantVersion: true },
+      });
+
+      const updated = await tx.robot.update({
+        where: { id: robotId },
+        data: { orgId: newOrgId },
+        select: {
+          ...this.robotSelect,
+          org: { select: { id: true, name: true, tenantVersion: true } },
+        },
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'robot.reassigned',
+          targetType: 'robot',
+          targetId: robotId,
+          targetOrgId: newOrgId,
+          correlationId,
+          metadata: {
+            serialNumber: robot.serialNumber,
+            oldOrgId: robot.orgId,
+            newOrgId,
+            newTenantVersion: updatedOrg.tenantVersion,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
   async clearDeviceMetadata(
     robotId: number,
     actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },

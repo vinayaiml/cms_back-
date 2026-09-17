@@ -7,6 +7,7 @@ import {
   Headers,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -18,7 +19,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt.types';
 import { RobotsService } from './robots.service';
-import { CreateRobotDto, LockRobotDto, RenewLicenseDto } from './robots.dto';
+import { CreateRobotDto, LockRobotDto, ReassignRobotDto, RenewLicenseDto } from './robots.dto';
 
 @Controller('robots')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -110,6 +111,23 @@ export class RobotsController {
     await this.robots.ensureOrgAccess({ orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, robot.orgId);
 
     return this.robots.lockRobot(id, !!dto.lock);
+  }
+
+  @Patch(':id/reassign')
+  @RequirePermissions('robot.update')
+  async reassign(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ReassignRobotDto,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.reassignRobot(
+      id,
+      dto.orgId,
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      correlationId,
+    );
   }
 
   // Backward-compatibility for clients that still call GET /robots/:id/lock
