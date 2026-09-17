@@ -5,6 +5,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class RolesService {
   constructor(private prisma: PrismaService) {}
 
+  private async getOrgPermissionKeys(orgId: number): Promise<Set<string>> {
+    const rows = await this.prisma.orgPermission.findMany({
+      where: { orgId },
+      include: { permission: true },
+    });
+    return new Set(rows.map((row) => row.permission.key));
+  }
+
   private async getEffectivePermissionKeys(userId: number): Promise<Set<string>> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -14,11 +22,18 @@ export class RolesService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
+    if (!user.orgId) return new Set();
+
+    const orgAllowedKeys = await this.getOrgPermissionKeys(user.orgId);
 
     const keys = new Set<string>();
-    for (const up of user.directPermissions) keys.add(up.permission.key);
+    for (const up of user.directPermissions) {
+      if (orgAllowedKeys.has(up.permission.key)) keys.add(up.permission.key);
+    }
     for (const ur of user.roles) {
-      for (const rp of ur.role.permissions) keys.add(rp.permission.key);
+      for (const rp of ur.role.permissions) {
+        if (orgAllowedKeys.has(rp.permission.key)) keys.add(rp.permission.key);
+      }
     }
     return keys;
   }

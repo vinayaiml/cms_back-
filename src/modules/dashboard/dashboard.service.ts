@@ -16,11 +16,22 @@ export class DashboardService {
     });
 
     if (!user) throw new ForbiddenException('User not found');
+    if (!user.orgId) return new Set();
+
+    const orgPermissions = await this.prisma.orgPermission.findMany({
+      where: { orgId: user.orgId },
+      include: { permission: true },
+    });
+    const orgAllowedKeys = new Set(orgPermissions.map((row) => row.permission.key));
 
     const permKeys = new Set<string>();
-    for (const up of user.directPermissions) permKeys.add(up.permission.key);
+    for (const up of user.directPermissions) {
+      if (orgAllowedKeys.has(up.permission.key)) permKeys.add(up.permission.key);
+    }
     for (const ur of user.roles) {
-      for (const rp of ur.role.permissions) permKeys.add(rp.permission.key);
+      for (const rp of ur.role.permissions) {
+        if (orgAllowedKeys.has(rp.permission.key)) permKeys.add(rp.permission.key);
+      }
     }
 
     return permKeys;

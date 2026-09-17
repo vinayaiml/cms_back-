@@ -26,6 +26,14 @@ async listUsers(orgId: number) {
   });
 }
 
+  private async getOrgPermissionKeys(orgId: number): Promise<Set<string>> {
+    const rows = await this.prisma.orgPermission.findMany({
+      where: { orgId },
+      include: { permission: true },
+    });
+    return new Set(rows.map((row) => row.permission.key));
+  }
+
   private async getEffectivePermissionKeys(userId: number): Promise<Set<string>> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -36,13 +44,47 @@ async listUsers(orgId: number) {
     });
 
     if (!user) throw new NotFoundException('User not found');
+    if (!user.orgId) return new Set();
+
+    const orgAllowedKeys = await this.getOrgPermissionKeys(user.orgId);
 
     const keys = new Set<string>();
-    for (const up of user.directPermissions) keys.add(up.permission.key);
+    for (const up of user.directPermissions) {
+      if (orgAllowedKeys.has(up.permission.key)) keys.add(up.permission.key);
+    }
     for (const ur of user.roles) {
-      for (const rp of ur.role.permissions) keys.add(rp.permission.key);
+      for (const rp of ur.role.permissions) {
+        if (orgAllowedKeys.has(rp.permission.key)) keys.add(rp.permission.key);
+      }
     }
     return keys;
+  }
+
+  private async assertPermissionKeysWithinOrgCeiling(orgId: number | null, permissionKeys: string[]) {
+    if (!orgId || permissionKeys.length === 0) return;
+
+    const allowedKeys = await this.getOrgPermissionKeys(orgId);
+    const denied = permissionKeys.filter((key) => !allowedKeys.has(key));
+    if (denied.length) {
+      throw new ForbiddenException('Permission is not granted to this organization');
+    }
+  }
+
+  private async assertRolesWithinOrgCeiling(
+    orgId: number | null,
+    roles: Array<{ name: string; permissions: Array<{ permission: { key: string } }> }>,
+  ) {
+    if (!orgId || roles.length === 0) return;
+
+    const allowedKeys = await this.getOrgPermissionKeys(orgId);
+    for (const role of roles) {
+      const denied = role.permissions
+        .map((rp) => rp.permission.key)
+        .filter((key) => !allowedKeys.has(key));
+      if (denied.length) {
+        throw new ForbiddenException(`Cannot assign role "${role.name}" because it exceeds organization permissions`);
+      }
+    }
   }
 
   async createUser(
@@ -82,7 +124,16 @@ async listUsers(orgId: number) {
     const roleOrgMismatch = roleRows.some((r) => r.orgId !== data.orgId);
     if (roleOrgMismatch) throw new ForbiddenException('Role must belong to the same organization');
 
-    // Only enforce permission checks if actor doesn't have permission.manage
+    const permissionRows = requestedPermissionKeys.length
+      ? await this.prisma.permission.findMany({ where: { key: { in: requestedPermissionKeys } } })
+      : [];
+    if (permissionRows.length !== requestedPermissionKeys.length) throw new NotFoundException('One or more permissions not found');
+
+    await this.assertPermissionKeysWithinOrgCeiling(data.orgId, requestedPermissionKeys);
+    await this.assertRolesWithinOrgCeiling(data.orgId, roleRows);
+
+    // permission.manage allows org admins to manage allowed tenant permissions,
+    // but never to exceed the organization's approved permission ceiling.
     const hasPermissionManage = actorPermissionKeys?.has('permission.manage');
     if (!actor.isSuperAdmin && actorPermissionKeys && !hasPermissionManage) {
       for (const key of requestedPermissionKeys) {
@@ -97,11 +148,6 @@ async listUsers(orgId: number) {
         }
       }
     }
-
-    const permissionRows = requestedPermissionKeys.length
-      ? await this.prisma.permission.findMany({ where: { key: { in: requestedPermissionKeys } } })
-      : [];
-    if (permissionRows.length !== requestedPermissionKeys.length) throw new NotFoundException('One or more permissions not found');
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
@@ -156,12 +202,14 @@ async listUsers(orgId: number) {
     });
     if (!role) throw new NotFoundException('Role not found');
 
-    if (!actor.isSuperAdmin && role.orgId !== actor.orgId) {
+    if (role.orgId !== user.orgId) {
       throw new ForbiddenException('Role must belong to same org');
     }
     if (role.name.trim().toLowerCase() === 'org admin') {
       throw new ForbiddenException('Org Admin role cannot be assigned from Users');
     }
+
+    await this.assertRolesWithinOrgCeiling(user.orgId, [role]);
 
     if (!actor.isSuperAdmin) {
       const actorPermissionKeys = await this.getEffectivePermissionKeys(actor.userId);
@@ -204,6 +252,8 @@ async listUsers(orgId: number) {
     const uniqueKeys = Array.from(new Set(permissionKeys.map((k) => k.trim()).filter(Boolean)));
     const rows = uniqueKeys.length ? await this.prisma.permission.findMany({ where: { key: { in: uniqueKeys } } }) : [];
     if (rows.length !== uniqueKeys.length) throw new NotFoundException('One or more permissions not found');
+
+    await this.assertPermissionKeysWithinOrgCeiling(user.orgId, uniqueKeys);
 
     if (!actor.isSuperAdmin) {
       const actorPermissionKeys = await this.getEffectivePermissionKeys(actor.userId);

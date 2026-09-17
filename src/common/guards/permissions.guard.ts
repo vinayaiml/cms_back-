@@ -38,11 +38,21 @@ export class PermissionsGuard implements CanActivate {
 
     if (!dbUser) throw new ForbiddenException('User not found');
 
+    const orgPermissions = await this.prisma.orgPermission.findMany({
+      where: { orgId: user.orgId },
+      include: { permission: true },
+    });
+    const orgAllowedKeys = new Set(orgPermissions.map((row) => row.permission.key));
+
     const permKeys = new Set<string>();
 
-    for (const up of dbUser.directPermissions) permKeys.add(up.permission.key);
+    for (const up of dbUser.directPermissions) {
+      if (orgAllowedKeys.has(up.permission.key)) permKeys.add(up.permission.key);
+    }
     for (const ur of dbUser.roles) {
-      for (const rp of ur.role.permissions) permKeys.add(rp.permission.key);
+      for (const rp of ur.role.permissions) {
+        if (orgAllowedKeys.has(rp.permission.key)) permKeys.add(rp.permission.key);
+      }
     }
 
     const ok = required.every((k) => permKeys.has(k));
