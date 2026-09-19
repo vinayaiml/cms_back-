@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Prisma, LicenseStatus } from '@prisma/client';
 import { RobotsService } from './robots.service';
 
@@ -20,6 +20,9 @@ describe('RobotsService device metadata', () => {
     lastSeenAt: new Date('2026-01-02T00:00:00.000Z'),
     appVersion: '0.1.0',
     deviceModel: null,
+    hardwareModel: null,
+    hardwareProfile: null,
+    hardwareCapabilities: null,
     deviceMetadata: {
       schemaVersion: 1,
       storage: 'sha256-digest',
@@ -122,6 +125,9 @@ describe('RobotsService device metadata', () => {
       lastSeenAt: null,
       appVersion: null,
       deviceModel: null,
+      hardwareModel: null,
+      hardwareProfile: null,
+      hardwareCapabilities: null,
       deviceMetadata: null,
       createdAt: robot.createdAt,
       updatedAt: robot.updatedAt,
@@ -159,6 +165,9 @@ describe('RobotsService device metadata', () => {
         validFrom: new Date('2026-01-01T00:00:00.000Z'),
         validUntil: new Date('2027-01-01T00:00:00.000Z'),
         licenseStatus: LicenseStatus.ACTIVE,
+        hardwareModel: null,
+        hardwareProfile: Prisma.JsonNull,
+        hardwareCapabilities: Prisma.JsonNull,
       },
       select: expect.objectContaining({ licenseKey: true }),
     });
@@ -175,11 +184,128 @@ describe('RobotsService device metadata', () => {
           licenseStatus: LicenseStatus.ACTIVE,
           validFrom: new Date('2026-01-01T00:00:00.000Z'),
           validUntil: new Date('2027-01-01T00:00:00.000Z'),
+          hardwareModel: null,
         },
       },
       tx,
     );
     expect(result).toHaveProperty('licenseKey', licenseKey);
+  });
+
+  it('stores a validated hardware profile with effective safety-filtered capabilities', async () => {
+    const enrolledRobot = {
+      ...robot,
+      hardwareModel: 'MINI_ELF',
+      hardwareProfile: {
+        schemaVersion: 1,
+        model: 'MINI_ELF',
+        label: 'Mini ELF',
+        manufacturer: 'Sanbot',
+        androidApiLevel: 25,
+        abi: 'arm64-v8a',
+        display: { width: 1920, height: 1200 },
+      },
+      hardwareCapabilities: {
+        camera: true,
+        microphone: true,
+        speaker: true,
+        touchDisplay: true,
+        videoPlayback: true,
+        speechRecognition: true,
+        autonomousNavigation: false,
+        armMotion: false,
+      },
+    };
+    const tx = {
+      robot: {
+        create: jest.fn().mockResolvedValue(enrolledRobot),
+      },
+    };
+
+    prisma.robot.findFirst.mockResolvedValue(null);
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.createRobot(
+      {
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2027-01-01T00:00:00.000Z'),
+        hardwareProfile: {
+          model: 'MINI_ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 25,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+          capabilities: {
+            camera: true,
+            autonomousNavigation: true,
+            armMotion: true,
+          },
+        },
+      },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'hardware-123',
+    );
+
+    expect(tx.robot.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        hardwareModel: 'MINI_ELF',
+        hardwareProfile: {
+          schemaVersion: 1,
+          model: 'MINI_ELF',
+          label: 'Mini ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 25,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+        hardwareCapabilities: {
+          camera: true,
+          microphone: true,
+          speaker: true,
+          touchDisplay: true,
+          videoPlayback: true,
+          speechRecognition: true,
+          autonomousNavigation: false,
+          armMotion: false,
+        },
+      }),
+      select: expect.any(Object),
+    });
+    expect(result.hardwareCapabilities).toEqual(
+      expect.objectContaining({
+        autonomousNavigation: false,
+        armMotion: false,
+      }),
+    );
+    expect(audit.recordCritical.mock.calls[0][0].metadata).toEqual(
+      expect.objectContaining({
+        hardwareModel: 'MINI_ELF',
+      }),
+    );
+  });
+
+  it('rejects invalid hardware profile values before persistence', async () => {
+    await expect(
+      service.createRobot({
+        orgId: 1,
+        serialNumber: 'WR-001',
+        name: 'Demo Robot',
+        validFrom: new Date('2026-01-01T00:00:00.000Z'),
+        validUntil: new Date('2027-01-01T00:00:00.000Z'),
+        hardwareProfile: {
+          model: 'MINI_ELF',
+          androidApiLevel: 31,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.robot.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('does not include license keys in normal organization robot lists', async () => {

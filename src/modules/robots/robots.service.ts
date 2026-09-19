@@ -4,6 +4,7 @@ import { LicenseStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { decryptLicenseKey, encryptLicenseKey, licenseFingerprint, maskLicenseKey } from '../../common/security/license-secret';
+import { normalizeRobotHardwareProfile } from './robot-hardware-profile';
 
 @Injectable()
 export class RobotsService {
@@ -24,6 +25,9 @@ export class RobotsService {
     lastSeenAt: true,
     appVersion: true,
     deviceModel: true,
+    hardwareModel: true,
+    hardwareProfile: true,
+    hardwareCapabilities: true,
     createdAt: true,
     updatedAt: true,
   } as const;
@@ -125,10 +129,22 @@ export class RobotsService {
       name?: string;
       validFrom: Date;
       validUntil: Date;
+      hardwareProfile?: {
+        model?: string;
+        manufacturer?: string;
+        androidApiLevel?: number;
+        abi?: string;
+        display?: {
+          width?: number;
+          height?: number;
+        };
+        capabilities?: Record<string, unknown>;
+      };
     },
     actor?: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
     correlationId?: string,
   ) {
+    const hardware = normalizeRobotHardwareProfile(input.hardwareProfile);
     const licenseKey = await this.generateUniqueLicenseKey();
     const status = this.computeLicenseStatus(input.validUntil, null);
 
@@ -144,6 +160,9 @@ export class RobotsService {
           validFrom: input.validFrom,
           validUntil: input.validUntil,
           licenseStatus: status,
+          hardwareModel: hardware.hardwareModel,
+          hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+          hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
         },
         select: this.robotEnrollmentSelect,
       });
@@ -162,6 +181,7 @@ export class RobotsService {
               licenseStatus: robot.licenseStatus,
               validFrom: robot.validFrom,
               validUntil: robot.validUntil,
+              hardwareModel: robot.hardwareModel,
             },
           },
           tx,

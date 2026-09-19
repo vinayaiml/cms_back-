@@ -247,7 +247,9 @@ Expired licenses, revoked licenses and inactive organizations return:
 423 Locked
 ```
 
-Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number and license window, generates the activation license key server-side in `WHRB` plus six digits format, stores it as a protected secret, records `robot.enrolled` audit metadata without the secret, and returns the activation `licenseKey` in the create response.
+Robot enrollment is the protected administrative `POST /api/robots` contract. It accepts the robot serial number, license window and optional validated hardware profile, generates the activation license key server-side in `WHRB` plus six digits format, stores it as a protected secret, records `robot.enrolled` audit metadata without the secret, and returns the activation `licenseKey` in the create response.
+
+The F03 hardware profile stores metadata only. CMS validates the submitted model profile against approved `MINI_ELF`, `ELF`, `NANO` and `S5` policy values, stores the normalized `hardwareProfile`, and returns `hardwareCapabilities` as the effective permitted capability set. Safety-controlled capabilities such as autonomous navigation and arm motion resolve to `false` in F03 until later entitlement and safety-policy phases consume the stored metadata.
 
 Robot list responses include `licenseKey` and `licenseKeyMasked` only for Super Admin. Organization users never receive robot license keys from the list API. The CMS frontend shows the masked value by default and reveals the raw value for five seconds when Super Admin clicks the eye button.
 

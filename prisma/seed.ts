@@ -1,8 +1,30 @@
-import { PrismaClient, DashboardTemplateType, LicenseStatus } from '@prisma/client';
+import { Prisma, PrismaClient, DashboardTemplateType, LicenseStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { encryptLicenseKey, licenseFingerprint } from '../src/common/security/license-secret';
+import { normalizeRobotHardwareProfile } from '../src/modules/robots/robot-hardware-profile';
 
-const prisma = new PrismaClient();
+function seedDatabaseUrl() {
+  const directDatabaseUrl = process.env.DIRECT_DATABASE_URL?.trim();
+  if (directDatabaseUrl) return directDatabaseUrl;
+
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) return undefined;
+
+  try {
+    const url = new URL(databaseUrl);
+    if (url.hostname.includes('-pooler.') && url.hostname.endsWith('.neon.tech')) {
+      url.hostname = url.hostname.replace('-pooler.', '.');
+      return url.toString();
+    }
+  } catch {
+    return databaseUrl;
+  }
+
+  return databaseUrl;
+}
+
+const seedUrl = seedDatabaseUrl();
+const prisma = new PrismaClient(seedUrl ? { datasources: { db: { url: seedUrl } } } : undefined);
 
 function protectedLicenseData(licenseKey: string) {
   return {
@@ -10,6 +32,41 @@ function protectedLicenseData(licenseKey: string) {
     licenseKeyCiphertext: encryptLicenseKey(licenseKey),
     licenseKeyFingerprint: licenseFingerprint(licenseKey),
   };
+}
+
+function hardwareProfileData(model: 'MINI_ELF' | 'ELF' | 'NANO' | 'S5') {
+  const profiles = {
+    MINI_ELF: {
+      model: 'MINI_ELF',
+      manufacturer: 'Sanbot',
+      androidApiLevel: 25,
+      abi: 'arm64-v8a',
+      display: { width: 1920, height: 1200 },
+      capabilities: { autonomousNavigation: true, armMotion: true },
+    },
+    ELF: {
+      model: 'ELF',
+      manufacturer: 'Sanbot',
+      androidApiLevel: 23,
+      abi: 'armeabi-v7a',
+      display: { width: 1920, height: 1200 },
+    },
+    NANO: {
+      model: 'NANO',
+      manufacturer: 'Sanbot',
+      androidApiLevel: 23,
+      abi: 'armeabi-v7a',
+      display: { width: 1920, height: 1200 },
+    },
+    S5: {
+      model: 'S5',
+      manufacturer: 'Sanbot',
+      androidApiLevel: 31,
+      abi: 'arm64-v8a',
+      display: { width: 1920, height: 1080 },
+    },
+  } as const;
+  return normalizeRobotHardwareProfile(profiles[model]);
 }
 
 function requiredSeedValue(name: string) {
@@ -557,6 +614,7 @@ async function main() {
         const window = licenseWindow(status);
 
         const licenseKey = `WHRB${String(org.id).padStart(3, '0')}${String(i + 1).padStart(3, '0')}`;
+        const hardware = hardwareProfileData((['MINI_ELF', 'ELF', 'NANO', 'S5'] as const)[i]);
 
         robot = await prisma.robot.create({
           data: {
@@ -568,6 +626,9 @@ async function main() {
             validUntil: window.validUntil,
             licenseStatus: status,
             revokedAt: window.revokedAt,
+            hardwareModel: hardware.hardwareModel,
+            hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+            hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
           },
         });
       }
@@ -603,6 +664,7 @@ async function main() {
       name: 'API Test Robot (ACTIVE)',
       licenseKey: 'WHRB900001',
       status: LicenseStatus.ACTIVE,
+      hardwareModel: 'MINI_ELF' as const,
     },
     {
       orgId: demoOrg.id,
@@ -610,6 +672,7 @@ async function main() {
       name: 'API Test Robot (EXPIRED)',
       licenseKey: 'WHRB900002',
       status: LicenseStatus.EXPIRED,
+      hardwareModel: 'ELF' as const,
     },
     {
       orgId: demoOrg.id,
@@ -617,6 +680,7 @@ async function main() {
       name: 'API Test Robot (REVOKED)',
       licenseKey: 'WHRB900003',
       status: LicenseStatus.REVOKED,
+      hardwareModel: 'NANO' as const,
     },
     {
       orgId: inactiveRobotOrg.id,
@@ -624,11 +688,13 @@ async function main() {
       name: 'API Test Robot (INACTIVE ORG)',
       licenseKey: 'WHRB900004',
       status: LicenseStatus.ACTIVE,
+      hardwareModel: 'S5' as const,
     },
   ];
 
   for (const testRobot of stableRobotCases) {
     const window = licenseWindow(testRobot.status);
+    const hardware = hardwareProfileData(testRobot.hardwareModel);
     const robot = await prisma.robot.upsert({
       where: { serialNumber: testRobot.serialNumber },
       update: {
@@ -639,6 +705,9 @@ async function main() {
         validUntil: window.validUntil,
         licenseStatus: testRobot.status,
         revokedAt: window.revokedAt,
+        hardwareModel: hardware.hardwareModel,
+        hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+        hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
       },
       create: {
         orgId: testRobot.orgId,
@@ -649,6 +718,9 @@ async function main() {
         validUntil: window.validUntil,
         licenseStatus: testRobot.status,
         revokedAt: window.revokedAt,
+        hardwareModel: hardware.hardwareModel,
+        hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+        hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
       },
     });
 

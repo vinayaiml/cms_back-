@@ -131,6 +131,9 @@ model Robot {
   lastSeenAt            DateTime?
   appVersion            String?
   deviceModel           String?
+  hardwareModel         String?
+  hardwareProfile       Json?
+  hardwareCapabilities  Json?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   deviceMetadata        Json?

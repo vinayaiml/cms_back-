@@ -57,6 +57,7 @@ export class RobotsController {
         name: dto.name,
         validFrom: new Date(dto.validFrom),
         validUntil: new Date(dto.validUntil),
+        hardwareProfile: dto.hardwareProfile,
       },
       { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
       correlationId,
