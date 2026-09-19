@@ -1503,7 +1503,17 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          description: Duplicate robot serial number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicateSerial:
+                  value:
+                    statusCode: 409
+                    message: Robot serial number already exists
+                    error: Conflict
 
   /robots/{id}/license/renew:
     put:

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Prisma, LicenseStatus } from '@prisma/client';
 import { RobotsService } from './robots.service';
 
@@ -54,7 +54,7 @@ describe('RobotsService device metadata', () => {
   let service: RobotsService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     service = new RobotsService(prisma as any, audit as any);
   });
 
@@ -190,6 +190,32 @@ describe('RobotsService device metadata', () => {
       tx,
     );
     expect(result).toHaveProperty('licenseKey', licenseKey);
+  });
+
+  it('rejects duplicate robot serials before generating credentials or writing audit events', async () => {
+    prisma.robot.findUnique.mockResolvedValue({ id: 99 });
+
+    await expect(
+      service.createRobot(
+        {
+          orgId: 1,
+          serialNumber: 'WR-001',
+          name: 'Duplicate Robot',
+          validFrom: new Date('2026-01-01T00:00:00.000Z'),
+          validUntil: new Date('2027-01-01T00:00:00.000Z'),
+        },
+        { userId: 1, orgId: null, isSuperAdmin: true },
+        'duplicate-123',
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    expect(prisma.robot.findUnique).toHaveBeenCalledWith({
+      where: { serialNumber: 'WR-001' },
+      select: { id: true },
+    });
+    expect(prisma.robot.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.recordCritical).not.toHaveBeenCalled();
   });
 
   it('stores a validated hardware profile with effective safety-filtered capabilities', async () => {

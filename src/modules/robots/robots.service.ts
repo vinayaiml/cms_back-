@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LicenseStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -145,27 +145,45 @@ export class RobotsService {
     correlationId?: string,
   ) {
     const hardware = normalizeRobotHardwareProfile(input.hardwareProfile);
+    const existingSerial = await this.prisma.robot.findUnique({
+      where: { serialNumber: input.serialNumber },
+      select: { id: true },
+    });
+    if (existingSerial) throw new ConflictException('Robot serial number already exists');
+
     const licenseKey = await this.generateUniqueLicenseKey();
     const status = this.computeLicenseStatus(input.validUntil, null);
 
     return this.prisma.$transaction(async (tx) => {
-      const robot = await tx.robot.create({
-        data: {
-          orgId: input.orgId,
-          serialNumber: input.serialNumber,
-          name: input.name,
-          licenseKey: null,
-          licenseKeyCiphertext: encryptLicenseKey(licenseKey),
-          licenseKeyFingerprint: licenseFingerprint(licenseKey),
-          validFrom: input.validFrom,
-          validUntil: input.validUntil,
-          licenseStatus: status,
-          hardwareModel: hardware.hardwareModel,
-          hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
-          hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
-        },
-        select: this.robotEnrollmentSelect,
-      });
+      const robot = await tx.robot
+        .create({
+          data: {
+            orgId: input.orgId,
+            serialNumber: input.serialNumber,
+            name: input.name,
+            licenseKey: null,
+            licenseKeyCiphertext: encryptLicenseKey(licenseKey),
+            licenseKeyFingerprint: licenseFingerprint(licenseKey),
+            validFrom: input.validFrom,
+            validUntil: input.validUntil,
+            licenseStatus: status,
+            hardwareModel: hardware.hardwareModel,
+            hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+            hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
+          },
+          select: this.robotEnrollmentSelect,
+        })
+        .catch((error) => {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002' &&
+            Array.isArray(error.meta?.target) &&
+            error.meta.target.includes('serialNumber')
+          ) {
+            throw new ConflictException('Robot serial number already exists');
+          }
+          throw error;
+        });
 
       if (actor) {
         await this.audit.recordCritical(

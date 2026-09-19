@@ -251,6 +251,8 @@ Robot enrollment is the protected administrative `POST /api/robots` contract. It
 
 The F03 hardware profile stores metadata only. CMS validates the submitted model profile against approved `MINI_ELF`, `ELF`, `NANO` and `S5` policy values, stores the normalized `hardwareProfile`, and returns `hardwareCapabilities` as the effective permitted capability set. Safety-controlled capabilities such as autonomous navigation and arm motion resolve to `false` in F03 until later entitlement and safety-policy phases consume the stored metadata.
 
+Duplicate robot serial numbers are rejected with `409 Conflict` before a new credential is generated or an enrollment audit event is written.
+
 Robot list responses include `licenseKey` and `licenseKeyMasked` only for Super Admin. Organization users never receive robot license keys from the list API. The CMS frontend shows the masked value by default and reveals the raw value for five seconds when Super Admin clicks the eye button.
 
 CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. JWTs and raw device identity metadata are not returned by this API.
