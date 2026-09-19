@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CourseAccessType, CourseSource, CourseVisibility, LicenseStatus, LessonVisibility, Prisma } from '@prisma/client';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
+import { normalizeRobotHardwareProfile } from '../robots/robot-hardware-profile';
 
 type Allowed = {
   full: boolean;
@@ -14,6 +15,26 @@ type AssignmentRow = { courseId: number; accessType: CourseAccessType; levelId: 
 export type RobotSyncHeartbeat = {
   appVersion?: string;
   deviceModel?: string;
+};
+
+export type RobotDeviceProfileUpdate = {
+  manufacturer: string;
+  deviceModel: string;
+  androidVersion: string;
+  apiLevel: number;
+  appVersionName: string;
+  appVersionCode: number;
+  hardwareProfile: {
+    model: string;
+    manufacturer?: string;
+    androidApiLevel: number;
+    abi: string;
+    display: {
+      width: number;
+      height: number;
+    };
+    capabilities?: Record<string, unknown>;
+  };
 };
 
 type OrgContext = {
@@ -73,6 +94,85 @@ export class RobotSyncService {
     if (daysLeft <= 30) return LicenseStatus.EXPIRING_SOON;
 
     return LicenseStatus.ACTIVE;
+  }
+
+  private toApprovedDeviceMetadata(input: RobotDeviceProfileUpdate): Prisma.InputJsonObject {
+    return {
+      schemaVersion: 2,
+      storage: 'approved-device-profile',
+      manufacturer: input.manufacturer.trim(),
+      model: input.deviceModel.trim(),
+      androidVersion: input.androidVersion.trim(),
+      apiLevel: input.apiLevel,
+      appVersionName: input.appVersionName.trim(),
+      appVersionCode: input.appVersionCode,
+    };
+  }
+
+  private getStoredAppVersionCode(deviceMetadata: Prisma.JsonValue | null): number | null {
+    if (!deviceMetadata || typeof deviceMetadata !== 'object' || Array.isArray(deviceMetadata)) {
+      return null;
+    }
+
+    const value = (deviceMetadata as Record<string, unknown>).appVersionCode;
+    return typeof value === 'number' && Number.isInteger(value) ? value : null;
+  }
+
+  private async findRobotForProtectedAccess(robotId: number) {
+    return this.prisma.robot.findUnique({
+      where: { id: robotId },
+      include: {
+        org: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            logoUrl: true,
+            primaryColor: true,
+            secondaryColor: true,
+            tenantVersion: true,
+          },
+        },
+      },
+    });
+  }
+
+  private async assertRobotProfileUpdateAllowed(robot: Awaited<ReturnType<RobotSyncService['findRobotForProtectedAccess']>>) {
+    if (!robot) {
+      throw new DomainLockedException('ROBOT_NOT_FOUND', 'Robot not found');
+    }
+
+    if (!robot.org.isActive) {
+      await this.prisma.event.create({
+        data: {
+          orgId: robot.orgId,
+          robotId: robot.id,
+          type: 'ROBOT_ACCESS_REJECTED_ORG_INACTIVE',
+          payload: {
+            reason: 'ORG_INACTIVE',
+            endpoint: 'robot.device-profile',
+          },
+        },
+      });
+      throw new DomainLockedException('ORG_INACTIVE', 'Organization is inactive');
+    }
+
+    const status = this.computeLicenseStatus(robot.validUntil, robot.revokedAt);
+    if (robot.licenseStatus !== status) {
+      await this.prisma.robot.update({
+        where: { id: robot.id },
+        data: { licenseStatus: status },
+      });
+    }
+
+    if (status === LicenseStatus.EXPIRED) {
+      throw new DomainLockedException('LICENSE_EXPIRED', 'Robot license is expired');
+    }
+    if (status === LicenseStatus.REVOKED) {
+      throw new DomainLockedException('LICENSE_REVOKED', 'Robot license is revoked');
+    }
+
+    return { robot, status };
   }
 
   private buildAllowedMap(assignments: Array<{ courseId: number; accessType: CourseAccessType; levelId: number | null; chapterId: number | null }>) {
@@ -290,6 +390,61 @@ export class RobotSyncService {
         introLevel: c.introLevel,
       })),
       syncedAt: new Date().toISOString(),
+    };
+  }
+
+  async updateDeviceProfile(robotId: number, input: RobotDeviceProfileUpdate) {
+    const hardware = normalizeRobotHardwareProfile({
+      ...input.hardwareProfile,
+      manufacturer: input.hardwareProfile.manufacturer ?? input.manufacturer,
+    });
+    const { robot, status } = await this.assertRobotProfileUpdateAllowed(
+      await this.findRobotForProtectedAccess(robotId),
+    );
+    const storedAppVersionCode = this.getStoredAppVersionCode(robot.deviceMetadata);
+    if (storedAppVersionCode !== null && input.appVersionCode < storedAppVersionCode) {
+      throw new BadRequestException('Stale robot device profile update');
+    }
+
+    const updated = await this.prisma.robot.update({
+      where: { id: robot.id },
+      data: {
+        lastSeenAt: new Date(),
+        appVersion: input.appVersionName.trim(),
+        deviceModel: input.deviceModel.trim(),
+        deviceMetadata: this.toApprovedDeviceMetadata(input),
+        hardwareModel: hardware.hardwareModel,
+        hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+        hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
+      },
+      select: {
+        id: true,
+        orgId: true,
+        serialNumber: true,
+        name: true,
+        licenseStatus: true,
+        validFrom: true,
+        validUntil: true,
+        revokedAt: true,
+        lastSeenAt: true,
+        appVersion: true,
+        deviceModel: true,
+        deviceMetadata: true,
+        hardwareModel: true,
+        hardwareProfile: true,
+        hardwareCapabilities: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      robot: updated,
+      license: {
+        status,
+        validFrom: robot.validFrom,
+        validUntil: robot.validUntil,
+      },
+      updatedAt: updated.updatedAt,
     };
   }
 }

@@ -255,7 +255,44 @@ Duplicate robot serial numbers are rejected with `409 Conflict` before a new cre
 
 Robot list responses include `licenseKey` and `licenseKeyMasked` only for Super Admin. Organization users never receive robot license keys from the list API. The CMS frontend shows the masked value by default and reveals the raw value for five seconds when Super Admin clicks the eye button.
 
-CMS stores only a consent flag, app version fields, API level and one-way digests of the device identity fields. JWTs and raw device identity metadata are not returned by this API.
+Robot login stores safe login metadata for last-seen/app-version tracking. The robot-authenticated device profile route stores the latest approved Android display/profile values for CMS fleet visibility. JWTs, license keys and credentials are not returned by either API.
+
+Android can update the current approved device and hardware profile after robot login:
+
+```text
+PUT http://localhost:3001/api/v1/robot/device-profile
+Authorization: Bearer <robot-access-token>
+```
+
+Body:
+
+```json
+{
+  "manufacturer": "Sanbot",
+  "deviceModel": "Mini ELF",
+  "androidVersion": "7.1.2",
+  "apiLevel": 25,
+  "appVersionName": "0.1.0",
+  "appVersionCode": 2,
+  "hardwareProfile": {
+    "model": "MINI_ELF",
+    "manufacturer": "Sanbot",
+    "androidApiLevel": 25,
+    "abi": "arm64-v8a",
+    "display": {
+      "width": 1920,
+      "height": 1200
+    },
+    "capabilities": {
+      "camera": true,
+      "autonomousNavigation": true,
+      "armMotion": true
+    }
+  }
+}
+```
+
+The full payload is required. Invalid hardware profile values return `400 Bad Request` before stored profile values are overwritten. Repeating the same valid payload is accepted and keeps the same approved profile values.
 
 Super Admin can rotate a robot credential. The response returns the new activation `licenseKey`; the previous key stops working immediately.
 

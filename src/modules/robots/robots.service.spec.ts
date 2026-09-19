@@ -468,6 +468,72 @@ describe('RobotsService device metadata', () => {
     );
   });
 
+  it('renews an active license without returning credentials', async () => {
+    const validUntil = new Date('2099-01-01T00:00:00.000Z');
+    const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = robot;
+    prisma.robot.findUnique.mockResolvedValue(robot);
+    prisma.robot.update.mockResolvedValue({
+      ...robotWithoutLicenseKey,
+      validUntil,
+      licenseStatus: LicenseStatus.ACTIVE,
+    });
+
+    const result = await service.renewLicense(10, validUntil);
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { validUntil, licenseStatus: LicenseStatus.ACTIVE },
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+    expect(result.licenseStatus).toBe(LicenseStatus.ACTIVE);
+    expect(result).not.toHaveProperty('licenseKey');
+  });
+
+  it('marks a renewed license as expired when the new expiry is in the past', async () => {
+    const validUntil = new Date('2020-01-01T00:00:00.000Z');
+    const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = robot;
+    prisma.robot.findUnique.mockResolvedValue(robot);
+    prisma.robot.update.mockResolvedValue({
+      ...robotWithoutLicenseKey,
+      validUntil,
+      licenseStatus: LicenseStatus.EXPIRED,
+    });
+
+    const result = await service.renewLicense(10, validUntil);
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { validUntil, licenseStatus: LicenseStatus.EXPIRED },
+      select: expect.any(Object),
+    });
+    expect(result.licenseStatus).toBe(LicenseStatus.EXPIRED);
+  });
+
+  it('restores a revoked license when a robot is unlocked and the license is valid', async () => {
+    const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = robot;
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      revokedAt: new Date('2026-09-11T00:00:00.000Z'),
+      validUntil: new Date('2099-01-01T00:00:00.000Z'),
+      licenseStatus: LicenseStatus.REVOKED,
+    });
+    prisma.robot.update.mockResolvedValue({
+      ...robotWithoutLicenseKey,
+      revokedAt: null,
+      validUntil: new Date('2099-01-01T00:00:00.000Z'),
+      licenseStatus: LicenseStatus.ACTIVE,
+    });
+
+    const result = await service.lockRobot(10, false);
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { revokedAt: null, licenseStatus: LicenseStatus.ACTIVE },
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+    expect(result.licenseStatus).toBe(LicenseStatus.ACTIVE);
+  });
+
   it('blocks robot credential revocation for organization users', async () => {
     await expect(
       service.revokeCredential(10, { userId: 2, orgId: 1, isSuperAdmin: false }),

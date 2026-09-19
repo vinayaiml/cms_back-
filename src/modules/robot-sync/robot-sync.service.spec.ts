@@ -1,4 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
 import { LicenseStatus } from '@prisma/client';
+import { DomainLockedException } from '../../common/errors/domain-locked.exception';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RobotSyncService } from './robot-sync.service';
 
@@ -13,6 +15,14 @@ function buildRobot(overrides: Record<string, unknown> = {}) {
     validUntil: new Date('2099-01-01T00:00:00.000Z'),
     licenseStatus: LicenseStatus.ACTIVE,
     revokedAt: null,
+    appVersion: null,
+    deviceModel: null,
+    deviceMetadata: null,
+    hardwareModel: null,
+    hardwareProfile: null,
+    hardwareCapabilities: null,
+    lastSeenAt: null,
+    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
     org: {
       id: 1,
       name: 'Demo School',
@@ -149,5 +159,251 @@ describe('RobotSyncService heartbeat updates', () => {
       cacheVersion: 'org-2-v2',
     });
     expect((result as any).organization.orgId).not.toBe(1);
+  });
+
+  it('stores the approved Android device and hardware profile for the authenticated robot', async () => {
+    const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = buildRobot();
+    prisma.robot.update.mockResolvedValue({
+      ...robotWithoutLicenseKey,
+      appVersion: '0.1.0',
+      deviceModel: 'Mini ELF',
+      deviceMetadata: {
+        schemaVersion: 2,
+        storage: 'approved-device-profile',
+        manufacturer: 'Sanbot',
+        model: 'Mini ELF',
+        androidVersion: '7.1.2',
+        apiLevel: 25,
+        appVersionName: '0.1.0',
+        appVersionCode: 2,
+      },
+      hardwareModel: 'MINI_ELF',
+      hardwareProfile: {
+        schemaVersion: 1,
+        model: 'MINI_ELF',
+        label: 'Mini ELF',
+        manufacturer: 'Sanbot',
+        androidApiLevel: 25,
+        abi: 'arm64-v8a',
+        display: { width: 1920, height: 1200 },
+      },
+      hardwareCapabilities: {
+        camera: true,
+        microphone: true,
+        speaker: true,
+        touchDisplay: true,
+        videoPlayback: true,
+        speechRecognition: true,
+        autonomousNavigation: false,
+        armMotion: false,
+      },
+    });
+
+    const result = await service.updateDeviceProfile(10, {
+      manufacturer: 'Sanbot',
+      deviceModel: 'Mini ELF',
+      androidVersion: '7.1.2',
+      apiLevel: 25,
+      appVersionName: '0.1.0',
+      appVersionCode: 2,
+      hardwareProfile: {
+        model: 'MINI_ELF',
+        manufacturer: 'Sanbot',
+        androidApiLevel: 25,
+        abi: 'arm64-v8a',
+        display: { width: 1920, height: 1200 },
+        capabilities: {
+          camera: true,
+          autonomousNavigation: true,
+          armMotion: true,
+        },
+      },
+    });
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: {
+        lastSeenAt: expect.any(Date),
+        appVersion: '0.1.0',
+        deviceModel: 'Mini ELF',
+        deviceMetadata: {
+          schemaVersion: 2,
+          storage: 'approved-device-profile',
+          manufacturer: 'Sanbot',
+          model: 'Mini ELF',
+          androidVersion: '7.1.2',
+          apiLevel: 25,
+          appVersionName: '0.1.0',
+          appVersionCode: 2,
+        },
+        hardwareModel: 'MINI_ELF',
+        hardwareProfile: {
+          schemaVersion: 1,
+          model: 'MINI_ELF',
+          label: 'Mini ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 25,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+        hardwareCapabilities: {
+          camera: true,
+          microphone: true,
+          speaker: true,
+          touchDisplay: true,
+          videoPlayback: true,
+          speechRecognition: true,
+          autonomousNavigation: false,
+          armMotion: false,
+        },
+      },
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+    expect(result.robot).not.toHaveProperty('licenseKey');
+    expect((result.robot as any).hardwareCapabilities.autonomousNavigation).toBe(false);
+  });
+
+  it('rejects invalid hardware profile updates before overwriting stored device values', async () => {
+    await expect(
+      service.updateDeviceProfile(10, {
+        manufacturer: 'Sanbot',
+        deviceModel: 'Mini ELF',
+        androidVersion: '7.1.2',
+        apiLevel: 25,
+        appVersionName: '0.1.0',
+        appVersionCode: 2,
+        hardwareProfile: {
+          model: 'MINI_ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 31,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.robot.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale device profile updates before overwriting a newer approved profile', async () => {
+    prisma.robot.findUnique.mockResolvedValue(
+      buildRobot({
+        deviceMetadata: {
+          schemaVersion: 2,
+          storage: 'approved-device-profile',
+          appVersionCode: 5,
+        },
+      }),
+    );
+
+    await expect(
+      service.updateDeviceProfile(10, {
+        manufacturer: 'Sanbot',
+        deviceModel: 'Mini ELF',
+        androidVersion: '7.1.2',
+        apiLevel: 25,
+        appVersionName: '0.1.0',
+        appVersionCode: 4,
+        hardwareProfile: {
+          model: 'MINI_ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 25,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.robot.update).not.toHaveBeenCalled();
+  });
+
+  it('accepts device profile updates with the same app version code', async () => {
+    prisma.robot.findUnique.mockResolvedValue(
+      buildRobot({
+        deviceMetadata: {
+          schemaVersion: 2,
+          storage: 'approved-device-profile',
+          appVersionCode: 2,
+        },
+      }),
+    );
+    const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = buildRobot();
+    prisma.robot.update.mockResolvedValue(robotWithoutLicenseKey);
+
+    await service.updateDeviceProfile(10, {
+      manufacturer: 'Sanbot',
+      deviceModel: 'Mini ELF',
+      androidVersion: '7.1.2',
+      apiLevel: 25,
+      appVersionName: '0.1.0',
+      appVersionCode: 2,
+      hardwareProfile: {
+        model: 'MINI_ELF',
+        manufacturer: 'Sanbot',
+        androidApiLevel: 25,
+        abi: 'arm64-v8a',
+        display: { width: 1920, height: 1200 },
+      },
+    });
+
+    expect(prisma.robot.update).toHaveBeenCalled();
+  });
+
+  it('keeps repeated device profile updates idempotent for the same approved values', async () => {
+    const payload = {
+      manufacturer: 'Sanbot',
+      deviceModel: 'Mini ELF',
+      androidVersion: '7.1.2',
+      apiLevel: 25,
+      appVersionName: '0.1.0',
+      appVersionCode: 2,
+      hardwareProfile: {
+        model: 'MINI_ELF',
+        manufacturer: 'Sanbot',
+        androidApiLevel: 25,
+        abi: 'arm64-v8a',
+        display: { width: 1920, height: 1200 },
+      },
+    };
+    prisma.robot.update.mockResolvedValue(buildRobot());
+
+    await service.updateDeviceProfile(10, payload);
+    await service.updateDeviceProfile(10, payload);
+
+    const [firstCall, secondCall] = prisma.robot.update.mock.calls;
+    expect(firstCall[0].data.deviceMetadata).toEqual(secondCall[0].data.deviceMetadata);
+    expect(firstCall[0].data.hardwareProfile).toEqual(secondCall[0].data.hardwareProfile);
+  });
+
+  it('blocks device profile updates when the license is expired', async () => {
+    prisma.robot.findUnique.mockResolvedValue(
+      buildRobot({
+        validUntil: new Date('2020-01-01T00:00:00.000Z'),
+        licenseStatus: LicenseStatus.ACTIVE,
+      }),
+    );
+
+    await expect(
+      service.updateDeviceProfile(10, {
+        manufacturer: 'Sanbot',
+        deviceModel: 'Mini ELF',
+        androidVersion: '7.1.2',
+        apiLevel: 25,
+        appVersionName: '0.1.0',
+        appVersionCode: 2,
+        hardwareProfile: {
+          model: 'MINI_ELF',
+          manufacturer: 'Sanbot',
+          androidApiLevel: 25,
+          abi: 'arm64-v8a',
+          display: { width: 1920, height: 1200 },
+        },
+      }),
+    ).rejects.toBeInstanceOf(DomainLockedException);
+
+    expect(prisma.robot.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { licenseStatus: LicenseStatus.EXPIRED },
+    });
   });
 });

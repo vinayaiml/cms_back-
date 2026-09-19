@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { RobotSyncController } from './robot-sync.controller';
+import { RobotDeviceProfileController, RobotSyncController } from './robot-sync.controller';
 import { RobotSyncService } from './robot-sync.service';
 
 @Module({
-  controllers: [RobotSyncController],
+  controllers: [RobotSyncController, RobotDeviceProfileController],
   providers: [RobotSyncService],
 })
 export class RobotSyncModule {}

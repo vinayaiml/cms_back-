@@ -25,6 +25,7 @@ export class RobotsService {
     lastSeenAt: true,
     appVersion: true,
     deviceModel: true,
+    deviceMetadata: true,
     hardwareModel: true,
     hardwareProfile: true,
     hardwareCapabilities: true,

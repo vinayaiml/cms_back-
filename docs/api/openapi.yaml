@@ -336,6 +336,119 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /v1/robot/device-profile:
+    put:
+      tags: [Robot]
+      operationId: updateRobotDeviceProfileV1
+      summary: Update current robot device and hardware profile
+      description: Robot-authenticated endpoint for Android to upload the latest approved app version, device model/manufacturer, Android version/API level and validated hardware profile. The full payload is required; invalid or stale partial payloads are rejected before stored profile values are overwritten.
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotDeviceProfileUpdateRequest'
+            examples:
+              miniElf:
+                value:
+                  manufacturer: Sanbot
+                  deviceModel: Mini ELF
+                  androidVersion: 7.1.2
+                  apiLevel: 25
+                  appVersionName: 0.1.0
+                  appVersionCode: 2
+                  hardwareProfile:
+                    model: MINI_ELF
+                    manufacturer: Sanbot
+                    androidApiLevel: 25
+                    abi: arm64-v8a
+                    display:
+                      width: 1920
+                      height: 1200
+                    capabilities:
+                      camera: true
+                      autonomousNavigation: true
+                      armMotion: true
+      responses:
+        '200':
+          description: Device profile accepted and stored on the authenticated robot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotDeviceProfileUpdateResponse'
+              examples:
+                updated:
+                  value:
+                    robot:
+                      id: 1
+                      orgId: 1
+                      serialNumber: TEST-ACTIVE-001
+                      name: Robot 1 (ACTIVE)
+                      licenseStatus: ACTIVE
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      revokedAt: null
+                      lastSeenAt: '2026-09-19T10:00:00.000Z'
+                      appVersion: 0.1.0
+                      deviceModel: Mini ELF
+                      deviceMetadata:
+                        schemaVersion: 2
+                        storage: approved-device-profile
+                        manufacturer: Sanbot
+                        model: Mini ELF
+                        androidVersion: 7.1.2
+                        apiLevel: 25
+                        appVersionName: 0.1.0
+                        appVersionCode: 2
+                      hardwareModel: MINI_ELF
+                      hardwareProfile:
+                        schemaVersion: 1
+                        model: MINI_ELF
+                        label: Mini ELF
+                        manufacturer: Sanbot
+                        androidApiLevel: 25
+                        abi: arm64-v8a
+                        display:
+                          width: 1920
+                          height: 1200
+                      hardwareCapabilities:
+                        camera: true
+                        microphone: true
+                        speaker: true
+                        touchDisplay: true
+                        videoPlayback: true
+                        speechRecognition: true
+                        autonomousNavigation: false
+                        armMotion: false
+                      updatedAt: '2026-09-19T10:00:00.000Z'
+                    license:
+                      status: ACTIVE
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                    updatedAt: '2026-09-19T10:00:00.000Z'
+        '400':
+          description: Invalid device or hardware profile payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidHardware:
+                  value:
+                    statusCode: 400
+                    message: Invalid robot hardware Android API level
+                    error: Bad Request
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /v1/robot/logs/batch:
     post:
       tags: [Robot]
@@ -674,6 +787,51 @@ paths:
                   value:
                     statusCode: 400
                     message: x-robot-app-version is invalid
+                    error: Bad Request
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /robot/device-profile:
+    put:
+      tags: [Robot]
+      operationId: updateRobotDeviceProfileLegacy
+      summary: Update current robot device and hardware profile legacy route
+      deprecated: true
+      description: |
+        Deprecated approved legacy test route. Use PUT /api/v1/robot/device-profile.
+        Planned removal: API v2.
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotDeviceProfileUpdateRequest'
+      responses:
+        '200':
+          description: Device profile accepted and stored on the authenticated robot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotDeviceProfileUpdateResponse'
+        '400':
+          description: Invalid device or hardware profile payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidHardware:
+                  value:
+                    statusCode: 400
+                    message: Invalid robot hardware Android API level
                     error: Bad Request
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -2886,6 +3044,11 @@ components:
           type: string
           nullable: true
           deprecated: true
+        deviceMetadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Latest approved Android device profile metadata uploaded by the authenticated robot. It must not contain credentials, tokens or license keys.
         hardwareModel:
           type: string
           nullable: true
@@ -2902,6 +3065,12 @@ components:
           allOf:
             - $ref: '#/components/schemas/RobotHardwareCapabilitySet'
           description: Effective permitted capability set returned by CMS for the stored hardware profile. F03 disables safety-controlled capabilities.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
         licenseKey:
           type: string
           minLength: 10
@@ -3004,6 +3173,64 @@ components:
           $ref: '#/components/schemas/RobotHardwareDisplay'
         capabilities:
           $ref: '#/components/schemas/RobotHardwareCapabilitySet'
+    RobotDeviceProfileUpdateRequest:
+      type: object
+      required: [manufacturer, deviceModel, androidVersion, apiLevel, appVersionName, appVersionCode, hardwareProfile]
+      additionalProperties: false
+      properties:
+        manufacturer:
+          type: string
+          minLength: 1
+          maxLength: 80
+          example: Sanbot
+        deviceModel:
+          type: string
+          minLength: 1
+          maxLength: 80
+          example: Mini ELF
+        androidVersion:
+          type: string
+          minLength: 1
+          maxLength: 32
+          pattern: '^[0-9A-Za-z._ -]+$'
+          example: 7.1.2
+        apiLevel:
+          type: integer
+          minimum: 1
+          example: 25
+        appVersionName:
+          type: string
+          minLength: 1
+          maxLength: 40
+          pattern: '^[0-9A-Za-z._+-]+$'
+          example: 0.1.0
+        appVersionCode:
+          type: integer
+          minimum: 1
+          example: 2
+        hardwareProfile:
+          $ref: '#/components/schemas/RobotHardwareProfile'
+    RobotDeviceProfileUpdateResponse:
+      type: object
+      required: [robot, license, updatedAt]
+      properties:
+        robot:
+          $ref: '#/components/schemas/Robot'
+        license:
+          type: object
+          required: [status, validFrom, validUntil]
+          properties:
+            status:
+              $ref: '#/components/schemas/LicenseStatus'
+            validFrom:
+              type: string
+              format: date-time
+            validUntil:
+              type: string
+              format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     RobotEnrollmentResponse:
       allOf:
         - $ref: '#/components/schemas/Robot'

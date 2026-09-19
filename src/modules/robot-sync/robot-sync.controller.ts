@@ -1,10 +1,11 @@
-import { BadRequestException, Controller, ForbiddenException, Get, Headers, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { RobotOnlyGuard } from '../../common/guards/robot-only.guard';
 import { RobotOnly } from '../../common/decorators/robot-only.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt.types';
 import { RobotSyncHeartbeat, RobotSyncService } from './robot-sync.service';
+import { RobotDeviceProfileDto } from './robot-device-profile.dto';
 
 function optionalHeader(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0];
@@ -53,5 +54,22 @@ export class RobotSyncController {
     };
 
     return this.syncService.sync(actor.sub, heartbeat);
+  }
+}
+
+@Controller(['robot/device-profile', 'v1/robot/device-profile'])
+@UseGuards(JwtAuthGuard, RobotOnlyGuard)
+@RobotOnly()
+export class RobotDeviceProfileController {
+  constructor(private syncService: RobotSyncService) {}
+
+  @Put()
+  async updateDeviceProfile(
+    @CurrentUser() actor: JwtPayload,
+    @Body() body: RobotDeviceProfileDto,
+  ) {
+    if (actor.type !== 'robot') throw new ForbiddenException('Robot token required');
+
+    return this.syncService.updateDeviceProfile(actor.sub, body);
   }
 }
