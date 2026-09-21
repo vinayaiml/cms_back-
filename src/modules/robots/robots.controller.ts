@@ -131,6 +131,21 @@ export class RobotsController {
     );
   }
 
+  @Get(':id/reassignment-history')
+  @RequirePermissions('robot.read')
+  async reassignmentHistory(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.listReassignmentHistory(
+      id,
+      { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      limit ? Number(limit) : undefined,
+    );
+  }
+
   // Backward-compatibility for clients that still call GET /robots/:id/lock
   // lock defaults to true; pass ?lock=false to unlock.
   @Get(':id/lock')

@@ -38,6 +38,9 @@ describe('RobotsService device metadata', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    auditEvent: {
+      findMany: jest.fn(),
+    },
     organization: {
       findUnique: jest.fn(),
     },
@@ -609,6 +612,92 @@ describe('RobotsService device metadata', () => {
     expect(audit.recordCritical.mock.calls[0][0].metadata).not.toHaveProperty('licenseKey');
     expect(result).not.toBeNull();
     expect(result?.orgId).toBe(2);
+  });
+
+  it('returns sanitized robot reassignment history for an authorized actor', async () => {
+    prisma.robot.findUnique.mockResolvedValue({ ...robot, licenseKeyCiphertext: 'secret-ciphertext' });
+    prisma.auditEvent.findMany.mockResolvedValue([
+      {
+        id: 101,
+        actorUserId: 1,
+        actorOrgId: null,
+        action: 'robot.reassigned',
+        targetType: 'robot',
+        targetId: '10',
+        targetOrgId: 2,
+        correlationId: 'history-123',
+        metadata: {
+          serialNumber: 'WR-001',
+          oldOrgId: 1,
+          newOrgId: 2,
+          newTenantVersion: 6,
+          licenseKey: 'SHOULD_NOT_RETURN',
+        },
+        createdAt: new Date('2026-09-20T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.listReassignmentHistory(
+      10,
+      { orgId: null, isSuperAdmin: true },
+      25,
+    );
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith({
+      where: {
+        action: 'robot.reassigned',
+        targetType: 'robot',
+        targetId: '10',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+    expect(result).toEqual([
+      {
+        id: 101,
+        robotId: 10,
+        actorUserId: 1,
+        actorOrgId: null,
+        oldOrgId: 1,
+        newOrgId: 2,
+        targetOrgId: 2,
+        correlationId: 'history-123',
+        createdAt: new Date('2026-09-20T10:00:00.000Z'),
+      },
+    ]);
+    expect(result[0]).not.toHaveProperty('licenseKey');
+    expect(result[0]).not.toHaveProperty('metadata');
+  });
+
+  it('blocks robot reassignment history across organizations before reading audit events', async () => {
+    prisma.robot.findUnique.mockResolvedValue(robot);
+
+    await expect(
+      service.listReassignmentHistory(10, { orgId: 2, isSuperAdmin: false }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps same-org reassignment idempotent without cache bumps or audit writes', async () => {
+    prisma.robot.findUnique
+      .mockResolvedValueOnce(robot)
+      .mockResolvedValueOnce({
+        ...robot,
+        org: { id: 1, name: 'Demo School', tenantVersion: 4 },
+      });
+
+    const result = await service.reassignRobot(
+      10,
+      1,
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'same-org-123',
+    );
+
+    expect(prisma.organization.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.recordCritical).not.toHaveBeenCalled();
+    expect(result?.orgId).toBe(1);
   });
 
   it('blocks robot reassignment for organization users before mutation', async () => {

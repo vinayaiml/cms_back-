@@ -1897,6 +1897,51 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /robots/{id}/reassignment-history:
+    get:
+      tags: [Robot]
+      summary: List robot reassignment history
+      description: Returns sanitized reassignment history recorded from robot.reassigned audit events. Preserves the existing reassignment/cache-reset contract and does not return license keys, tokens, credentials or raw audit metadata.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Sanitized reassignment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RobotReassignmentHistoryItem'
+              examples:
+                history:
+                  value:
+                    - id: 101
+                      robotId: 10
+                      actorUserId: 1
+                      actorOrgId: null
+                      oldOrgId: 1
+                      newOrgId: 2
+                      targetOrgId: 2
+                      correlationId: reassign-123
+                      createdAt: '2026-09-20T10:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /robots/{id}/device-metadata:
     delete:
       tags: [Robot]
@@ -3303,6 +3348,36 @@ components:
           properties:
             org:
               $ref: '#/components/schemas/RobotOrganizationSummary'
+    RobotReassignmentHistoryItem:
+      type: object
+      required: [id, robotId, actorUserId, actorOrgId, oldOrgId, newOrgId, targetOrgId, correlationId, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        robotId:
+          type: integer
+        actorUserId:
+          type: integer
+          nullable: true
+        actorOrgId:
+          type: integer
+          nullable: true
+        oldOrgId:
+          type: integer
+          nullable: true
+        newOrgId:
+          type: integer
+          nullable: true
+        targetOrgId:
+          type: integer
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
     License:
       type: object
       properties:

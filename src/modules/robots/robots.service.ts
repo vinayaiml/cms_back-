@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LicenseStatus, Prisma } from '@prisma/client';
+import { AuditEvent, LicenseStatus, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { decryptLicenseKey, encryptLicenseKey, licenseFingerprint, maskLicenseKey } from '../../common/security/license-secret';
@@ -61,6 +61,24 @@ export class RobotsService {
     if (daysLeft <= 30) return LicenseStatus.EXPIRING_SOON;
 
     return LicenseStatus.ACTIVE;
+  }
+
+  private toRobotReassignmentHistoryItem(event: AuditEvent) {
+    const metadata = event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata)
+      ? event.metadata as Record<string, unknown>
+      : {};
+
+    return {
+      id: event.id,
+      robotId: Number(event.targetId),
+      actorUserId: event.actorUserId,
+      actorOrgId: event.actorOrgId,
+      oldOrgId: typeof metadata.oldOrgId === 'number' ? metadata.oldOrgId : null,
+      newOrgId: typeof metadata.newOrgId === 'number' ? metadata.newOrgId : event.targetOrgId,
+      targetOrgId: event.targetOrgId,
+      correlationId: event.correlationId,
+      createdAt: event.createdAt,
+    };
   }
 
   private generateLicenseKeyCandidate(): string {
@@ -395,6 +413,28 @@ export class RobotsService {
 
       return updated;
     });
+  }
+
+  async listReassignmentHistory(
+    robotId: number,
+    actor: { orgId: number | null; isSuperAdmin: boolean },
+    limit = 50,
+  ) {
+    const robot = await this.getRobotOrThrow(robotId);
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 50, 1), 100);
+    const events = await this.prisma.auditEvent.findMany({
+      where: {
+        action: 'robot.reassigned',
+        targetType: 'robot',
+        targetId: String(robotId),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+
+    return events.map((event) => this.toRobotReassignmentHistoryItem(event));
   }
 
   async clearDeviceMetadata(

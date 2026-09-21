@@ -26,7 +26,7 @@ Completed tickets are covered through the Release 1 regression cycle.
 | CMS repository | WhizRobot CMS repository |
 | OpenAPI path | `docs/api/openapi.yaml` |
 | OpenAPI version | 1.0.0 |
-| OpenAPI SHA-256 | `93E2479A507895B530BD040C267DF3DC79C18593D871DCEC3121F65402A9A6EA` |
+| OpenAPI SHA-256 | `705B1EB4B2C9FDB32B765205FDA47EE5FBE33037CEA9C357DCE7AC397EA087A4` |
 | Integration environment | Pending team-owned deployment |
 | Staging environment | Pending release-candidate deployment |
 | Production environment | Not authorized by this document |

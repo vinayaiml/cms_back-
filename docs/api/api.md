@@ -310,6 +310,31 @@ Authorization: Bearer <super-admin-token>
 X-Correlation-Id: <request-id>
 ```
 
+Super Admin can reassign a robot to another organization. This preserves the F02 cache-reset contract by incrementing the old and new organization tenant versions. The reassignment response and history APIs do not include license keys or credentials.
+
+```text
+PATCH http://localhost:3001/api/robots/{id}/reassign
+Authorization: Bearer <super-admin-token>
+X-Correlation-Id: <request-id>
+```
+
+Body:
+
+```json
+{
+  "orgId": 2
+}
+```
+
+Authorized administrators can read sanitized reassignment history:
+
+```text
+GET http://localhost:3001/api/robots/{id}/reassignment-history?limit=50
+Authorization: Bearer <user-token>
+```
+
+History rows contain actor IDs, old organization ID, new organization ID, timestamp and correlation ID only. Raw audit metadata, license keys, tokens and credentials are not returned.
+
 Authorized CMS administrators can erase stored robot device metadata:
 
 ```text
