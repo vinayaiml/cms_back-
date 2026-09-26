@@ -5,7 +5,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload, JwtUserPayload } from '../../common/auth/jwt.types';
 import { OrgsService } from './orgs.service';
-import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto } from './orgs.dto';
+import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto, UpsertOrgCapabilityOverrideDto } from './orgs.dto';
 
 @Controller('orgs')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -92,6 +92,34 @@ export class OrgsController {
   ) {
     this.assertSuperAdmin(actor);
     return this.orgs.assignSubscription(
+      id,
+      dto,
+      {
+        userId: actor.sub,
+        orgId: actor.orgId,
+        isSuperAdmin: actor.isSuperAdmin,
+      },
+      correlationId,
+    );
+  }
+
+  @Get(':id/capability-overrides')
+  @RequirePermissions('subscription.read')
+  async listCapabilityOverrides(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+    this.assertSuperAdmin(actor);
+    return this.orgs.listCapabilityOverrides(id);
+  }
+
+  @Put(':id/capability-overrides')
+  @RequirePermissions('subscription.manage')
+  async upsertCapabilityOverride(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpsertOrgCapabilityOverrideDto,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    this.assertSuperAdmin(actor);
+    return this.orgs.upsertCapabilityOverride(
       id,
       dto,
       {

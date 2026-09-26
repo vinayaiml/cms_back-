@@ -1,26 +1,11 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Delete,
-  ForbiddenException,
-  Get,
-  Headers,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Put,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt.types';
 import { RobotsService } from './robots.service';
-import { CreateRobotDto, LockRobotDto, ReassignRobotDto, RenewLicenseDto } from './robots.dto';
+import { CreateRobotDto, LockRobotDto, ReassignRobotDto, RenewLicenseDto, UpsertRobotCapabilityAssignmentDto } from './robots.dto';
 import { LicenseStatus } from '@prisma/client';
 
 @Controller('robots')
@@ -103,11 +88,7 @@ export class RobotsController {
 
   @Post()
   @RequirePermissions('robot.create')
-  async create(
-    @CurrentUser() actor: JwtPayload,
-    @Body() dto: CreateRobotDto,
-    @Headers('x-correlation-id') correlationId?: string,
-  ) {
+  async create(@CurrentUser() actor: JwtPayload, @Body() dto: CreateRobotDto, @Headers('x-correlation-id') correlationId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
     const effectiveOrgId = actor.isSuperAdmin ? dto.orgId : actor.orgId;
     if (!effectiveOrgId) throw new ForbiddenException('Org scope required');
@@ -127,17 +108,9 @@ export class RobotsController {
 
   @Get(':id')
   @RequirePermissions('robot.read')
-  async detail(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Query('limit') limit?: string,
-  ) {
+  async detail(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Query('limit') limit?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.getDetail(
-      id,
-      { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      limit ? Number(limit) : undefined,
-    );
+    return this.robots.getDetail(id, { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, limit ? Number(limit) : undefined);
   }
 
   @Put(':id/license/renew')
@@ -152,32 +125,16 @@ export class RobotsController {
 
   @Post(':id/credentials/rotate')
   @RequirePermissions('license.renew')
-  async rotateCredential(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Headers('x-correlation-id') correlationId?: string,
-  ) {
+  async rotateCredential(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Headers('x-correlation-id') correlationId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.rotateCredential(
-      id,
-      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      correlationId,
-    );
+    return this.robots.rotateCredential(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 
   @Post(':id/credentials/revoke')
   @RequirePermissions('robot.lock')
-  async revokeCredential(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Headers('x-correlation-id') correlationId?: string,
-  ) {
+  async revokeCredential(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Headers('x-correlation-id') correlationId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.revokeCredential(
-      id,
-      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      correlationId,
-    );
+    return this.robots.revokeCredential(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 
   @Put(':id/lock')
@@ -192,34 +149,35 @@ export class RobotsController {
 
   @Patch(':id/reassign')
   @RequirePermissions('robot.update')
-  async reassign(
+  async reassign(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Body() dto: ReassignRobotDto, @Headers('x-correlation-id') correlationId?: string) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.reassignRobot(id, dto.orgId, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
+  }
+
+  @Get(':id/capability-assignments')
+  @RequirePermissions('robot.read')
+  async capabilityAssignments(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.robots.listCapabilityAssignments(id, { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+  }
+
+  @Put(':id/capability-assignments')
+  @RequirePermissions('robot.update')
+  async upsertCapabilityAssignment(
     @CurrentUser() actor: JwtPayload,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ReassignRobotDto,
+    @Body() dto: UpsertRobotCapabilityAssignmentDto,
     @Headers('x-correlation-id') correlationId?: string,
   ) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.reassignRobot(
-      id,
-      dto.orgId,
-      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      correlationId,
-    );
+    return this.robots.upsertCapabilityAssignment(id, dto, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 
   @Get(':id/reassignment-history')
   @RequirePermissions('robot.read')
-  async reassignmentHistory(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Query('limit') limit?: string,
-  ) {
+  async reassignmentHistory(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Query('limit') limit?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.listReassignmentHistory(
-      id,
-      { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      limit ? Number(limit) : undefined,
-    );
+    return this.robots.listReassignmentHistory(id, { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, limit ? Number(limit) : undefined);
   }
 
   // Backward-compatibility for clients that still call GET /robots/:id/lock
@@ -237,16 +195,8 @@ export class RobotsController {
 
   @Delete(':id/device-metadata')
   @RequirePermissions('robot.update')
-  async clearDeviceMetadata(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Headers('x-correlation-id') correlationId?: string,
-  ) {
+  async clearDeviceMetadata(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Headers('x-correlation-id') correlationId?: string) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
-    return this.robots.clearDeviceMetadata(
-      id,
-      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
-      correlationId,
-    );
+    return this.robots.clearDeviceMetadata(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 }

@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -54,3 +54,16 @@ export class LockUserDto {
   locked!: boolean;
 }
 
+export class UpsertUserCapabilityAssignmentDto {
+  @IsString()
+  @IsNotEmpty()
+  capabilityStableKey!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isEnabled?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  limits?: Record<string, unknown>;
+}

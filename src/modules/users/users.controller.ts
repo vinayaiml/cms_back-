@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt.types';
 import { UsersService } from './users.service';
-import { AssignRoleDto, CreateUserDto, LockUserDto, UpdateUserDto } from './users.dto';
+import { AssignRoleDto, CreateUserDto, LockUserDto, UpdateUserDto, UpsertUserCapabilityAssignmentDto } from './users.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -34,27 +34,33 @@ export class UsersController {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
     if (actor.isSuperAdmin) {
       if (!dto.orgId) throw new ForbiddenException('orgId is required when Super Admin creates a user');
-      return this.users.createUser({
-        email: dto.email,
-        fullName: dto.fullName,
-        password: dto.password,
-        orgId: dto.orgId,
-        roleIds: dto.roleIds,
-        permissionKeys: dto.permissionKeys,
-      }, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+      return this.users.createUser(
+        {
+          email: dto.email,
+          fullName: dto.fullName,
+          password: dto.password,
+          orgId: dto.orgId,
+          roleIds: dto.roleIds,
+          permissionKeys: dto.permissionKeys,
+        },
+        { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      );
     }
 
     const orgId = actor.orgId;
     if (!orgId) throw new ForbiddenException('Org scope required');
 
-    return this.users.createUser({
-      email: dto.email,
-      fullName: dto.fullName,
-      password: dto.password,
-      orgId,
-      roleIds: dto.roleIds,
-      permissionKeys: dto.permissionKeys,
-    }, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+    return this.users.createUser(
+      {
+        email: dto.email,
+        fullName: dto.fullName,
+        password: dto.password,
+        orgId,
+        roleIds: dto.roleIds,
+        permissionKeys: dto.permissionKeys,
+      },
+      { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+    );
   }
 
   @Post(':id/roles')
@@ -69,6 +75,32 @@ export class UsersController {
   async setDirectPermissions(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Body('permissionKeys') permissionKeys: string[] = []) {
     if (actor.type !== 'user') throw new ForbiddenException('User token required');
     return this.users.setDirectPermissions(id, permissionKeys, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+  }
+
+  @Get(':id/capability-assignments')
+  @RequirePermissions('user.read')
+  async capabilityAssignments(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.users.listCapabilityAssignments(id, { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+  }
+
+  @Get(':id/effective-capabilities')
+  @RequirePermissions('user.read')
+  async effectiveCapabilities(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.users.getEffectiveCapabilities(id, { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin });
+  }
+
+  @Put(':id/capability-assignments')
+  @RequirePermissions('user.update')
+  async upsertCapabilityAssignment(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpsertUserCapabilityAssignmentDto,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    if (actor.type !== 'user') throw new ForbiddenException('User token required');
+    return this.users.upsertCapabilityAssignment(id, dto, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
   }
 
   @Patch(':id')

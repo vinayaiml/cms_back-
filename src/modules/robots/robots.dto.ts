@@ -1,17 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsDateString,
-  IsIn,
-  IsInt,
-  IsNotEmpty,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 export class RobotHardwareDisplayDto {
   @IsInt()
@@ -89,4 +77,18 @@ export class LockRobotDto {
 export class ReassignRobotDto {
   @IsInt()
   orgId!: number;
+}
+
+export class UpsertRobotCapabilityAssignmentDto {
+  @IsString()
+  @IsNotEmpty()
+  capabilityStableKey!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isEnabled?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  limits?: Record<string, unknown>;
 }

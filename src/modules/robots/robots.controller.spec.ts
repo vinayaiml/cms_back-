@@ -8,6 +8,8 @@ describe('RobotsController fleet filters', () => {
     listAll: jest.fn(),
     listByOrg: jest.fn(),
     getDetail: jest.fn(),
+    listCapabilityAssignments: jest.fn(),
+    upsertCapabilityAssignment: jest.fn(),
   };
 
   let controller: RobotsController;
@@ -17,6 +19,8 @@ describe('RobotsController fleet filters', () => {
     robots.listAll.mockResolvedValue([]);
     robots.listByOrg.mockResolvedValue([]);
     robots.getDetail.mockResolvedValue({});
+    robots.listCapabilityAssignments.mockResolvedValue([]);
+    robots.upsertCapabilityAssignment.mockResolvedValue({});
     controller = new RobotsController(robots as unknown as RobotsService);
   });
 
@@ -45,25 +49,14 @@ describe('RobotsController fleet filters', () => {
   });
 
   it('rejects organization users filtering another tenant before querying', async () => {
-    await expect(
-      controller.list(
-        { type: 'user', sub: 2, orgId: 1, isSuperAdmin: false },
-        '2',
-      ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.list({ type: 'user', sub: 2, orgId: 1, isSuperAdmin: false }, '2')).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(robots.listAll).not.toHaveBeenCalled();
     expect(robots.listByOrg).not.toHaveBeenCalled();
   });
 
   it('scopes organization users to their own organization with filters', async () => {
-    await controller.list(
-      { type: 'user', sub: 2, orgId: 1, isSuperAdmin: false },
-      undefined,
-      'EXPIRING_SOON',
-      'ELF',
-      '1.0.0',
-    );
+    await controller.list({ type: 'user', sub: 2, orgId: 1, isSuperAdmin: false }, undefined, 'EXPIRING_SOON', 'ELF', '1.0.0');
 
     expect(robots.listByOrg).toHaveBeenCalledWith(1, {
       status: LicenseStatus.EXPIRING_SOON,
@@ -77,12 +70,30 @@ describe('RobotsController fleet filters', () => {
   });
 
   it('passes scoped actor context to robot detail', async () => {
-    await controller.detail(
-      { type: 'user', sub: 2, orgId: 1, isSuperAdmin: false },
-      10,
-      '25',
-    );
+    await controller.detail({ type: 'user', sub: 2, orgId: 1, isSuperAdmin: false }, 10, '25');
 
     expect(robots.getDetail).toHaveBeenCalledWith(10, { orgId: 1, isSuperAdmin: false }, 25);
+  });
+
+  it('passes scoped actor context to robot capability assignment listing', async () => {
+    await controller.capabilityAssignments({ type: 'user', sub: 2, orgId: 1, isSuperAdmin: false }, 10);
+
+    expect(robots.listCapabilityAssignments).toHaveBeenCalledWith(10, { orgId: 1, isSuperAdmin: false });
+  });
+
+  it('passes correlation id and actor context to robot capability assignment upsert', async () => {
+    await controller.upsertCapabilityAssignment(
+      { type: 'user', sub: 1, orgId: null, isSuperAdmin: true },
+      10,
+      { capabilityStableKey: 'audio.speaker', isEnabled: true, limits: { maxVolume: 80 } },
+      'cap-assign-123',
+    );
+
+    expect(robots.upsertCapabilityAssignment).toHaveBeenCalledWith(
+      10,
+      { capabilityStableKey: 'audio.speaker', isEnabled: true, limits: { maxVolume: 80 } },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'cap-assign-123',
+    );
   });
 });

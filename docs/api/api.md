@@ -152,6 +152,46 @@ Robot sync returns the effective paid entitlement set under `entitlements`. If t
 
 Subscription assignment and robot sync entitlement responses never return robot license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
 
+
+## Organization Capability Overrides
+
+F04 capability overrides let a Super Admin allow or deny one capability for one target organization without changing the global capability catalogue or subscription plan. Reads require `subscription.read`; writes require Super Admin with `subscription.manage`.
+
+```text
+PUT http://localhost:3001/api/orgs/7/capability-overrides
+Authorization: Bearer <user-token>
+X-Correlation-Id: cms-48-check
+```
+
+Body:
+
+```json
+{
+  "capabilityStableKey": "speech.recognition",
+  "effect": "DENY",
+  "reason": "Temporarily disabled until microphone QA passes."
+}
+```
+
+Success response:
+
+```json
+{
+  "id": 11,
+  "orgId": 7,
+  "capabilityId": 3,
+  "capabilityStableKey": "speech.recognition",
+  "capabilityName": "Speech Recognition",
+  "effect": "DENY",
+  "reason": "Temporarily disabled until microphone QA passes.",
+  "createdByUserId": 1,
+  "createdAt": "2026-09-25T10:00:00.000Z",
+  "updatedAt": "2026-09-25T10:00:00.000Z"
+}
+```
+
+The override affects only the target organization, increments `tenantVersion` for robot cache reset, and records a sanitized audit event. Robot sync returns `paidCapabilities` after active subscription capabilities are adjusted by organization `ALLOW` and `DENY` overrides. Override APIs and audit metadata do not return license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
+
 ## Subscription Plans
 
 Subscription plan CRUD is available for F04 capability entitlement setup. Reads require `subscription.read`; mutations require Super Admin with `subscription.manage`.
@@ -459,6 +499,112 @@ DELETE http://localhost:3001/api/robots/{id}/device-metadata
 Authorization: Bearer <user-token>
 X-Correlation-Id: <request-id>
 ```
+
+
+Per-robot capability assignments restrict which organization-effective capabilities a robot actually receives during sync. Authorized admins can assign one active, organization-permitted capability and optional validated parameter limits.
+
+```text
+PUT http://localhost:3001/api/robots/{id}/capability-assignments
+Authorization: Bearer <user-token>
+X-Correlation-Id: cms-49-check
+```
+
+Body:
+
+```json
+{
+  "capabilityStableKey": "audio.speaker",
+  "isEnabled": true,
+  "limits": {
+    "maxVolume": 80,
+    "modes": ["classroom"]
+  }
+}
+```
+
+The next robot sync returns only capabilities that are both organization-effective and enabled for that robot. Returned capability rows include the validated `limits` object. Invalid limit keys or secret-like values are rejected before mutation. Assignment writes increment `tenantVersion` and record a sanitized audit event.
+
+```text
+GET http://localhost:3001/api/robots/{id}/capability-assignments
+Authorization: Bearer <user-token>
+```
+
+Assignment APIs do not return license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
+
+Optional per-user capability assignments further restrict which organization-effective capabilities a user can access. Authorized admins can assign one active, organization-permitted capability and optional validated parameter limits.
+
+```text
+PUT http://localhost:3001/api/users/{id}/capability-assignments
+Authorization: Bearer <user-token>
+X-Correlation-Id: cms-50-check
+```
+
+Body:
+
+```json
+{
+  "capabilityStableKey": "audio.speaker",
+  "isEnabled": true,
+  "limits": {
+    "maxVolume": 60,
+    "modes": ["teacher-led"]
+  }
+}
+```
+
+The effective user capability response is the intersection of the active organization entitlement/override set and the enabled assignments on the target user. If the organization subscription expires, an override denies the capability, the user assignment is disabled or the organization is inactive, the capability is not returned.
+
+```text
+GET http://localhost:3001/api/users/{id}/effective-capabilities
+Authorization: Bearer <user-token>
+```
+
+Success response:
+
+```json
+{
+  "userId": 23,
+  "orgId": 7,
+  "capabilities": [
+    {
+      "id": 1,
+      "stableKey": "audio.speaker",
+      "name": "Speaker Output",
+      "category": "audio",
+      "version": 1,
+      "requiredHardware": {
+        "capabilities": ["speaker"]
+      },
+      "limits": {
+        "maxVolume": 60,
+        "modes": ["teacher-led"]
+      }
+    }
+  ]
+}
+```
+
+```text
+GET http://localhost:3001/api/users/{id}/capability-assignments
+Authorization: Bearer <user-token>
+```
+
+Invalid limit keys or secret-like values are rejected before mutation. User capability assignment APIs increment the tenant cache version and record sanitized audit metadata without license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
+
+## Effective Entitlement Resolver
+
+The F04 effective entitlement resolver is the final decision point for capability access. It consumes the capability catalogue, plan capabilities, organization subscription state, organization capability overrides, robot assignments, optional user assignments and robot hardware capabilities.
+
+Resolver behavior:
+
+- Expired, inactive, missing or not-yet-active subscriptions return no paid capabilities unless an organization override explicitly allows a capability.
+- Organization `DENY` overrides remove capabilities and `ALLOW` overrides add active capabilities for that target organization only.
+- Robot assignments reduce the organization-effective set to capabilities enabled for the robot.
+- Optional user assignments further reduce the set to capabilities enabled for the user when a user context is supplied.
+- Hardware requirements are enforced against the robot hardware capability map; unsupported required hardware removes the capability from the effective set.
+- Returned capability rows include only safe catalogue metadata and validated `limits`.
+
+Robot sync uses this resolver for `entitlements.paidCapabilities`, so Android receives only the final permitted capability set for that robot and hardware profile. Administrative user capability reads use the same resolver for user intersections. Resolver responses do not include license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
 
 ## Robot Sync
 

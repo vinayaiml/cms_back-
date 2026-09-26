@@ -112,3 +112,17 @@ export class AssignOrgSubscriptionDto {
   @IsISO8601()
   validUntil!: string;
 }
+
+export class UpsertOrgCapabilityOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  capabilityStableKey!: string;
+
+  @IsString()
+  @IsIn(['ALLOW', 'DENY'])
+  effect!: 'ALLOW' | 'DENY';
+
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+}

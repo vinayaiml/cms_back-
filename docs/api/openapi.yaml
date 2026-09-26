@@ -1212,6 +1212,100 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /orgs/{id}/capability-overrides:
+    get:
+      tags: [Organizations]
+      operationId: listOrganizationCapabilityOverrides
+      summary: List organization capability overrides
+      description: Super Admin-only read of capability overrides for one organization. Override responses include stable capability identifiers and sanitized reason text only.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Capability overrides for the target organization
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationCapabilityOverride'
+              examples:
+                overrides:
+                  value:
+                    - id: 11
+                      orgId: 7
+                      capabilityId: 3
+                      capabilityStableKey: speech.recognition
+                      capabilityName: Speech Recognition
+                      effect: DENY
+                      reason: Temporarily disabled until microphone QA passes.
+                      createdByUserId: 1
+                      createdAt: '2026-09-25T10:00:00.000Z'
+                      updatedAt: '2026-09-25T10:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Organizations]
+      operationId: upsertOrganizationCapabilityOverride
+      summary: Add or update an organization capability override
+      description: Super Admin-only upsert. The override affects only the target organization, bumps tenantVersion for robot cache reset, and records a sanitized audit event with the supplied reason.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertOrgCapabilityOverrideRequest'
+            examples:
+              allowCapability:
+                value:
+                  capabilityStableKey: camera.capture
+                  effect: ALLOW
+                  reason: Pilot enablement approved for this tenant.
+              denyCapability:
+                value:
+                  capabilityStableKey: speech.recognition
+                  effect: DENY
+                  reason: Temporarily disabled until microphone QA passes.
+      responses:
+        '200':
+          description: Capability override upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationCapabilityOverride'
+              examples:
+                denied:
+                  value:
+                    id: 11
+                    orgId: 7
+                    capabilityId: 3
+                    capabilityStableKey: speech.recognition
+                    capabilityName: Speech Recognition
+                    effect: DENY
+                    reason: Temporarily disabled until microphone QA passes.
+                    createdByUserId: 1
+                    createdAt: '2026-09-25T10:00:00.000Z'
+                    updatedAt: '2026-09-25T10:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /audit-events:
     get:
       tags: [Audit]
@@ -1464,6 +1558,124 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /users/{id}/capability-assignments:
+    get:
+      tags: [Users]
+      operationId: listUserCapabilityAssignments
+      summary: List user capability assignments
+      description: Returns optional per-user capability assignments for an authorized administrator. Organization users are tenant-scoped and cannot read another organization's users by direct ID.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: User capability assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserCapabilityAssignment'
+              examples:
+                assigned:
+                  value:
+                    - id: 9
+                      userId: 20
+                      orgId: 7
+                      capabilityId: 1
+                      capabilityStableKey: audio.speaker
+                      capabilityName: Speaker Output
+                      isEnabled: true
+                      limits:
+                        maxVolume: 80
+                      createdByUserId: 1
+                      createdAt: '2026-09-25T12:00:00.000Z'
+                      updatedAt: '2026-09-25T12:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Users]
+      operationId: upsertUserCapabilityAssignment
+      summary: Add or update a user capability assignment
+      description: Assigns one active organization-permitted capability to one user with optional safe limits. The write is tenant-scoped and records a sanitized audit event.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertUserCapabilityAssignmentRequest'
+            examples:
+              speakerLimits:
+                value:
+                  capabilityStableKey: audio.speaker
+                  isEnabled: true
+                  limits:
+                    maxVolume: 80
+      responses:
+        '200':
+          description: User capability assignment upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCapabilityAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{id}/effective-capabilities:
+    get:
+      tags: [Users]
+      operationId: getUserEffectiveCapabilities
+      summary: Get effective user capabilities
+      description: Returns the intersection of enabled user capability assignments and the target user's organization-effective capability set.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Effective user capabilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEffectiveCapabilitiesResponse'
+              examples:
+                effective:
+                  value:
+                    userId: 20
+                    orgId: 7
+                    capabilities:
+                      - id: 1
+                        stableKey: audio.speaker
+                        name: Speaker Output
+                        category: audio
+                        version: 1
+                        requiredHardware:
+                          capabilities: [speaker]
+                        limits:
+                          maxVolume: 80
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /users/{id}/toggle-lock:
     post:
@@ -2623,6 +2835,102 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /robots/{id}/capability-assignments:
+    get:
+      tags: [Robot]
+      operationId: listRobotCapabilityAssignments
+      summary: List robot capability assignments
+      description: Returns per-robot capability assignments for an authorized administrator. Organization users are tenant-scoped and cannot read another organization robot by direct ID. Responses do not include robot credentials, license keys or tokens.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Robot capability assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RobotCapabilityAssignment'
+              examples:
+                assigned:
+                  value:
+                    - id: 5
+                      robotId: 10
+                      orgId: 1
+                      capabilityId: 1
+                      capabilityStableKey: audio.speaker
+                      capabilityName: Speaker Output
+                      isEnabled: true
+                      limits:
+                        maxVolume: 80
+                      createdByUserId: 1
+                      createdAt: '2026-09-25T11:00:00.000Z'
+                      updatedAt: '2026-09-25T11:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Robot]
+      operationId: upsertRobotCapabilityAssignment
+      summary: Add or update a robot capability assignment
+      description: Assigns one active organization-permitted capability to one robot with validated parameter limits. The write is tenant-scoped, bumps tenantVersion for robot cache reset, and records a sanitized audit event.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertRobotCapabilityAssignmentRequest'
+            examples:
+              speakerLimits:
+                value:
+                  capabilityStableKey: audio.speaker
+                  isEnabled: true
+                  limits:
+                    maxVolume: 80
+                    modes: [classroom]
+      responses:
+        '200':
+          description: Robot capability assignment upserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotCapabilityAssignment'
+              examples:
+                assigned:
+                  value:
+                    id: 5
+                    robotId: 10
+                    orgId: 1
+                    capabilityId: 1
+                    capabilityStableKey: audio.speaker
+                    capabilityName: Speaker Output
+                    isEnabled: true
+                    limits:
+                      maxVolume: 80
+                      modes: [classroom]
+                    createdByUserId: 1
+                    createdAt: '2026-09-25T11:00:00.000Z'
+                    updatedAt: '2026-09-25T11:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /robots/{id}/device-metadata:
     delete:
       tags: [Robot]
@@ -3595,6 +3903,177 @@ components:
           type: string
           format: date-time
 
+    CapabilityOverrideEffect:
+      type: string
+      enum: [ALLOW, DENY]
+    OrganizationCapabilityOverride:
+      type: object
+      required: [id, orgId, capabilityId, capabilityStableKey, capabilityName, effect, reason, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        capabilityId:
+          type: integer
+        capabilityStableKey:
+          type: string
+          example: speech.recognition
+        capabilityName:
+          type: string
+          example: Speech Recognition
+        effect:
+          $ref: '#/components/schemas/CapabilityOverrideEffect'
+        reason:
+          type: string
+          maxLength: 500
+          description: Sanitized administrative reason for the override.
+        createdByUserId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpsertOrgCapabilityOverrideRequest:
+      type: object
+      required: [capabilityStableKey, effect, reason]
+      additionalProperties: false
+      properties:
+        capabilityStableKey:
+          type: string
+          example: speech.recognition
+        effect:
+          $ref: '#/components/schemas/CapabilityOverrideEffect'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: Temporarily disabled until microphone QA passes.
+
+    RobotCapabilityLimits:
+      type: object
+      additionalProperties: true
+      description: Safe validated primitive/object/array limit values. Secret-like keys and values are rejected by the backend.
+    RobotCapabilityAssignment:
+      type: object
+      required: [id, robotId, capabilityId, capabilityStableKey, capabilityName, isEnabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        robotId:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        capabilityId:
+          type: integer
+        capabilityStableKey:
+          type: string
+          example: audio.speaker
+        capabilityName:
+          type: string
+          example: Speaker Output
+        isEnabled:
+          type: boolean
+        limits:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotCapabilityLimits'
+        createdByUserId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpsertRobotCapabilityAssignmentRequest:
+      type: object
+      required: [capabilityStableKey]
+      additionalProperties: false
+      properties:
+        capabilityStableKey:
+          type: string
+          example: audio.speaker
+        isEnabled:
+          type: boolean
+          default: true
+        limits:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotCapabilityLimits'
+
+    UserCapabilityAssignment:
+      type: object
+      required: [id, userId, capabilityId, capabilityStableKey, capabilityName, isEnabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        capabilityId:
+          type: integer
+        capabilityStableKey:
+          type: string
+          example: audio.speaker
+        capabilityName:
+          type: string
+          example: Speaker Output
+        isEnabled:
+          type: boolean
+        limits:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotCapabilityLimits'
+        createdByUserId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpsertUserCapabilityAssignmentRequest:
+      type: object
+      required: [capabilityStableKey]
+      additionalProperties: false
+      properties:
+        capabilityStableKey:
+          type: string
+          example: audio.speaker
+        isEnabled:
+          type: boolean
+          default: true
+        limits:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotCapabilityLimits'
+    UserEffectiveCapabilitiesResponse:
+      type: object
+      required: [userId, orgId, capabilities]
+      properties:
+        userId:
+          type: integer
+        orgId:
+          type: integer
+          nullable: true
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntitlementCapability'
+
     EntitlementCapability:
       type: object
       required: [id, stableKey, name, version]
@@ -3617,6 +4096,11 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+        limits:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Validated per-robot capability parameter limits.
     RobotEntitlements:
       type: object
       required: [subscription, paidCapabilities]
@@ -3647,7 +4131,7 @@ components:
               nullable: true
         paidCapabilities:
           type: array
-          description: Effective paid capability set. Empty when subscription is missing, inactive, expired, not yet active, or assigned to an inactive plan.
+          description: Effective paid capability set after active subscription capabilities are adjusted by organization ALLOW/DENY overrides and filtered by enabled per-robot assignments. Empty when subscription is missing, inactive, expired, not yet active, assigned to an inactive plan, all capabilities are denied by overrides, or the robot has no enabled assignments.
           items:
             $ref: '#/components/schemas/EntitlementCapability'
     CreateOrganizationRequest:

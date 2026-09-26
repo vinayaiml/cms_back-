@@ -56,6 +56,8 @@ describe('OrgsController tenant isolation', () => {
     setPermissions: jest.fn(),
     getSubscription: jest.fn(),
     assignSubscription: jest.fn(),
+    listCapabilityOverrides: jest.fn(),
+    upsertCapabilityOverride: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -209,6 +211,36 @@ describe('OrgsController tenant isolation', () => {
     await request(app.getHttpServer()).get('/api/orgs/99/subscription').expect(403);
 
     expect(orgsService.getSubscription).not.toHaveBeenCalled();
+  });
+
+  it('allows Super Admin to upsert organization capability override', async () => {
+    orgsService.upsertCapabilityOverride.mockResolvedValue({ id: 1, orgId: 10, effect: 'DENY' });
+
+    await request(app.getHttpServer())
+      .put('/api/orgs/10/capability-overrides')
+      .set('x-correlation-id', 'cms-48-test')
+      .send({ capabilityStableKey: 'speech.recognition', effect: 'DENY', reason: 'Pilot disabled' })
+      .expect(200);
+
+    expect(orgsService.upsertCapabilityOverride).toHaveBeenCalledWith(
+      10,
+      { capabilityStableKey: 'speech.recognition', effect: 'DENY', reason: 'Pilot disabled' },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'cms-48-test',
+    );
+  });
+
+  it('blocks organization users from direct-ID capability override reads and writes', async () => {
+    currentActor = orgAdmin;
+
+    await request(app.getHttpServer()).get('/api/orgs/99/capability-overrides').expect(403);
+    await request(app.getHttpServer())
+      .put('/api/orgs/99/capability-overrides')
+      .send({ capabilityStableKey: 'speech.recognition', effect: 'DENY', reason: 'Pilot disabled' })
+      .expect(403);
+
+    expect(orgsService.listCapabilityOverrides).not.toHaveBeenCalled();
+    expect(orgsService.upsertCapabilityOverride).not.toHaveBeenCalled();
   });
 
   it('blocks robot tokens from organization administration routes', async () => {

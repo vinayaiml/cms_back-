@@ -8,48 +8,50 @@ datasource db {
 }
 
 model Organization {
-  id                   Int                        @id @default(autoincrement())
+  id                   Int                              @id @default(autoincrement())
   name                 String
   state                String
   city                 String
   authorizedPersonName String
   contactNo            String
-  isActive             Boolean                    @default(true)
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  isActive             Boolean                          @default(true)
+  createdAt            DateTime                         @default(now())
+  updatedAt            DateTime                         @updatedAt
   logoUrl              String?
   primaryColor         String?
   secondaryColor       String?
-  tenantVersion        Int                        @default(1)
-  courses              Course[]                   @relation("OrgOwnedCourses")
+  tenantVersion        Int                              @default(1)
+  courses              Course[]                         @relation("OrgOwnedCourses")
   events               Event[]
   notifications        Notification[]
   assignments          OrgCourseAccess[]
   permissions          OrgPermission[]
   robots               Robot[]
   subscriptions        OrganizationSubscription[]
+  capabilityOverrides  OrganizationCapabilityOverride[]
   usageLogs            RobotUsageLog[]
   roles                Role[]
   users                User[]
 }
 
 model User {
-  id                Int              @id @default(autoincrement())
-  orgId             Int?
-  createdByUserId   Int?
-  email             String           @unique
-  fullName          String
-  passwordHash      String
-  isSuperAdmin      Boolean          @default(false)
-  isLocked          Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  notifications     Notification[]   @relation("UserNotifications")
-  createdBy         User?            @relation("UserCreator", fields: [createdByUserId], references: [id])
-  createdUsers      User[]           @relation("UserCreator")
-  org               Organization?    @relation(fields: [orgId], references: [id])
-  directPermissions UserPermission[]
-  roles             UserRole[]
+  id                    Int                        @id @default(autoincrement())
+  orgId                 Int?
+  createdByUserId       Int?
+  email                 String                     @unique
+  fullName              String
+  passwordHash          String
+  isSuperAdmin          Boolean                    @default(false)
+  isLocked              Boolean                    @default(false)
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  notifications         Notification[]             @relation("UserNotifications")
+  createdBy             User?                      @relation("UserCreator", fields: [createdByUserId], references: [id])
+  createdUsers          User[]                     @relation("UserCreator")
+  org                   Organization?              @relation(fields: [orgId], references: [id])
+  directPermissions     UserPermission[]
+  capabilityAssignments UserCapabilityAssignment[]
+  roles                 UserRole[]
 
   @@index([createdByUserId])
 }
@@ -120,14 +122,14 @@ model UserPermission {
 }
 
 model Robot {
-  id                    Int             @id @default(autoincrement())
+  id                    Int                         @id @default(autoincrement())
   orgId                 Int
-  serialNumber          String          @unique
+  serialNumber          String                      @unique
   name                  String?
-  licenseKey            String?         @unique
+  licenseKey            String?                     @unique
   validFrom             DateTime
   validUntil            DateTime
-  licenseStatus         LicenseStatus   @default(ACTIVE)
+  licenseStatus         LicenseStatus               @default(ACTIVE)
   revokedAt             DateTime?
   lastSeenAt            DateTime?
   appVersion            String?
@@ -135,30 +137,34 @@ model Robot {
   hardwareModel         String?
   hardwareProfile       Json?
   hardwareCapabilities  Json?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
   deviceMetadata        Json?
   licenseKeyCiphertext  String?
-  licenseKeyFingerprint String?         @unique
+  licenseKeyFingerprint String?                     @unique
   events                Event[]
-  org                   Organization    @relation(fields: [orgId], references: [id])
+  org                   Organization                @relation(fields: [orgId], references: [id])
   usageLogs             RobotUsageLog[]
+  capabilityAssignments RobotCapabilityAssignment[]
 
   @@index([orgId])
 }
 
 model Capability {
-  id               Int              @id @default(autoincrement())
-  stableKey        String           @unique
+  id               Int                              @id @default(autoincrement())
+  stableKey        String                           @unique
   name             String
   description      String?
   category         String?
   version          Int
   requiredHardware Json?
-  isActive         Boolean          @default(true)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  isActive         Boolean                          @default(true)
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
   plans            PlanCapability[]
+  orgOverrides     OrganizationCapabilityOverride[]
+  robotAssignments RobotCapabilityAssignment[]
+  userAssignments  UserCapabilityAssignment[]
 }
 
 model SubscriptionPlan {
@@ -172,6 +178,59 @@ model SubscriptionPlan {
   updatedAt        DateTime                   @updatedAt
   capabilities     PlanCapability[]
   orgSubscriptions OrganizationSubscription[]
+}
+
+model UserCapabilityAssignment {
+  id              Int        @id @default(autoincrement())
+  userId          Int
+  capabilityId    Int
+  isEnabled       Boolean    @default(true)
+  limits          Json?
+  createdByUserId Int?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capability      Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, capabilityId])
+  @@index([capabilityId])
+}
+
+model RobotCapabilityAssignment {
+  id              Int        @id @default(autoincrement())
+  robotId         Int
+  capabilityId    Int
+  isEnabled       Boolean    @default(true)
+  limits          Json?
+  createdByUserId Int?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  robot           Robot      @relation(fields: [robotId], references: [id], onDelete: Cascade)
+  capability      Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([robotId, capabilityId])
+  @@index([capabilityId])
+}
+
+model OrganizationCapabilityOverride {
+  id              Int                      @id @default(autoincrement())
+  orgId           Int
+  capabilityId    Int
+  effect          CapabilityOverrideEffect
+  reason          String
+  createdByUserId Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  org             Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  capability      Capability               @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, capabilityId])
+  @@index([capabilityId])
+}
+
+enum CapabilityOverrideEffect {
+  ALLOW
+  DENY
 }
 
 model OrganizationSubscription {

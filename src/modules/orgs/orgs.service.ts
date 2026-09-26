@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { SubscriptionStatus } from '@prisma/client';
+import { CapabilityOverrideEffect, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto } from './orgs.dto';
+import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto, UpsertOrgCapabilityOverrideDto } from './orgs.dto';
 
 @Injectable()
 export class OrgsService {
@@ -319,6 +319,108 @@ export class OrgsService {
     });
 
     return this.toSubscriptionResponse(assigned);
+  }
+
+  private cleanOverrideReason(reason: string) {
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('Capability override reason is required');
+    if (trimmed.length > 500) throw new BadRequestException('Capability override reason is too long');
+    return trimmed;
+  }
+
+  private toCapabilityOverrideResponse(override: any) {
+    return {
+      id: override.id,
+      orgId: override.orgId,
+      capabilityId: override.capabilityId,
+      effect: override.effect,
+      reason: override.reason,
+      createdByUserId: override.createdByUserId,
+      createdAt: override.createdAt,
+      updatedAt: override.updatedAt,
+      capability: {
+        id: override.capability.id,
+        stableKey: override.capability.stableKey,
+        name: override.capability.name,
+        description: override.capability.description,
+        category: override.capability.category,
+        version: override.capability.version,
+        requiredHardware: override.capability.requiredHardware,
+        isActive: override.capability.isActive,
+      },
+    };
+  }
+
+  async listCapabilityOverrides(orgId: number) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const overrides = await this.prisma.organizationCapabilityOverride.findMany({
+      where: { orgId },
+      include: { capability: true },
+      orderBy: { capability: { stableKey: 'asc' } },
+    });
+
+    return overrides.map((override) => this.toCapabilityOverrideResponse(override));
+  }
+
+  async upsertCapabilityOverride(
+    orgId: number,
+    dto: UpsertOrgCapabilityOverrideDto,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const stableKey = dto.capabilityStableKey.trim();
+    const capability = await this.prisma.capability.findUnique({ where: { stableKey } });
+    if (!capability) throw new NotFoundException('Capability not found');
+    if (!capability.isActive) throw new ForbiddenException('Capability is inactive');
+
+    const reason = this.cleanOverrideReason(dto.reason);
+    const effect = dto.effect as CapabilityOverrideEffect;
+    const previous = await this.prisma.organizationCapabilityOverride.findUnique({
+      where: { orgId_capabilityId: { orgId, capabilityId: capability.id } },
+      select: { id: true, effect: true, reason: true },
+    });
+
+    const override = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.organizationCapabilityOverride.upsert({
+        where: { orgId_capabilityId: { orgId, capabilityId: capability.id } },
+        update: { effect, reason, createdByUserId: actor.userId },
+        create: { orgId, capabilityId: capability.id, effect, reason, createdByUserId: actor.userId },
+        include: { capability: true },
+      });
+
+      const updatedOrg = await tx.organization.update({
+        where: { id: orgId },
+        data: { tenantVersion: { increment: 1 } },
+        select: { tenantVersion: true },
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'organization.capability_override.upserted',
+          targetType: 'organization',
+          targetId: orgId,
+          targetOrgId: orgId,
+          correlationId,
+          metadata: {
+            capabilityId: capability.id,
+            capabilityStableKey: capability.stableKey,
+            previous: previous ? { effect: previous.effect, reason: previous.reason } : null,
+            next: { effect, reason, tenantVersion: updatedOrg.tenantVersion },
+          },
+        },
+        tx,
+      );
+
+      return saved;
+    });
+
+    return this.toCapabilityOverrideResponse(override);
   }
 
   async listPermissions(orgId: number) {

@@ -10,6 +10,13 @@ describe('OrgsService', () => {
     subscriptionPlan: {
       findUnique: jest.fn(),
     },
+    capability: {
+      findUnique: jest.fn(),
+    },
+    organizationCapabilityOverride: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+    },
     organizationSubscription: {
       findFirst: jest.fn(),
     },
@@ -22,6 +29,9 @@ describe('OrgsService', () => {
     organizationSubscription: {
       deleteMany: jest.fn(),
       create: jest.fn(),
+    },
+    organizationCapabilityOverride: {
+      upsert: jest.fn(),
     },
   };
   const audit = {
@@ -217,5 +227,94 @@ describe('OrgsService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(tx.organizationSubscription.create).not.toHaveBeenCalled();
+  });
+
+  it('upserts a capability override for only the target organization and audits it', async () => {
+    prisma.organization.findUnique.mockResolvedValue({ id: 7 });
+    prisma.capability.findUnique.mockResolvedValue({
+      id: 5,
+      stableKey: 'speech.recognition',
+      name: 'Speech Recognition',
+      description: null,
+      category: 'speech',
+      version: 1,
+      requiredHardware: null,
+      isActive: true,
+    });
+    prisma.organizationCapabilityOverride.findUnique.mockResolvedValue({ id: 11, effect: 'DENY', reason: 'Trial hold' });
+    tx.organization.update.mockResolvedValue({ tenantVersion: 8 });
+    tx.organizationCapabilityOverride.upsert.mockResolvedValue({
+      id: 12,
+      orgId: 7,
+      capabilityId: 5,
+      effect: 'ALLOW',
+      reason: 'Approved pilot',
+      createdByUserId: 1,
+      createdAt: new Date('2026-09-25T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-25T00:00:00.000Z'),
+      capability: {
+        id: 5,
+        stableKey: 'speech.recognition',
+        name: 'Speech Recognition',
+        description: null,
+        category: 'speech',
+        version: 1,
+        requiredHardware: null,
+        isActive: true,
+      },
+    });
+
+    const service = new OrgsService(prisma as any, audit as any);
+    const result = await service.upsertCapabilityOverride(
+      7,
+      { capabilityStableKey: 'speech.recognition', effect: 'ALLOW', reason: 'Approved pilot' },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'override-1',
+    );
+
+    expect(tx.organizationCapabilityOverride.upsert).toHaveBeenCalledWith({
+      where: { orgId_capabilityId: { orgId: 7, capabilityId: 5 } },
+      update: { effect: 'ALLOW', reason: 'Approved pilot', createdByUserId: 1 },
+      create: { orgId: 7, capabilityId: 5, effect: 'ALLOW', reason: 'Approved pilot', createdByUserId: 1 },
+      include: { capability: true },
+    });
+    expect(tx.organization.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: { tenantVersion: { increment: 1 } },
+      select: { tenantVersion: true },
+    });
+    expect(audit.recordCritical).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'organization.capability_override.upserted',
+        targetType: 'organization',
+        targetId: 7,
+        targetOrgId: 7,
+        correlationId: 'override-1',
+        metadata: expect.objectContaining({
+          capabilityStableKey: 'speech.recognition',
+          next: { effect: 'ALLOW', reason: 'Approved pilot', tenantVersion: 8 },
+        }),
+      }),
+      tx,
+    );
+    expect(result.capability.stableKey).toBe('speech.recognition');
+    expect(JSON.stringify(result)).not.toMatch(/licenseKey|token|password|secret/i);
+  });
+
+  it('rejects override with inactive capability or missing reason before mutation', async () => {
+    prisma.organization.findUnique.mockResolvedValue({ id: 7 });
+    prisma.capability.findUnique.mockResolvedValue({ id: 5, stableKey: 'speech.recognition', isActive: false });
+
+    const service = new OrgsService(prisma as any, audit as any);
+    await expect(
+      service.upsertCapabilityOverride(7, { capabilityStableKey: 'speech.recognition', effect: 'ALLOW', reason: 'Pilot' }, { userId: 1, orgId: null, isSuperAdmin: true }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    prisma.capability.findUnique.mockResolvedValue({ id: 5, stableKey: 'speech.recognition', isActive: true });
+    await expect(
+      service.upsertCapabilityOverride(7, { capabilityStableKey: 'speech.recognition', effect: 'ALLOW', reason: '   ' }, { userId: 1, orgId: null, isSuperAdmin: true }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(tx.organizationCapabilityOverride.upsert).not.toHaveBeenCalled();
   });
 });
