@@ -52,12 +52,24 @@ describe('RobotsService device metadata', () => {
 
   const audit = {
     recordCritical: jest.fn(),
+    sanitizeMetadata: jest.fn((value: unknown) => value),
   };
 
   let service: RobotsService;
 
   beforeEach(() => {
     jest.resetAllMocks();
+    audit.sanitizeMetadata.mockImplementation((value: unknown) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+      const clean: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        if (/password|passcode|token|jwt|secret|authorization|cookie|hash|apiKey|licenseKey|privateKey|accessKey|refreshToken/i.test(key)) {
+          continue;
+        }
+        clean[key] = item;
+      }
+      return clean;
+    });
     service = new RobotsService(prisma as any, audit as any);
   });
 
@@ -349,6 +361,35 @@ describe('RobotsService device metadata', () => {
     });
   });
 
+  it('applies organization fleet filters without exposing license keys', async () => {
+    prisma.robot.findMany.mockResolvedValue([]);
+
+    await service.listByOrg(1, {
+      status: LicenseStatus.ACTIVE,
+      model: 'MINI_ELF',
+      version: '0.1.0',
+      lastSeenFrom: new Date('2026-09-01T00:00:00.000Z'),
+      lastSeenTo: new Date('2026-09-21T00:00:00.000Z'),
+      limit: 25,
+    });
+
+    expect(prisma.robot.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId: 1,
+        licenseStatus: LicenseStatus.ACTIVE,
+        hardwareModel: 'MINI_ELF',
+        appVersion: '0.1.0',
+        lastSeenAt: {
+          gte: new Date('2026-09-01T00:00:00.000Z'),
+          lte: new Date('2026-09-21T00:00:00.000Z'),
+        },
+      },
+      orderBy: { id: 'desc' },
+      take: 25,
+      select: expect.not.objectContaining({ licenseKey: true }),
+    });
+  });
+
   it('includes license keys in super admin robot lists', async () => {
     prisma.robot.findMany.mockResolvedValue([]);
 
@@ -357,6 +398,38 @@ describe('RobotsService device metadata', () => {
     expect(prisma.robot.findMany).toHaveBeenCalledWith({
       where: {},
       orderBy: { id: 'desc' },
+      select: expect.objectContaining({
+        licenseKey: true,
+        licenseKeyCiphertext: true,
+        org: { select: { id: true, name: true } },
+      }),
+    });
+  });
+
+  it('applies Super Admin fleet filters with protected license display fields', async () => {
+    prisma.robot.findMany.mockResolvedValue([]);
+
+    await service.listAll({
+      orgId: 2,
+      status: LicenseStatus.REVOKED,
+      model: 'S5',
+      version: '1.2.3',
+      lastSeenFrom: new Date('2026-09-10T00:00:00.000Z'),
+      limit: 500,
+    });
+
+    expect(prisma.robot.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId: 2,
+        licenseStatus: LicenseStatus.REVOKED,
+        hardwareModel: 'S5',
+        appVersion: '1.2.3',
+        lastSeenAt: {
+          gte: new Date('2026-09-10T00:00:00.000Z'),
+        },
+      },
+      orderBy: { id: 'desc' },
+      take: 100,
       select: expect.objectContaining({
         licenseKey: true,
         licenseKeyCiphertext: true,
@@ -674,6 +747,71 @@ describe('RobotsService device metadata', () => {
 
     await expect(
       service.listReassignmentHistory(10, { orgId: 2, isSuperAdmin: false }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns current robot detail with sanitized audit history', async () => {
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      org: {
+        id: 1,
+        name: 'Demo Org',
+        isActive: true,
+        tenantVersion: 4,
+      },
+    });
+    prisma.auditEvent.findMany.mockResolvedValue([
+      {
+        id: 201,
+        actorUserId: 1,
+        actorOrgId: null,
+        action: 'robot.credential_rotated',
+        targetType: 'robot',
+        targetId: '10',
+        targetOrgId: 1,
+        correlationId: 'audit-123',
+        metadata: {
+          serialNumber: 'WR-001',
+          licenseKey: 'SHOULD_NOT_RETURN',
+          refreshToken: 'SHOULD_NOT_RETURN',
+          licenseStatus: LicenseStatus.ACTIVE,
+        },
+        createdAt: new Date('2026-09-20T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.getDetail(10, { orgId: 1, isSuperAdmin: false }, 25);
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith({
+      where: {
+        targetType: 'robot',
+        targetId: '10',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+    expect(result.robot).not.toHaveProperty('licenseKey');
+    expect(result.robot).not.toHaveProperty('licenseKeyCiphertext');
+    expect(result.robot).not.toHaveProperty('licenseKeyFingerprint');
+    expect(result.license).toEqual({
+      status: LicenseStatus.ACTIVE,
+      validFrom: robot.validFrom,
+      validUntil: robot.validUntil,
+      revokedAt: null,
+    });
+    expect(result.auditHistory[0].metadata).toEqual({
+      serialNumber: 'WR-001',
+      licenseStatus: LicenseStatus.ACTIVE,
+    });
+  });
+
+  it('blocks robot detail across organizations before reading audit events', async () => {
+    prisma.robot.findUnique.mockResolvedValue(robot);
+
+    await expect(
+      service.getDetail(10, { orgId: 2, isSuperAdmin: false }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();

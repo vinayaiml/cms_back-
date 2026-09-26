@@ -1,11 +1,15 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { CreateOrgDto, UpdateOrgDto } from './orgs.dto';
+import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto } from './orgs.dto';
 
 @Injectable()
 export class OrgsService {
-  constructor(private prisma: PrismaService, private audit: AuditService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   private readonly organizationSelect = {
     id: true,
@@ -31,7 +35,9 @@ export class OrgsService {
   }
 
   async create(dto: CreateOrgDto) {
-    const existingAdmin = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existingAdmin = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     if (existingAdmin) throw new ConflictException('Admin email already exists');
 
     const org = await this.prisma.organization.create({
@@ -50,9 +56,7 @@ export class OrgsService {
       where: { key: { not: 'superadmin.*' } },
       select: { id: true, key: true },
     });
-    const defaultPerms = allNonSuperAdminPerms.filter(
-      (p) => !p.key.startsWith('org.') && !p.key.startsWith('superadmin.'),
-    );
+    const defaultPerms = allNonSuperAdminPerms.filter((p) => !p.key.startsWith('org.') && !p.key.startsWith('superadmin.'));
 
     if (defaultPerms.length) {
       await this.prisma.orgPermission.createMany({
@@ -64,7 +68,11 @@ export class OrgsService {
     await this.prisma.role.upsert({
       where: { orgId_name: { orgId: org.id, name: 'Org Admin' } },
       update: { description: 'Organization administrator' },
-      create: { orgId: org.id, name: 'Org Admin', description: 'Organization administrator' },
+      create: {
+        orgId: org.id,
+        name: 'Org Admin',
+        description: 'Organization administrator',
+      },
     });
 
     if (defaultPerms.length) {
@@ -75,7 +83,10 @@ export class OrgsService {
 
       if (orgAdminRole) {
         await this.prisma.rolePermission.createMany({
-          data: defaultPerms.map((p) => ({ roleId: orgAdminRole.id, permissionId: p.id })),
+          data: defaultPerms.map((p) => ({
+            roleId: orgAdminRole.id,
+            permissionId: p.id,
+          })),
           skipDuplicates: true,
         });
       }
@@ -120,11 +131,7 @@ export class OrgsService {
     });
   }
 
-  async toggleActive(
-    id: number,
-    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
-    correlationId?: string,
-  ) {
+  async toggleActive(id: number, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }, correlationId?: string) {
     const org = await this.prisma.organization.findUnique({ where: { id } });
     if (!org) throw new NotFoundException('Organization not found');
 
@@ -160,8 +167,164 @@ export class OrgsService {
     return this.getById(orgId);
   }
 
+  private normalizeSubscriptionWindow(dto: AssignOrgSubscriptionDto) {
+    const validFrom = new Date(dto.validFrom);
+    const validUntil = new Date(dto.validUntil);
+    if (Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())) {
+      throw new BadRequestException('Subscription validity dates must be valid ISO-8601 date strings');
+    }
+    if (validUntil <= validFrom) {
+      throw new BadRequestException('Subscription validUntil must be after validFrom');
+    }
+
+    return {
+      validFrom,
+      validUntil,
+      status: dto.status ?? SubscriptionStatus.ACTIVE,
+    };
+  }
+
+  private subscriptionInclude() {
+    return {
+      plan: {
+        include: {
+          capabilities: {
+            include: { capability: true },
+            orderBy: { capability: { stableKey: 'asc' as const } },
+          },
+        },
+      },
+    };
+  }
+
+  private toSubscriptionResponse(subscription: any) {
+    return {
+      id: subscription.id,
+      orgId: subscription.orgId,
+      planId: subscription.planId,
+      status: subscription.status,
+      validFrom: subscription.validFrom,
+      validUntil: subscription.validUntil,
+      createdAt: subscription.createdAt,
+      updatedAt: subscription.updatedAt,
+      plan: {
+        id: subscription.plan.id,
+        stableKey: subscription.plan.stableKey,
+        name: subscription.plan.name,
+        description: subscription.plan.description,
+        version: subscription.plan.version,
+        isActive: subscription.plan.isActive,
+        capabilities: subscription.plan.capabilities
+          .map((row: any) => row.capability)
+          .filter((capability: any) => capability.isActive)
+          .sort((a: any, b: any) => a.stableKey.localeCompare(b.stableKey)),
+      },
+    };
+  }
+
+  async getSubscription(orgId: number) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const subscription = await this.prisma.organizationSubscription.findFirst({
+      where: { orgId },
+      include: this.subscriptionInclude(),
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return subscription ? this.toSubscriptionResponse(subscription) : null;
+  }
+
+  async assignSubscription(orgId: number, dto: AssignOrgSubscriptionDto, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }, correlationId?: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, tenantVersion: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+      select: { id: true, stableKey: true, isActive: true },
+    });
+    if (!plan) throw new NotFoundException('Subscription plan not found');
+    if (!plan.isActive) throw new ForbiddenException('Subscription plan is inactive');
+
+    const window = this.normalizeSubscriptionWindow(dto);
+    const previous = await this.prisma.organizationSubscription.findFirst({
+      where: { orgId },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        planId: true,
+        status: true,
+        validFrom: true,
+        validUntil: true,
+      },
+    });
+
+    const assigned = await this.prisma.$transaction(async (tx) => {
+      await tx.organizationSubscription.deleteMany({ where: { orgId } });
+      const created = await tx.organizationSubscription.create({
+        data: {
+          orgId,
+          planId: plan.id,
+          status: window.status,
+          validFrom: window.validFrom,
+          validUntil: window.validUntil,
+        },
+        include: this.subscriptionInclude(),
+      });
+
+      const updatedOrg = await tx.organization.update({
+        where: { id: orgId },
+        data: { tenantVersion: { increment: 1 } },
+        select: { tenantVersion: true },
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'organization.subscription.assigned',
+          targetType: 'organization',
+          targetId: orgId,
+          targetOrgId: orgId,
+          correlationId,
+          metadata: {
+            previous: previous
+              ? {
+                  subscriptionId: previous.id,
+                  planId: previous.planId,
+                  status: previous.status,
+                  validFrom: previous.validFrom.toISOString(),
+                  validUntil: previous.validUntil.toISOString(),
+                }
+              : null,
+            next: {
+              planId: plan.id,
+              planStableKey: plan.stableKey,
+              status: window.status,
+              validFrom: window.validFrom.toISOString(),
+              validUntil: window.validUntil.toISOString(),
+              tenantVersion: updatedOrg.tenantVersion,
+            },
+          },
+        },
+        tx,
+      );
+
+      return created;
+    });
+
+    return this.toSubscriptionResponse(assigned);
+  }
+
   async listPermissions(orgId: number) {
-    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
     if (!org) throw new NotFoundException('Organization not found');
 
     const rows = await this.prisma.orgPermission.findMany({
@@ -174,7 +337,9 @@ export class OrgsService {
   }
 
   async setPermissions(orgId: number, permissionKeys: string[]) {
-    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
     if (!org) throw new NotFoundException('Organization not found');
 
     const keys = Array.from(new Set(permissionKeys.map((k) => k.trim()).filter(Boolean)));
@@ -200,9 +365,14 @@ export class OrgsService {
       });
 
       if (orgAdminRole) {
-        await tx.rolePermission.deleteMany({ where: { roleId: orgAdminRole.id } });
+        await tx.rolePermission.deleteMany({
+          where: { roleId: orgAdminRole.id },
+        });
         await tx.rolePermission.createMany({
-          data: perms.map((p) => ({ roleId: orgAdminRole.id, permissionId: p.id })),
+          data: perms.map((p) => ({
+            roleId: orgAdminRole.id,
+            permissionId: p.id,
+          })),
           skipDuplicates: true,
         });
       }

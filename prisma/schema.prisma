@@ -8,25 +8,26 @@ datasource db {
 }
 
 model Organization {
-  id                   Int               @id @default(autoincrement())
+  id                   Int                        @id @default(autoincrement())
   name                 String
   state                String
   city                 String
   authorizedPersonName String
   contactNo            String
+  isActive             Boolean                    @default(true)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
   logoUrl              String?
   primaryColor         String?
   secondaryColor       String?
-  tenantVersion        Int               @default(1)
-  isActive             Boolean           @default(true)
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  courses              Course[]          @relation("OrgOwnedCourses")
+  tenantVersion        Int                        @default(1)
+  courses              Course[]                   @relation("OrgOwnedCourses")
   events               Event[]
   notifications        Notification[]
   assignments          OrgCourseAccess[]
   permissions          OrgPermission[]
   robots               Robot[]
+  subscriptions        OrganizationSubscription[]
   usageLogs            RobotUsageLog[]
   roles                Role[]
   users                User[]
@@ -144,6 +145,65 @@ model Robot {
   usageLogs             RobotUsageLog[]
 
   @@index([orgId])
+}
+
+model Capability {
+  id               Int              @id @default(autoincrement())
+  stableKey        String           @unique
+  name             String
+  description      String?
+  category         String?
+  version          Int
+  requiredHardware Json?
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  plans            PlanCapability[]
+}
+
+model SubscriptionPlan {
+  id               Int                        @id @default(autoincrement())
+  stableKey        String                     @unique
+  name             String
+  description      String?
+  version          Int
+  isActive         Boolean                    @default(true)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  capabilities     PlanCapability[]
+  orgSubscriptions OrganizationSubscription[]
+}
+
+model OrganizationSubscription {
+  id         Int                @id @default(autoincrement())
+  orgId      Int
+  planId     Int
+  status     SubscriptionStatus @default(ACTIVE)
+  validFrom  DateTime
+  validUntil DateTime
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  org        Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  plan       SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  @@index([orgId])
+  @@index([planId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model PlanCapability {
+  planId       Int
+  capabilityId Int
+  createdAt    DateTime         @default(now())
+  capability   Capability       @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([planId, capabilityId])
+  @@index([capabilityId])
 }
 
 model Course {
@@ -273,6 +333,7 @@ model Notification {
   org       Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   user      User?         @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([orgId, type, message])
   @@index([orgId, userId])
 }
 

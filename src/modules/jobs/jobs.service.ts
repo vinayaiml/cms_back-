@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LicenseStatus } from '@prisma/client';
+import { LicenseStatus, Prisma } from '@prisma/client';
 
 type LicenseScanJobData = Record<string, never>;
 
@@ -89,7 +89,7 @@ export class JobsService implements OnModuleInit {
     message: string;
     payload: any;
   }) {
-    // Basic dedupe: only one notification per (orgId,type,message).
+    // Dedupe: only one notification per (orgId,type,message).
     // Message is intentionally stable (includes robot serial + validUntil ISO date).
     const existing = await this.prisma.notification.findFirst({
       where: { orgId: params.orgId, type: params.type, message: params.message },
@@ -97,15 +97,20 @@ export class JobsService implements OnModuleInit {
 
     if (existing) return;
 
-    await this.prisma.notification.create({
-      data: {
-        orgId: params.orgId,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        payload: params.payload,
-      },
-    });
+    try {
+      await this.prisma.notification.create({
+        data: {
+          orgId: params.orgId,
+          type: params.type,
+          title: params.title,
+          message: params.message,
+          payload: params.payload,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
+      throw error;
+    }
   }
 
   private async runLicenseScan() {
@@ -126,8 +131,8 @@ export class JobsService implements OnModuleInit {
       const { status, daysLeft } = this.computeStatus(r.validUntil, r.revokedAt);
 
       if (status !== r.licenseStatus) {
-        await this.prisma.robot.update({
-          where: { id: r.id },
+        await this.prisma.robot.updateMany({
+          where: { id: r.id, licenseStatus: { not: status } },
           data: { licenseStatus: status },
         });
       }

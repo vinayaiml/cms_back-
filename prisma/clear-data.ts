@@ -27,6 +27,7 @@ async function main() {
       "Event",
       "RobotUsageLog",
       "OrgCourseAccess",
+      "PlanCapability",
       "Notification",
       "UserPermission",
       "UserRole",
@@ -41,6 +42,9 @@ async function main() {
       "Course",
       "DashboardSection",
       "Organization",
+      "OrganizationSubscription",
+      "SubscriptionPlan",
+      "Capability",
       "Permission",
       "GlobalCounter"
     RESTART IDENTITY CASCADE

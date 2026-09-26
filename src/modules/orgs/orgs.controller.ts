@@ -5,7 +5,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload, JwtUserPayload } from '../../common/auth/jwt.types';
 import { OrgsService } from './orgs.service';
-import { CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto } from './orgs.dto';
+import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto, UpdateOrgPermissionsDto } from './orgs.dto';
 
 @Controller('orgs')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -62,13 +62,45 @@ export class OrgsController {
 
   @Patch(':id/toggle-active')
   @RequirePermissions('org.update')
-  async toggleActive(
+  async toggleActive(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Headers('x-correlation-id') correlationId?: string) {
+    this.assertSuperAdmin(actor);
+    return this.orgs.toggleActive(
+      id,
+      {
+        userId: actor.sub,
+        orgId: actor.orgId,
+        isSuperAdmin: actor.isSuperAdmin,
+      },
+      correlationId,
+    );
+  }
+
+  @Get(':id/subscription')
+  @RequirePermissions('subscription.read')
+  async getSubscription(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number) {
+    this.assertSuperAdmin(actor);
+    return this.orgs.getSubscription(id);
+  }
+
+  @Put(':id/subscription')
+  @RequirePermissions('subscription.manage')
+  async assignSubscription(
     @CurrentUser() actor: JwtPayload,
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AssignOrgSubscriptionDto,
     @Headers('x-correlation-id') correlationId?: string,
   ) {
     this.assertSuperAdmin(actor);
-    return this.orgs.toggleActive(id, { userId: actor.sub, orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin }, correlationId);
+    return this.orgs.assignSubscription(
+      id,
+      dto,
+      {
+        userId: actor.sub,
+        orgId: actor.orgId,
+        isSuperAdmin: actor.isSuperAdmin,
+      },
+      correlationId,
+    );
   }
 
   @Get(':id/permissions')
@@ -80,11 +112,7 @@ export class OrgsController {
 
   @Put(':id/permissions')
   @RequirePermissions('permission.manage')
-  async setPermissions(
-    @CurrentUser() actor: JwtPayload,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateOrgPermissionsDto,
-  ) {
+  async setPermissions(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrgPermissionsDto) {
     this.assertSuperAdmin(actor);
     return this.orgs.setPermissions(id, dto.permissionKeys || []);
   }

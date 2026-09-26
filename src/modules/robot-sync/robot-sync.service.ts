@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CourseAccessType, CourseSource, CourseVisibility, LicenseStatus, LessonVisibility, Prisma } from '@prisma/client';
+import { CourseAccessType, CourseSource, CourseVisibility, LicenseStatus, LessonVisibility, Prisma, SubscriptionStatus } from '@prisma/client';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
 import { normalizeRobotHardwareProfile } from '../robots/robot-hardware-profile';
 
@@ -10,7 +10,12 @@ type Allowed = {
   chapterIds: Set<number>;
 };
 
-type AssignmentRow = { courseId: number; accessType: CourseAccessType; levelId: number | null; chapterId: number | null };
+type AssignmentRow = {
+  courseId: number;
+  accessType: CourseAccessType;
+  levelId: number | null;
+  chapterId: number | null;
+};
 
 export type RobotSyncHeartbeat = {
   appVersion?: string;
@@ -175,11 +180,87 @@ export class RobotSyncService {
     return { robot, status };
   }
 
-  private buildAllowedMap(assignments: Array<{ courseId: number; accessType: CourseAccessType; levelId: number | null; chapterId: number | null }>) {
+  private async getEffectiveEntitlements(orgId: number) {
+    const subscription = await this.prisma.organizationSubscription.findFirst({
+      where: { orgId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        plan: {
+          include: {
+            capabilities: {
+              include: { capability: true },
+              orderBy: { capability: { stableKey: 'asc' as const } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!subscription) {
+      return {
+        subscription: {
+          status: 'NONE',
+          planStableKey: null,
+          validFrom: null,
+          validUntil: null,
+        },
+        paidCapabilities: [],
+      };
+    }
+
+    const now = new Date();
+    const isCurrent = subscription.status === SubscriptionStatus.ACTIVE && subscription.plan.isActive && subscription.validFrom <= now && subscription.validUntil >= now;
+    const status =
+      !subscription.plan.isActive || subscription.status !== SubscriptionStatus.ACTIVE
+        ? 'INACTIVE'
+        : subscription.validUntil < now
+          ? 'EXPIRED'
+          : subscription.validFrom > now
+            ? 'NOT_YET_ACTIVE'
+            : 'ACTIVE';
+
+    return {
+      subscription: {
+        status,
+        planId: subscription.planId,
+        planStableKey: subscription.plan.stableKey,
+        planVersion: subscription.plan.version,
+        validFrom: subscription.validFrom,
+        validUntil: subscription.validUntil,
+      },
+      paidCapabilities: isCurrent
+        ? subscription.plan.capabilities
+            .map((row) => row.capability)
+            .filter((capability) => capability.isActive)
+            .map((capability) => ({
+              id: capability.id,
+              stableKey: capability.stableKey,
+              name: capability.name,
+              description: capability.description,
+              category: capability.category,
+              version: capability.version,
+              requiredHardware: capability.requiredHardware,
+            }))
+        : [],
+    };
+  }
+
+  private buildAllowedMap(
+    assignments: Array<{
+      courseId: number;
+      accessType: CourseAccessType;
+      levelId: number | null;
+      chapterId: number | null;
+    }>,
+  ) {
     const map = new Map<number, Allowed>();
 
     for (const a of assignments) {
-      const entry = map.get(a.courseId) || { full: false, levelIds: new Set<number>(), chapterIds: new Set<number>() };
+      const entry = map.get(a.courseId) || {
+        full: false,
+        levelIds: new Set<number>(),
+        chapterIds: new Set<number>(),
+      };
 
       if (a.accessType === CourseAccessType.FULL_COURSE) {
         entry.full = true;
@@ -307,7 +388,12 @@ export class RobotSyncService {
     // 2) Assigned platform courses with access control (full/level/chapter)
     const assignments: AssignmentRow[] = await this.prisma.orgCourseAccess.findMany({
       where: { orgId: robot.orgId },
-      select: { courseId: true, accessType: true, levelId: true, chapterId: true },
+      select: {
+        courseId: true,
+        accessType: true,
+        levelId: true,
+        chapterId: true,
+      },
     });
 
     const allowedMap = this.buildAllowedMap(assignments);
@@ -316,7 +402,10 @@ export class RobotSyncService {
 
     const assignedPlatformCourses: CourseWithLevels[] = assignedCourseIds.length
       ? await this.prisma.course.findMany({
-          where: { id: { in: assignedCourseIds }, source: CourseSource.PLATFORM },
+          where: {
+            id: { in: assignedCourseIds },
+            source: CourseSource.PLATFORM,
+          },
           orderBy: { id: 'asc' },
           include: {
             levels: {
@@ -338,17 +427,21 @@ export class RobotSyncService {
 
     const filteredAssigned = assignedPlatformCourses
       .map((c: CourseWithLevels) => {
-      const allow = allowedMap.get(c.id);
-      if (!allow) return null;
-      return this.filterCourseByAllowed(c, allow);
-    })
+        const allow = allowedMap.get(c.id);
+        if (!allow) return null;
+        return this.filterCourseByAllowed(c, allow);
+      })
       .filter((c): c is CourseWithLevels => Boolean(c));
 
     const myCourses: CourseWithLevels[] = [...orgOwnedCourses, ...filteredAssigned];
+    const entitlements = await this.getEffectiveEntitlements(robot.orgId);
 
     // 3) Public catalog = PUBLIC courses, only intro level, only PUBLIC_PREVIEW lessons
     const publicCourses: PublicCourse[] = await this.prisma.course.findMany({
-      where: { visibility: CourseVisibility.PUBLIC, introLevelId: { not: null } },
+      where: {
+        visibility: CourseVisibility.PUBLIC,
+        introLevelId: { not: null },
+      },
       orderBy: { id: 'asc' },
       include: {
         introLevel: {
@@ -363,7 +456,10 @@ export class RobotSyncService {
               },
             },
             lessons: {
-              where: { chapterId: null, visibility: LessonVisibility.PUBLIC_PREVIEW },
+              where: {
+                chapterId: null,
+                visibility: LessonVisibility.PUBLIC_PREVIEW,
+              },
               orderBy: { sequence: 'asc' },
             },
           },
@@ -379,6 +475,7 @@ export class RobotSyncService {
         validUntil: robot.validUntil,
       },
       organization: this.toOrganizationContext(robot.org),
+      entitlements,
       myCourses,
       publicCatalog: publicCourses.map((c: PublicCourse) => ({
         id: c.id,
@@ -398,9 +495,7 @@ export class RobotSyncService {
       ...input.hardwareProfile,
       manufacturer: input.hardwareProfile.manufacturer ?? input.manufacturer,
     });
-    const { robot, status } = await this.assertRobotProfileUpdateAllowed(
-      await this.findRobotForProtectedAccess(robotId),
-    );
+    const { robot, status } = await this.assertRobotProfileUpdateAllowed(await this.findRobotForProtectedAccess(robotId));
     const storedAppVersionCode = this.getStoredAppVersionCode(robot.deviceMetadata);
     if (storedAppVersionCode !== null && input.appVersionCode < storedAppVersionCode) {
       throw new BadRequestException('Stale robot device profile update');

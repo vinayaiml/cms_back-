@@ -52,6 +52,35 @@ export class RobotsService {
     licenseKeyCiphertext: true,
   } as const;
 
+  private buildFleetWhere(filters: {
+    orgId?: number;
+    status?: LicenseStatus;
+    model?: string;
+    version?: string;
+    lastSeenFrom?: Date;
+    lastSeenTo?: Date;
+  } = {}): Prisma.RobotWhereInput {
+    const where: Prisma.RobotWhereInput = {};
+
+    if (filters.orgId !== undefined) where.orgId = filters.orgId;
+    if (filters.status) where.licenseStatus = filters.status;
+    if (filters.model) where.hardwareModel = filters.model;
+    if (filters.version) where.appVersion = filters.version;
+    if (filters.lastSeenFrom || filters.lastSeenTo) {
+      where.lastSeenAt = {
+        ...(filters.lastSeenFrom ? { gte: filters.lastSeenFrom } : {}),
+        ...(filters.lastSeenTo ? { lte: filters.lastSeenTo } : {}),
+      };
+    }
+
+    return where;
+  }
+
+  private clampLimit(limit?: number) {
+    if (limit === undefined || !Number.isFinite(limit)) return undefined;
+    return Math.min(Math.max(Math.trunc(limit), 1), 100);
+  }
+
   private computeLicenseStatus(validUntil: Date, revokedAt: Date | null): LicenseStatus {
     if (revokedAt) return LicenseStatus.REVOKED;
     const now = new Date();
@@ -77,6 +106,21 @@ export class RobotsService {
       newOrgId: typeof metadata.newOrgId === 'number' ? metadata.newOrgId : event.targetOrgId,
       targetOrgId: event.targetOrgId,
       correlationId: event.correlationId,
+      createdAt: event.createdAt,
+    };
+  }
+
+  private toRobotAuditHistoryItem(event: AuditEvent) {
+    const sanitizedMetadata = this.audit.sanitizeMetadata(event.metadata);
+
+    return {
+      id: event.id,
+      action: event.action,
+      actorUserId: event.actorUserId,
+      actorOrgId: event.actorOrgId,
+      targetOrgId: event.targetOrgId,
+      correlationId: event.correlationId,
+      metadata: sanitizedMetadata && typeof sanitizedMetadata === 'object' ? sanitizedMetadata : null,
       createdAt: event.createdAt,
     };
   }
@@ -120,18 +164,40 @@ export class RobotsService {
     };
   }
 
-  async listByOrg(orgId: number) {
+  async listByOrg(
+    orgId: number,
+    filters: {
+      status?: LicenseStatus;
+      model?: string;
+      version?: string;
+      lastSeenFrom?: Date;
+      lastSeenTo?: Date;
+      limit?: number;
+    } = {},
+  ) {
+    const take = this.clampLimit(filters.limit);
     return this.prisma.robot.findMany({
-      where: { orgId },
+      where: this.buildFleetWhere({ ...filters, orgId }),
       orderBy: { id: 'desc' },
+      ...(take ? { take } : {}),
       select: this.robotSelect,
     });
   }
 
-  async listAll(orgId?: number) {
+  async listAll(filters: {
+    orgId?: number;
+    status?: LicenseStatus;
+    model?: string;
+    version?: string;
+    lastSeenFrom?: Date;
+    lastSeenTo?: Date;
+    limit?: number;
+  } = {}) {
+    const take = this.clampLimit(filters.limit);
     const robots = await this.prisma.robot.findMany({
-      where: orgId ? { orgId } : {},
+      where: this.buildFleetWhere(filters),
       orderBy: { id: 'desc' },
+      ...(take ? { take } : {}),
       select: {
         ...this.superAdminRobotSelect,
         org: { select: { id: true, name: true } },
@@ -139,6 +205,60 @@ export class RobotsService {
     });
 
     return robots.map((robot) => this.toSuperAdminRobotResponse(robot));
+  }
+
+  async getDetail(
+    robotId: number,
+    actor: { orgId: number | null; isSuperAdmin: boolean },
+    limit = 50,
+  ) {
+    const robot = await this.prisma.robot.findUnique({
+      where: { id: robotId },
+      select: {
+        ...this.robotSelect,
+        org: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            tenantVersion: true,
+          },
+        },
+      },
+    });
+    if (!robot) throw new NotFoundException('Robot not found');
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const take = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 50, 1), 100);
+    const auditHistory = await this.prisma.auditEvent.findMany({
+      where: {
+        targetType: 'robot',
+        targetId: String(robotId),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    const {
+      licenseKey: _licenseKey,
+      licenseKeyCiphertext: _licenseKeyCiphertext,
+      licenseKeyFingerprint: _licenseKeyFingerprint,
+      ...safeRobot
+    } = robot as typeof robot & {
+      licenseKey?: string | null;
+      licenseKeyCiphertext?: string | null;
+      licenseKeyFingerprint?: string | null;
+    };
+
+    return {
+      robot: safeRobot,
+      license: {
+        status: robot.licenseStatus,
+        validFrom: robot.validFrom,
+        validUntil: robot.validUntil,
+        revokedAt: robot.revokedAt,
+      },
+      auditHistory: auditHistory.map((event) => this.toRobotAuditHistoryItem(event)),
+    };
   }
 
   async createRobot(

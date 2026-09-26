@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { LicenseStatus } from '@prisma/client';
+import { LicenseStatus, SubscriptionStatus } from '@prisma/client';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RobotSyncService } from './robot-sync.service';
@@ -51,6 +51,9 @@ describe('RobotSyncService heartbeat updates', () => {
     orgCourseAccess: {
       findMany: jest.fn(),
     },
+    organizationSubscription: {
+      findFirst: jest.fn(),
+    },
   };
 
   let service: RobotSyncService;
@@ -62,6 +65,7 @@ describe('RobotSyncService heartbeat updates', () => {
     prisma.robot.update.mockResolvedValue({});
     prisma.course.findMany.mockResolvedValue([]);
     prisma.orgCourseAccess.findMany.mockResolvedValue([]);
+    prisma.organizationSubscription.findFirst.mockResolvedValue(null);
   });
 
   it('updates last seen, app version and device model for the authenticated robot during sync', async () => {
@@ -159,6 +163,112 @@ describe('RobotSyncService heartbeat updates', () => {
       cacheVersion: 'org-2-v2',
     });
     expect((result as any).organization.orgId).not.toBe(1);
+  });
+
+  it('returns active subscription paid capabilities exactly from the assigned plan', async () => {
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 1,
+      orgId: 1,
+      planId: 2,
+      status: SubscriptionStatus.ACTIVE,
+      validFrom: new Date('2026-01-01T00:00:00.000Z'),
+      validUntil: new Date('2099-01-01T00:00:00.000Z'),
+      plan: {
+        id: 2,
+        stableKey: 'speech-plus',
+        version: 1,
+        isActive: true,
+        capabilities: [
+          {
+            capability: {
+              id: 2,
+              stableKey: 'display.touch',
+              name: 'Touch Display',
+              description: null,
+              category: 'display',
+              version: 1,
+              requiredHardware: null,
+              isActive: true,
+            },
+          },
+          {
+            capability: {
+              id: 1,
+              stableKey: 'audio.speaker',
+              name: 'Speaker Output',
+              description: null,
+              category: 'audio',
+              version: 1,
+              requiredHardware: null,
+              isActive: true,
+            },
+          },
+          {
+            capability: {
+              id: 9,
+              stableKey: 'disabled.capability',
+              name: 'Disabled',
+              description: null,
+              category: 'test',
+              version: 1,
+              requiredHardware: null,
+              isActive: false,
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await service.sync(10);
+
+    expect(prisma.organizationSubscription.findFirst).toHaveBeenCalledWith({
+      where: { orgId: 1 },
+      orderBy: { updatedAt: 'desc' },
+      include: expect.any(Object),
+    });
+    expect((result as any).entitlements.subscription).toEqual({
+      status: 'ACTIVE',
+      planId: 2,
+      planStableKey: 'speech-plus',
+      planVersion: 1,
+      validFrom: new Date('2026-01-01T00:00:00.000Z'),
+      validUntil: new Date('2099-01-01T00:00:00.000Z'),
+    });
+    expect((result as any).entitlements.paidCapabilities.map((capability: any) => capability.stableKey)).toEqual(['display.touch', 'audio.speaker']);
+    expect(JSON.stringify((result as any).entitlements)).not.toMatch(/licenseKey|token|password|secret/i);
+  });
+
+  it('removes paid capabilities for an expired organization subscription', async () => {
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 1,
+      orgId: 1,
+      planId: 2,
+      status: SubscriptionStatus.ACTIVE,
+      validFrom: new Date('2025-01-01T00:00:00.000Z'),
+      validUntil: new Date('2025-02-01T00:00:00.000Z'),
+      plan: {
+        id: 2,
+        stableKey: 'starter',
+        version: 1,
+        isActive: true,
+        capabilities: [
+          {
+            capability: {
+              id: 1,
+              stableKey: 'audio.speaker',
+              name: 'Speaker Output',
+              version: 1,
+              isActive: true,
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await service.sync(10);
+
+    expect((result as any).entitlements.subscription.status).toBe('EXPIRED');
+    expect((result as any).entitlements.paidCapabilities).toEqual([]);
   });
 
   it('stores the approved Android device and hardware profile for the authenticated robot', async () => {

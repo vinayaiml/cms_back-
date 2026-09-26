@@ -54,6 +54,8 @@ describe('OrgsController tenant isolation', () => {
     toggleActive: jest.fn(),
     listPermissions: jest.fn(),
     setPermissions: jest.fn(),
+    getSubscription: jest.fn(),
+    assignSubscription: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -154,6 +156,59 @@ describe('OrgsController tenant isolation', () => {
 
     expect(orgsService.delete).not.toHaveBeenCalled();
     expect(orgsService.toggleActive).not.toHaveBeenCalled();
+  });
+
+  it('allows Super Admin to assign organization subscription', async () => {
+    orgsService.assignSubscription.mockResolvedValue({
+      id: 1,
+      orgId: 10,
+      planId: 2,
+      status: 'ACTIVE',
+    });
+
+    await request(app.getHttpServer())
+      .put('/api/orgs/10/subscription')
+      .set('x-correlation-id', 'cms-47-test')
+      .send({
+        planId: 2,
+        validFrom: '2026-09-01T00:00:00.000Z',
+        validUntil: '2027-09-01T00:00:00.000Z',
+      })
+      .expect(200);
+
+    expect(orgsService.assignSubscription).toHaveBeenCalledWith(
+      10,
+      {
+        planId: 2,
+        validFrom: '2026-09-01T00:00:00.000Z',
+        validUntil: '2027-09-01T00:00:00.000Z',
+      },
+      { userId: 1, orgId: null, isSuperAdmin: true },
+      'cms-47-test',
+    );
+  });
+
+  it('blocks organization users from direct-ID subscription assignment', async () => {
+    currentActor = orgAdmin;
+
+    await request(app.getHttpServer())
+      .put('/api/orgs/99/subscription')
+      .send({
+        planId: 2,
+        validFrom: '2026-09-01T00:00:00.000Z',
+        validUntil: '2027-09-01T00:00:00.000Z',
+      })
+      .expect(403);
+
+    expect(orgsService.assignSubscription).not.toHaveBeenCalled();
+  });
+
+  it('blocks organization users from direct-ID subscription reads', async () => {
+    currentActor = orgAdmin;
+
+    await request(app.getHttpServer()).get('/api/orgs/99/subscription').expect(403);
+
+    expect(orgsService.getSubscription).not.toHaveBeenCalled();
   });
 
   it('blocks robot tokens from organization administration routes', async () => {

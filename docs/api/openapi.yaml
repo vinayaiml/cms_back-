@@ -21,6 +21,9 @@ tags:
   - name: Users
   - name: Roles
   - name: Permissions
+  - name: Capabilities
+  - name: Subscription Plans
+    description: Subscription plan catalogue and configured capability membership.
   - name: Dashboard
   - name: Content
   - name: Course Access
@@ -312,6 +315,22 @@ paths:
                       secondaryColor: '#F97316'
                       tenantVersion: 1
                       cacheVersion: org-1-v1
+                    entitlements:
+                      subscription:
+                        status: ACTIVE
+                        planId: 2
+                        planStableKey: speech-plus
+                        planVersion: 1
+                        validFrom: '2026-09-01T00:00:00.000Z'
+                        validUntil: '2027-09-01T00:00:00.000Z'
+                      paidCapabilities:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
@@ -773,6 +792,22 @@ paths:
                       secondaryColor: '#F97316'
                       tenantVersion: 1
                       cacheVersion: org-1-v1
+                    entitlements:
+                      subscription:
+                        status: ACTIVE
+                        planId: 2
+                        planStableKey: speech-plus
+                        planVersion: 1
+                        validFrom: '2026-09-01T00:00:00.000Z'
+                        validUntil: '2027-09-01T00:00:00.000Z'
+                      paidCapabilities:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
                     myCourses: []
                     publicCatalog: []
                     syncedAt: '2026-08-27T00:00:00.000Z'
@@ -1079,6 +1114,103 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+
+  /orgs/{id}/subscription:
+    get:
+      tags: [Organizations]
+      operationId: getOrganizationSubscription
+      summary: Get organization subscription assignment
+      description: Super Admin-only read of the current organization subscription assignment and configured plan capabilities.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Current subscription assignment or null when none is assigned.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OrganizationSubscription'
+                  - type: object
+                    nullable: true
+              examples:
+                activeSubscription:
+                  value:
+                    id: 1
+                    orgId: 7
+                    planId: 2
+                    status: ACTIVE
+                    validFrom: '2026-09-01T00:00:00.000Z'
+                    validUntil: '2027-09-01T00:00:00.000Z'
+                    plan:
+                      id: 2
+                      stableKey: speech-plus
+                      name: Speech Plus
+                      description: Adds speech recognition and microphone input to the starter plan.
+                      version: 1
+                      isActive: true
+                      capabilities:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
+                          isActive: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags: [Organizations]
+      operationId: assignOrganizationSubscription
+      summary: Assign organization subscription and validity
+      description: Super Admin-only assignment. Replaces the current organization subscription, bumps tenantVersion for robot cache reset, and writes a sanitized audit event.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignOrganizationSubscriptionRequest'
+            examples:
+              assignActive:
+                value:
+                  planId: 2
+                  status: ACTIVE
+                  validFrom: '2026-09-01T00:00:00.000Z'
+                  validUntil: '2027-09-01T00:00:00.000Z'
+              assignInactive:
+                value:
+                  planId: 2
+                  status: INACTIVE
+                  validFrom: '2026-09-01T00:00:00.000Z'
+                  validUntil: '2027-09-01T00:00:00.000Z'
+      responses:
+        '200':
+          description: Subscription assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSubscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /audit-events:
     get:
@@ -1551,6 +1683,389 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+
+
+  /subscription-plans:
+    get:
+      tags: [Subscription Plans]
+      operationId: listSubscriptionPlans
+      summary: List subscription plans
+      description: Returns active subscription plans with exactly the capabilities configured on each plan. Super Admin may include inactive plans with includeInactive=true.
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Super Admin-only flag to include disabled plans.
+      responses:
+        '200':
+          description: Subscription plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+              examples:
+                starter:
+                  value:
+                    - id: 1
+                      stableKey: starter
+                      name: Starter
+                      description: Baseline robot app capabilities for integration testing.
+                      version: 1
+                      isActive: true
+                      capabilities:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          description: Use approved robot speaker hardware for audio output.
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
+                          isActive: true
+                          createdAt: '2026-09-24T00:00:00.000Z'
+                          updatedAt: '2026-09-24T00:00:00.000Z'
+                      createdAt: '2026-09-24T00:00:00.000Z'
+                      updatedAt: '2026-09-24T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Subscription Plans]
+      operationId: createSubscriptionPlan
+      summary: Create subscription plan
+      description: Super Admin-only plan creation. Stable keys are unique and plans return only their configured capability set.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionPlanRequest'
+            examples:
+              createStarter:
+                value:
+                  stableKey: starter
+                  name: Starter
+                  description: Baseline robot app capabilities for integration testing.
+                  version: 1
+                  capabilityStableKeys: [audio.speaker, display.touch, media.video-playback]
+      responses:
+        '201':
+          description: Subscription plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /subscription-plans/{id}:
+    get:
+      tags: [Subscription Plans]
+      operationId: getSubscriptionPlan
+      summary: Get subscription plan
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Super Admin-only flag to include disabled plans.
+      responses:
+        '200':
+          description: Subscription plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Subscription Plans]
+      operationId: updateSubscriptionPlan
+      summary: Update subscription plan metadata
+      description: Super Admin-only plan metadata update. Capability membership is replaced with PUT /subscription-plans/{id}/capabilities.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionPlanRequest'
+            examples:
+              bumpVersion:
+                value:
+                  version: 2
+                  name: Starter v2
+      responses:
+        '200':
+          description: Subscription plan updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Subscription Plans]
+      operationId: disableSubscriptionPlan
+      summary: Disable subscription plan
+      description: Super Admin-only soft disable. The plan row remains for versioned traceability.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Subscription plan disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /subscription-plans/{id}/capabilities:
+    put:
+      tags: [Subscription Plans]
+      operationId: replaceSubscriptionPlanCapabilities
+      summary: Replace subscription plan capabilities
+      description: Super Admin-only idempotent replacement. The response returns exactly the configured active capability set.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPlanCapabilitiesRequest'
+            examples:
+              setStarterCapabilities:
+                value:
+                  capabilityStableKeys: [audio.speaker, display.touch, media.video-playback]
+      responses:
+        '200':
+          description: Subscription plan capabilities replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /capabilities:
+    get:
+      tags: [Capabilities]
+      summary: List capability catalog
+      description: Returns active robot capability catalog entries. Super Admin may include inactive entries with includeInactive=true.
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Super Admin-only flag to include disabled catalog entries.
+      responses:
+        '200':
+          description: Capability catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Capability'
+              examples:
+                catalog:
+                  value:
+                    - id: 1
+                      stableKey: speech.recognition
+                      name: Speech Recognition
+                      description: Run approved speech recognition flows on compatible robot hardware.
+                      category: speech
+                      version: 1
+                      requiredHardware:
+                        models: [MINI_ELF, ELF, NANO, S5]
+                        capabilities: [speechRecognition]
+                        minAndroidApiLevel: 23
+                      isActive: true
+                      createdAt: '2026-09-24T00:00:00.000Z'
+                      updatedAt: '2026-09-24T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Capabilities]
+      summary: Create capability catalog entry
+      description: Super Admin-only capability catalog creation. Stable keys are unique and immutable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCapabilityRequest'
+            examples:
+              createSpeech:
+                value:
+                  stableKey: speech.recognition
+                  name: Speech Recognition
+                  description: Run approved speech recognition flows on compatible robot hardware.
+                  category: speech
+                  version: 1
+                  requiredHardware:
+                    models: [MINI_ELF, ELF, NANO, S5]
+                    capabilities: [speechRecognition]
+                    minAndroidApiLevel: 23
+      responses:
+        '201':
+          description: Capability created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /capabilities/{id}:
+    get:
+      tags: [Capabilities]
+      summary: Get capability catalog entry
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Super Admin-only flag to include disabled catalog entries.
+      responses:
+        '200':
+          description: Capability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Capabilities]
+      summary: Update capability catalog entry
+      description: Super Admin-only update. Stable keys are not changed after creation; use version to revise catalog semantics.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCapabilityRequest'
+            examples:
+              bumpVersion:
+                value:
+                  version: 2
+                  requiredHardware:
+                    models: [MINI_ELF, S5]
+                    capabilities: [speechRecognition]
+                    minAndroidApiLevel: 25
+      responses:
+        '200':
+          description: Capability updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Capabilities]
+      summary: Disable capability catalog entry
+      description: Super Admin-only soft disable. The catalog row remains for versioned traceability.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capability'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /robots:
     get:
       tags: [Robot]
@@ -1561,6 +2076,44 @@ paths:
           in: query
           schema:
             type: integer
+          description: Super Admin-only organization filter. Organization users are always scoped to their own tenant.
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/LicenseStatus'
+          description: Filter by robot license status.
+        - name: model
+          in: query
+          schema:
+            $ref: '#/components/schemas/RobotHardwareModel'
+          description: Filter by validated robot hardware model.
+        - name: version
+          in: query
+          schema:
+            type: string
+            maxLength: 80
+            pattern: '^[0-9A-Za-z._+() -]+$'
+          example: 0.1.0
+          description: Filter by stored Android app version.
+        - name: lastSeenFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Include robots last seen at or after this timestamp.
+        - name: lastSeenTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Include robots last seen at or before this timestamp.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Maximum rows to return. Values above 100 are clamped by the backend.
       responses:
         '200':
           description: Robots
@@ -1570,6 +2123,44 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Robot'
+              examples:
+                filteredFleet:
+                  value:
+                    - id: 10
+                      orgId: 1
+                      serialNumber: TEST-ACTIVE-001
+                      name: Demo Mini ELF
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      licenseStatus: ACTIVE
+                      revokedAt: null
+                      lastSeenAt: '2026-09-21T10:00:00.000Z'
+                      appVersion: 0.1.0
+                      deviceModel: Mini ELF
+                      hardwareModel: MINI_ELF
+                      hardwareProfile:
+                        schemaVersion: 1
+                        model: MINI_ELF
+                        label: Mini ELF
+                        manufacturer: Sanbot
+                        androidApiLevel: 25
+                        abi: arm64-v8a
+                        display:
+                          width: 1920
+                          height: 1200
+                      hardwareCapabilities:
+                        camera: true
+                        microphone: true
+                        speaker: true
+                        touchDisplay: true
+                        videoPlayback: true
+                        speechRecognition: true
+                        autonomousNavigation: false
+                        armMotion: false
+                      createdAt: '2026-01-01T00:00:00.000Z'
+                      updatedAt: '2026-09-21T10:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1672,6 +2263,96 @@ paths:
                     statusCode: 409
                     message: Robot serial number already exists
                     error: Conflict
+
+  /robots/{id}:
+    get:
+      tags: [Robot]
+      summary: Get robot detail with license and audit history
+      description: Returns the current robot state, license state and sanitized audit history for an authorized administrator. Organization users are tenant-scoped. The response never includes license keys, ciphertext, fingerprints, tokens or credential secrets.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Maximum audit history rows to return.
+      responses:
+        '200':
+          description: Robot detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotDetailResponse'
+              examples:
+                detail:
+                  value:
+                    robot:
+                      id: 10
+                      orgId: 1
+                      serialNumber: TEST-ACTIVE-001
+                      name: Demo Mini ELF
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      licenseStatus: ACTIVE
+                      revokedAt: null
+                      lastSeenAt: '2026-09-21T10:00:00.000Z'
+                      appVersion: 0.1.0
+                      deviceModel: Mini ELF
+                      hardwareModel: MINI_ELF
+                      hardwareProfile:
+                        schemaVersion: 1
+                        model: MINI_ELF
+                        label: Mini ELF
+                        manufacturer: Sanbot
+                        androidApiLevel: 25
+                        abi: arm64-v8a
+                        display:
+                          width: 1920
+                          height: 1200
+                      hardwareCapabilities:
+                        camera: true
+                        microphone: true
+                        speaker: true
+                        touchDisplay: true
+                        videoPlayback: true
+                        speechRecognition: true
+                        autonomousNavigation: false
+                        armMotion: false
+                      createdAt: '2026-01-01T00:00:00.000Z'
+                      updatedAt: '2026-09-21T10:00:00.000Z'
+                      org:
+                        id: 1
+                        name: Demo School
+                        isActive: true
+                        tenantVersion: 4
+                    license:
+                      status: ACTIVE
+                      validFrom: '2026-01-01T00:00:00.000Z'
+                      validUntil: '2027-01-01T00:00:00.000Z'
+                      revokedAt: null
+                    auditHistory:
+                      - id: 201
+                        action: robot.credential_rotated
+                        actorUserId: 1
+                        actorOrgId: null
+                        targetOrgId: 1
+                        correlationId: audit-123
+                        metadata:
+                          serialNumber: TEST-ACTIVE-001
+                          licenseStatus: ACTIVE
+                        createdAt: '2026-09-20T10:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /robots/{id}/license/renew:
     put:
@@ -2848,6 +3529,127 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    SubscriptionStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    OrganizationSubscription:
+      type: object
+      required: [id, orgId, planId, status, validFrom, validUntil, plan]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        planId:
+          type: integer
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        plan:
+          type: object
+          required: [id, stableKey, name, version, isActive, capabilities]
+          properties:
+            id:
+              type: integer
+            stableKey:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            version:
+              type: integer
+            isActive:
+              type: boolean
+            capabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/Capability'
+    AssignOrganizationSubscriptionRequest:
+      type: object
+      required: [planId, validFrom, validUntil]
+      additionalProperties: false
+      properties:
+        planId:
+          type: integer
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+          default: ACTIVE
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+
+    EntitlementCapability:
+      type: object
+      required: [id, stableKey, name, version]
+      properties:
+        id:
+          type: integer
+        stableKey:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        requiredHardware:
+          type: object
+          nullable: true
+          additionalProperties: true
+    RobotEntitlements:
+      type: object
+      required: [subscription, paidCapabilities]
+      properties:
+        subscription:
+          type: object
+          required: [status, planStableKey, validFrom, validUntil]
+          properties:
+            status:
+              type: string
+              enum: [NONE, ACTIVE, EXPIRED, INACTIVE, NOT_YET_ACTIVE]
+            planId:
+              type: integer
+              nullable: true
+            planStableKey:
+              type: string
+              nullable: true
+            planVersion:
+              type: integer
+              nullable: true
+            validFrom:
+              type: string
+              format: date-time
+              nullable: true
+            validUntil:
+              type: string
+              format: date-time
+              nullable: true
+        paidCapabilities:
+          type: array
+          description: Effective paid capability set. Empty when subscription is missing, inactive, expired, not yet active, or assigned to an inactive plan.
+          items:
+            $ref: '#/components/schemas/EntitlementCapability'
     CreateOrganizationRequest:
       type: object
       required: [name, state, city, authorizedPersonName, contactNo, email]
@@ -3050,6 +3852,195 @@ components:
           type: string
         category:
           type: string
+
+    CapabilityHardwareRequirements:
+      type: object
+      additionalProperties: false
+      properties:
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/RobotHardwareModel'
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum: [camera, microphone, speaker, touchDisplay, videoPlayback, speechRecognition, autonomousNavigation, armMotion]
+        minAndroidApiLevel:
+          type: integer
+          minimum: 1
+          maximum: 100
+        abi:
+          type: array
+          items:
+            type: string
+            enum: [arm64-v8a, armeabi-v7a]
+    Capability:
+      type: object
+      required: [id, stableKey, name, version, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        stableKey:
+          type: string
+          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          description: Stable immutable capability key used by clients and entitlement policies.
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        requiredHardware:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CapabilityHardwareRequirements'
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateCapabilityRequest:
+      type: object
+      required: [stableKey, name, version]
+      additionalProperties: false
+      properties:
+        stableKey:
+          type: string
+          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          example: speech.recognition
+        name:
+          type: string
+          example: Speech Recognition
+        description:
+          type: string
+        category:
+          type: string
+          example: speech
+        version:
+          type: integer
+          minimum: 1
+          example: 1
+        requiredHardware:
+          $ref: '#/components/schemas/CapabilityHardwareRequirements'
+        isActive:
+          type: boolean
+          default: true
+    UpdateCapabilityRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        requiredHardware:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CapabilityHardwareRequirements'
+        isActive:
+          type: boolean
+
+    SubscriptionPlan:
+      type: object
+      required: [id, stableKey, name, version, isActive, capabilities, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        stableKey:
+          type: string
+          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          description: Stable immutable plan key used by entitlement policies.
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        isActive:
+          type: boolean
+        capabilities:
+          type: array
+          description: Exactly the active capabilities configured on this subscription plan.
+          items:
+            $ref: '#/components/schemas/Capability'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateSubscriptionPlanRequest:
+      type: object
+      required: [stableKey, name, version]
+      additionalProperties: false
+      properties:
+        stableKey:
+          type: string
+          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          example: starter
+        name:
+          type: string
+          example: Starter
+        description:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+          example: 1
+        isActive:
+          type: boolean
+          default: true
+        capabilityStableKeys:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+          example: [audio.speaker, display.touch, media.video-playback]
+    UpdateSubscriptionPlanRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        isActive:
+          type: boolean
+    SetPlanCapabilitiesRequest:
+      type: object
+      required: [capabilityStableKeys]
+      additionalProperties: false
+      properties:
+        capabilityStableKeys:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+          example: [audio.speaker, display.touch, media.video-playback]
     Robot:
       type: object
       description: Robot resource returned by administrative APIs. License keys are included only for authorized license viewers and should be masked by clients until explicitly revealed.
@@ -3127,6 +4118,139 @@ components:
           nullable: true
           example: WHRB12...3456
           description: Masked license key for Super Admin CMS display.
+    RobotDetail:
+      type: object
+      description: Robot detail resource. License key display fields are intentionally omitted from the detail endpoint.
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        serialNumber:
+          type: string
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._:-]+$'
+        name:
+          type: string
+          nullable: true
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        licenseStatus:
+          $ref: '#/components/schemas/LicenseStatus'
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        appVersion:
+          type: string
+          nullable: true
+          maxLength: 40
+        deviceModel:
+          type: string
+          nullable: true
+          deprecated: true
+        deviceMetadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Latest approved Android device profile metadata uploaded by the authenticated robot. It must not contain credentials, tokens or license keys.
+        hardwareModel:
+          type: string
+          nullable: true
+          enum: [MINI_ELF, ELF, NANO, S5]
+        hardwareProfile:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotHardwareProfile'
+          description: Validated robot hardware profile. This is metadata only; final entitlement and safety-policy resolution are handled by later CMS phases.
+        hardwareCapabilities:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RobotHardwareCapabilitySet'
+          description: Effective permitted capability set returned by CMS for the stored hardware profile. F03 disables safety-controlled capabilities.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        org:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            isActive:
+              type: boolean
+            tenantVersion:
+              type: integer
+    RobotLicenseState:
+      type: object
+      required: [status, validFrom, validUntil, revokedAt]
+      properties:
+        status:
+          $ref: '#/components/schemas/LicenseStatus'
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RobotAuditHistoryItem:
+      type: object
+      description: Sanitized robot audit event. Metadata is redacted using the shared audit sanitizer and never includes tokens, license keys, ciphertext, fingerprints or credential secrets.
+      required: [id, action, actorUserId, actorOrgId, targetOrgId, correlationId, metadata, createdAt]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        actorUserId:
+          type: integer
+          nullable: true
+        actorOrgId:
+          type: integer
+          nullable: true
+        targetOrgId:
+          type: integer
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    RobotDetailResponse:
+      type: object
+      required: [robot, license, auditHistory]
+      properties:
+        robot:
+          $ref: '#/components/schemas/RobotDetail'
+        license:
+          $ref: '#/components/schemas/RobotLicenseState'
+        auditHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/RobotAuditHistoryItem'
     CreateRobotRequest:
       type: object
       required: [serialNumber, validFrom, validUntil]
@@ -3446,6 +4570,8 @@ components:
           additionalProperties: true
         organization:
           $ref: '#/components/schemas/OrganizationContext'
+        entitlements:
+          $ref: '#/components/schemas/RobotEntitlements'
         myCourses:
           type: array
           items:

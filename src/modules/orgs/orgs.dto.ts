@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsIn, IsNotEmpty, IsString } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export const INDIAN_STATES = [
   'Andhra Pradesh',
@@ -39,7 +39,7 @@ export const INDIAN_STATES = [
   'Puducherry',
 ] as const;
 
-export type IndianState = typeof INDIAN_STATES[number];
+export type IndianState = (typeof INDIAN_STATES)[number];
 
 export class CreateOrgDto {
   @IsString()
@@ -95,4 +95,20 @@ export class UpdateOrgPermissionsDto {
   @IsArray()
   @IsString({ each: true })
   permissionKeys!: string[];
+}
+
+export class AssignOrgSubscriptionDto {
+  @IsInt()
+  planId!: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['ACTIVE', 'INACTIVE'])
+  status?: 'ACTIVE' | 'INACTIVE';
+
+  @IsISO8601()
+  validFrom!: string;
+
+  @IsISO8601()
+  validUntil!: string;
 }

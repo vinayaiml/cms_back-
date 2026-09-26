@@ -17,6 +17,8 @@ import { SectionsModule } from './modules/sections/sections.module';
 import { CourseAccessModule } from './modules/course-access/course-access.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
+import { SubscriptionPlansModule } from './modules/subscription-plans/subscription-plans.module';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RobotOnlyGuard } from './common/guards/robot-only.guard';
 import { validateEnv } from './config/env.validation';
@@ -40,6 +42,8 @@ import { validateEnv } from './config/env.validation';
     CourseAccessModule,
     AnalyticsModule,
     AuditModule,
+    CapabilitiesModule,
+    SubscriptionPlansModule,
     JobsModule,
   ],
   providers: [PermissionsGuard, RobotOnlyGuard],
