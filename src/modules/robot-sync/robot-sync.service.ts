@@ -425,6 +425,7 @@ export class RobotSyncService {
       orgId: robot.orgId,
       robotId: robot.id,
       hardwareCapabilities: robot.hardwareCapabilities,
+      enforceHardware: true,
     });
 
     // 3) Public catalog = PUBLIC courses, only intro level, only PUBLIC_PREVIEW lessons

@@ -103,6 +103,7 @@ describe("EntitlementsService effective resolver", () => {
         microphone: true,
         armMotion: false,
       },
+      enforceHardware: true,
     });
 
     expect(result.subscription).toEqual({
@@ -159,12 +160,28 @@ describe("EntitlementsService effective resolver", () => {
       orgId: 7,
       robotId: 11,
       hardwareCapabilities: { speaker: true },
+      enforceHardware: true,
     });
 
     expect(result.subscription).toEqual(
       expect.objectContaining({ status: "EXPIRED" }),
     );
     expect(result.paidCapabilities).toEqual([]);
+  });
+
+  it("does not apply hardware filtering when resolving user-only capabilities", async () => {
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.userCapabilityAssignment.findMany.mockResolvedValue([
+      { isEnabled: true, limits: { maxVolume: 60 }, capability: audio },
+      { isEnabled: true, limits: { maxPhotos: 2 }, capability: camera },
+    ]);
+
+    const result = await service.resolve({ orgId: 7, userId: 20 });
+
+    expect(
+      result.paidCapabilities.map((capability) => capability.stableKey),
+    ).toEqual(["audio.speaker", "camera.capture"]);
   });
 
   it("can resolve organization-only keys for assignment validation", async () => {
@@ -175,6 +192,7 @@ describe("EntitlementsService effective resolver", () => {
     const result = await service.resolveCapabilityKeys({
       orgId: 7,
       hardwareCapabilities: { speaker: true, camera: false },
+      enforceHardware: true,
     });
 
     expect(Array.from(result)).toEqual(["audio.speaker"]);

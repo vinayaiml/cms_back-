@@ -276,6 +276,7 @@ export class RobotsService {
     return this.entitlements.resolveCapabilityKeys({
       orgId,
       hardwareCapabilities,
+      enforceHardware: hardwareCapabilities !== undefined,
     });
   }
 

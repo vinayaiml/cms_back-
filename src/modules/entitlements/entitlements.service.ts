@@ -27,6 +27,7 @@ type ResolveInput = {
   robotId?: number;
   userId?: number;
   hardwareCapabilities?: Prisma.JsonValue | null;
+  enforceHardware?: boolean;
 };
 
 @Injectable()
@@ -248,7 +249,12 @@ export class EntitlementsService {
     effective = input.userId
       ? this.intersects(effective, userAssignments)
       : effective;
-    effective = this.applyHardwareFilter(effective, input.hardwareCapabilities);
+    if (input.enforceHardware) {
+      effective = this.applyHardwareFilter(
+        effective,
+        input.hardwareCapabilities,
+      );
+    }
 
     const paidCapabilities = Array.from(effective.values()).sort((a, b) =>
       a.stableKey.localeCompare(b.stableKey),
