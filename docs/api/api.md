@@ -105,6 +105,105 @@ Expected status:
 201 Created
 ```
 
+
+
+
+
+## Organization Subscription Assignment
+
+F04 organization subscriptions connect an organization to a configured subscription plan and validity window. Reads require `subscription.read`; assignment requires Super Admin with `subscription.manage`.
+
+```text
+PUT http://localhost:3001/api/orgs/7/subscription
+Authorization: Bearer <user-token>
+X-Correlation-Id: cms-47-check
+```
+
+Body:
+
+```json
+{
+  "planId": 2,
+  "status": "ACTIVE",
+  "validFrom": "2026-09-01T00:00:00.000Z",
+  "validUntil": "2027-09-01T00:00:00.000Z"
+}
+```
+
+The assignment replaces the current organization subscription, increments `tenantVersion` for robot cache reset, and records a sanitized audit event. Invalid date windows, inactive plans and unauthorized direct-ID attempts return the shared safe error schema.
+
+Robot sync returns the effective paid entitlement set under `entitlements`. If the subscription is missing, inactive, expired, not yet active, or linked to an inactive plan, `paidCapabilities` is empty.
+
+```json
+{
+  "entitlements": {
+    "subscription": {
+      "status": "EXPIRED",
+      "planId": 1,
+      "planStableKey": "starter",
+      "planVersion": 1,
+      "validFrom": "2025-01-01T00:00:00.000Z",
+      "validUntil": "2025-02-01T00:00:00.000Z"
+    },
+    "paidCapabilities": []
+  }
+}
+```
+
+Subscription assignment and robot sync entitlement responses never return robot license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
+
+## Subscription Plans
+
+Subscription plan CRUD is available for F04 capability entitlement setup. Reads require `subscription.read`; mutations require Super Admin with `subscription.manage`.
+
+```text
+GET http://localhost:3001/api/subscription-plans
+Authorization: Bearer <user-token>
+```
+
+A plan response returns exactly the active capabilities configured on that plan:
+
+```json
+{
+  "id": 1,
+  "stableKey": "starter",
+  "name": "Starter",
+  "description": "Baseline robot app capabilities for integration testing.",
+  "version": 1,
+  "isActive": true,
+  "capabilities": [
+    {
+      "id": 1,
+      "stableKey": "audio.speaker",
+      "name": "Speaker Output",
+      "category": "audio",
+      "version": 1,
+      "requiredHardware": {
+        "capabilities": ["speaker"]
+      },
+      "isActive": true
+    }
+  ],
+  "createdAt": "2026-09-24T00:00:00.000Z",
+  "updatedAt": "2026-09-24T00:00:00.000Z"
+}
+```
+
+Super Admin can create/update plans and replace capability membership idempotently:
+
+```text
+PUT http://localhost:3001/api/subscription-plans/1/capabilities
+Authorization: Bearer <user-token>
+```
+
+```json
+{
+  "capabilityStableKeys": ["audio.speaker", "display.touch", "media.video-playback"]
+}
+```
+
+Unknown, inactive or duplicate capability inputs are rejected or normalized before persistence. Plan APIs do not return robot credentials, license keys, JWTs or protected secret fields.
+
 ## Robot Login
 
 Use this route to exchange a tester-entered robot activation value and the Sanbot robot ID for a robot JWT.
@@ -254,6 +353,24 @@ The F03 hardware profile stores metadata only. CMS validates the submitted model
 Duplicate robot serial numbers are rejected with `409 Conflict` before a new credential is generated or an enrollment audit event is written.
 
 Robot list responses include `licenseKey` and `licenseKeyMasked` only for Super Admin. Organization users never receive robot license keys from the list API. The CMS frontend shows the masked value by default and reveals the raw value for five seconds when Super Admin clicks the eye button.
+
+Fleet list filters are supported on `GET /api/robots`:
+
+```text
+GET http://localhost:3001/api/robots?orgId=1&status=ACTIVE&model=MINI_ELF&version=0.1.0&lastSeenFrom=2026-09-01T00:00:00.000Z&lastSeenTo=2026-09-21T00:00:00.000Z&limit=25
+Authorization: Bearer <user-token>
+```
+
+Super Admin can use `orgId` to filter any tenant. Organization users are always scoped to their own tenant, and attempts to filter another `orgId` are rejected before querying. Normal organization-scoped responses still exclude license keys and protected license secret fields.
+
+Robot detail is available through the protected administrative detail route:
+
+```text
+GET http://localhost:3001/api/robots/10
+Authorization: Bearer <user-token>
+```
+
+The response includes the current robot state, license window/status and sanitized audit history for that robot. Organization users can only open robot detail for their own tenant. The detail response never includes activation license keys, license ciphertext, license fingerprints, JWTs, refresh tokens or credential secrets.
 
 Robot login stores safe login metadata for last-seen/app-version tracking. The robot-authenticated device profile route stores the latest approved Android display/profile values for CMS fleet visibility. JWTs, license keys and credentials are not returned by either API.
 
