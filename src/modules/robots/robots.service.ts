@@ -766,6 +766,28 @@ export class RobotsService {
     return events.map((event) => this.toRobotReassignmentHistoryItem(event));
   }
 
+  async getEffectiveCapabilities(
+    robotId: number,
+    actor: { orgId: number | null; isSuperAdmin: boolean },
+  ) {
+    const robot = await this.getRobotOrThrow(robotId);
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const entitlements = await this.entitlements.resolve({
+      orgId: robot.orgId,
+      robotId: robot.id,
+      hardwareCapabilities: robot.hardwareCapabilities,
+      enforceHardware: true,
+    });
+
+    return {
+      robotId,
+      orgId: robot.orgId,
+      subscription: entitlements.subscription,
+      capabilities: entitlements.paidCapabilities,
+    };
+  }
+
   async listCapabilityAssignments(
     robotId: number,
     actor: { orgId: number | null; isSuperAdmin: boolean },

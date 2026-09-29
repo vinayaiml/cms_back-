@@ -1,7 +1,15 @@
-import { Prisma, PrismaClient, DashboardTemplateType, LicenseStatus } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
-import { encryptLicenseKey, licenseFingerprint } from '../src/common/security/license-secret';
-import { normalizeRobotHardwareProfile } from '../src/modules/robots/robot-hardware-profile';
+import {
+  Prisma,
+  PrismaClient,
+  DashboardTemplateType,
+  LicenseStatus,
+} from "@prisma/client";
+import * as bcrypt from "bcrypt";
+import {
+  encryptLicenseKey,
+  licenseFingerprint,
+} from "../src/common/security/license-secret";
+import { normalizeRobotHardwareProfile } from "../src/modules/robots/robot-hardware-profile";
 
 function seedDatabaseUrl() {
   const directDatabaseUrl = process.env.DIRECT_DATABASE_URL?.trim();
@@ -12,8 +20,11 @@ function seedDatabaseUrl() {
 
   try {
     const url = new URL(databaseUrl);
-    if (url.hostname.includes('-pooler.') && url.hostname.endsWith('.neon.tech')) {
-      url.hostname = url.hostname.replace('-pooler.', '.');
+    if (
+      url.hostname.includes("-pooler.") &&
+      url.hostname.endsWith(".neon.tech")
+    ) {
+      url.hostname = url.hostname.replace("-pooler.", ".");
       return url.toString();
     }
   } catch {
@@ -24,7 +35,9 @@ function seedDatabaseUrl() {
 }
 
 const seedUrl = seedDatabaseUrl();
-const prisma = new PrismaClient(seedUrl ? { datasources: { db: { url: seedUrl } } } : undefined);
+const prisma = new PrismaClient(
+  seedUrl ? { datasources: { db: { url: seedUrl } } } : undefined,
+);
 
 function protectedLicenseData(licenseKey: string) {
   return {
@@ -34,35 +47,35 @@ function protectedLicenseData(licenseKey: string) {
   };
 }
 
-function hardwareProfileData(model: 'MINI_ELF' | 'ELF' | 'NANO' | 'S5') {
+function hardwareProfileData(model: "MINI_ELF" | "ELF" | "NANO" | "S5") {
   const profiles = {
     MINI_ELF: {
-      model: 'MINI_ELF',
-      manufacturer: 'Sanbot',
+      model: "MINI_ELF",
+      manufacturer: "Sanbot",
       androidApiLevel: 25,
-      abi: 'arm64-v8a',
+      abi: "arm64-v8a",
       display: { width: 1920, height: 1200 },
       capabilities: { autonomousNavigation: true, armMotion: true },
     },
     ELF: {
-      model: 'ELF',
-      manufacturer: 'Sanbot',
+      model: "ELF",
+      manufacturer: "Sanbot",
       androidApiLevel: 23,
-      abi: 'armeabi-v7a',
+      abi: "armeabi-v7a",
       display: { width: 1920, height: 1200 },
     },
     NANO: {
-      model: 'NANO',
-      manufacturer: 'Sanbot',
+      model: "NANO",
+      manufacturer: "Sanbot",
       androidApiLevel: 23,
-      abi: 'armeabi-v7a',
+      abi: "armeabi-v7a",
       display: { width: 1920, height: 1200 },
     },
     S5: {
-      model: 'S5',
-      manufacturer: 'Sanbot',
+      model: "S5",
+      manufacturer: "Sanbot",
       androidApiLevel: 31,
-      abi: 'arm64-v8a',
+      abi: "arm64-v8a",
       display: { width: 1920, height: 1080 },
     },
   } as const;
@@ -80,201 +93,215 @@ function requiredSeedValue(name: string) {
 const permissions = [
   // super admin wildcard (treated as bypass in guard too)
   {
-    key: 'superadmin.*',
-    description: 'All permissions (Super Admin only)',
-    category: 'system',
+    key: "superadmin.*",
+    description: "All permissions (Super Admin only)",
+    category: "system",
   },
 
-  { key: 'org.create', description: 'Create organizations', category: 'org' },
-  { key: 'org.read', description: 'Read organizations', category: 'org' },
-  { key: 'org.update', description: 'Update organizations', category: 'org' },
-  { key: 'org.delete', description: 'Delete organizations', category: 'org' },
+  { key: "org.create", description: "Create organizations", category: "org" },
+  { key: "org.read", description: "Read organizations", category: "org" },
+  { key: "org.update", description: "Update organizations", category: "org" },
+  { key: "org.delete", description: "Delete organizations", category: "org" },
 
-  { key: 'user.create', description: 'Create users', category: 'users' },
-  { key: 'user.read', description: 'Read users', category: 'users' },
-  { key: 'user.update', description: 'Update users', category: 'users' },
-  { key: 'user.delete', description: 'Delete users', category: 'users' },
+  { key: "user.create", description: "Create users", category: "users" },
+  { key: "user.read", description: "Read users", category: "users" },
+  { key: "user.update", description: "Update users", category: "users" },
+  { key: "user.delete", description: "Delete users", category: "users" },
 
-  { key: 'role.create', description: 'Create roles', category: 'roles' },
-  { key: 'role.read', description: 'Read roles', category: 'roles' },
-  { key: 'role.update', description: 'Update roles', category: 'roles' },
-  { key: 'role.delete', description: 'Delete roles', category: 'roles' },
-
-  {
-    key: 'permission.manage',
-    description: 'Manage permission catalog',
-    category: 'permissions',
-  },
-  {
-    key: 'capability.read',
-    description: 'Read robot capability catalog',
-    category: 'capabilities',
-  },
-  {
-    key: 'capability.manage',
-    description: 'Manage robot capability catalog',
-    category: 'capabilities',
-  },
-  {
-    key: 'subscription.read',
-    description: 'Read subscription plans',
-    category: 'subscriptions',
-  },
-  {
-    key: 'subscription.manage',
-    description: 'Manage subscription plans',
-    category: 'subscriptions',
-  },
+  { key: "role.create", description: "Create roles", category: "roles" },
+  { key: "role.read", description: "Read roles", category: "roles" },
+  { key: "role.update", description: "Update roles", category: "roles" },
+  { key: "role.delete", description: "Delete roles", category: "roles" },
 
   {
-    key: 'dashboard.section.manage',
-    description: 'Manage dashboard sections',
-    category: 'dashboard',
+    key: "permission.manage",
+    description: "Manage permission catalog",
+    category: "permissions",
+  },
+  {
+    key: "capability.read",
+    description: "Read robot capability catalog",
+    category: "capabilities",
+  },
+  {
+    key: "capability.manage",
+    description: "Manage robot capability catalog",
+    category: "capabilities",
+  },
+  {
+    key: "subscription.read",
+    description: "Read subscription plans",
+    category: "subscriptions",
+  },
+  {
+    key: "subscription.manage",
+    description: "Manage subscription plans",
+    category: "subscriptions",
   },
 
   {
-    key: 'content.import',
-    description: 'Import content via CSV/XLSX',
-    category: 'content',
-  },
-  { key: 'content.read', description: 'Read content', category: 'content' },
-  {
-    key: 'content.write',
-    description: 'Create/update content',
-    category: 'content',
-  },
-  {
-    key: 'content.assign',
-    description: 'Assign courses/bundles to org',
-    category: 'content',
-  },
-
-  { key: 'robot.create', description: 'Register robots', category: 'robots' },
-  { key: 'robot.read', description: 'Read robot details', category: 'robots' },
-  {
-    key: 'robot.update',
-    description: 'Update robot details',
-    category: 'robots',
-  },
-  { key: 'robot.lock', description: 'Lock/unlock robots', category: 'robots' },
-
-  {
-    key: 'license.issue',
-    description: 'Issue robot licenses',
-    category: 'license',
-  },
-  {
-    key: 'license.renew',
-    description: 'Renew robot licenses',
-    category: 'license',
+    key: "dashboard.section.manage",
+    description: "Manage dashboard sections",
+    category: "dashboard",
   },
 
   {
-    key: 'robot.sync',
-    description: 'Robot sync (internal)',
-    category: 'robot',
+    key: "content.import",
+    description: "Import content via CSV/XLSX",
+    category: "content",
+  },
+  { key: "content.read", description: "Read content", category: "content" },
+  {
+    key: "content.write",
+    description: "Create/update content",
+    category: "content",
   },
   {
-    key: 'robot.logs.write',
-    description: 'Upload robot usage logs',
-    category: 'robot',
+    key: "content.assign",
+    description: "Assign courses/bundles to org",
+    category: "content",
+  },
+
+  { key: "robot.create", description: "Register robots", category: "robots" },
+  { key: "robot.read", description: "Read robot details", category: "robots" },
+  {
+    key: "robot.update",
+    description: "Update robot details",
+    category: "robots",
+  },
+  { key: "robot.lock", description: "Lock/unlock robots", category: "robots" },
+
+  {
+    key: "license.issue",
+    description: "Issue robot licenses",
+    category: "license",
+  },
+  {
+    key: "license.renew",
+    description: "Renew robot licenses",
+    category: "license",
   },
 
   {
-    key: 'notification.read',
-    description: 'Read notifications',
-    category: 'notifications',
+    key: "robot.sync",
+    description: "Robot sync (internal)",
+    category: "robot",
   },
   {
-    key: 'notification.write',
-    description: 'Create notifications',
-    category: 'notifications',
-  },
-
-  {
-    key: 'analytics.read',
-    description: 'Read analytics',
-    category: 'analytics',
+    key: "robot.logs.write",
+    description: "Upload robot usage logs",
+    category: "robot",
   },
 
   {
-    key: 'audit.read',
-    description: 'Read administrative audit events',
-    category: 'audit',
+    key: "notification.read",
+    description: "Read notifications",
+    category: "notifications",
+  },
+  {
+    key: "notification.write",
+    description: "Create notifications",
+    category: "notifications",
+  },
+
+  {
+    key: "analytics.read",
+    description: "Read analytics",
+    category: "analytics",
+  },
+
+  {
+    key: "audit.read",
+    description: "Read administrative audit events",
+    category: "audit",
   },
 ];
 
 const capabilityCatalog = [
   {
-    stableKey: 'camera.capture',
-    name: 'Camera Capture',
-    description: 'Capture still images or video frames from approved robot cameras.',
-    category: 'vision',
+    stableKey: "camera.capture",
+    name: "Camera Capture",
+    description:
+      "Capture still images or video frames from approved robot cameras.",
+    category: "vision",
     version: 1,
     requiredHardware: {
-      capabilities: ['camera'],
-      models: ['MINI_ELF', 'ELF', 'NANO', 'S5'],
+      capabilities: ["camera"],
+      models: ["MINI_ELF", "ELF", "NANO", "S5"],
     },
   },
   {
-    stableKey: 'audio.microphone',
-    name: 'Microphone Input',
-    description: 'Use approved robot microphone hardware for local audio input.',
-    category: 'audio',
+    stableKey: "audio.microphone",
+    name: "Microphone Input",
+    description:
+      "Use approved robot microphone hardware for local audio input.",
+    category: "audio",
     version: 1,
-    requiredHardware: { capabilities: ['microphone'] },
+    requiredHardware: { capabilities: ["microphone"] },
   },
   {
-    stableKey: 'audio.speaker',
-    name: 'Speaker Output',
-    description: 'Use approved robot speaker hardware for audio output.',
-    category: 'audio',
+    stableKey: "audio.speaker",
+    name: "Speaker Output",
+    description: "Use approved robot speaker hardware for audio output.",
+    category: "audio",
     version: 1,
-    requiredHardware: { capabilities: ['speaker'] },
+    requiredHardware: { capabilities: ["speaker"] },
   },
   {
-    stableKey: 'display.touch',
-    name: 'Touch Display',
-    description: 'Use the robot touch display for app interaction.',
-    category: 'display',
+    stableKey: "display.touch",
+    name: "Touch Display",
+    description: "Use the robot touch display for app interaction.",
+    category: "display",
     version: 1,
-    requiredHardware: { capabilities: ['touchDisplay'] },
+    requiredHardware: { capabilities: ["touchDisplay"] },
   },
   {
-    stableKey: 'speech.recognition',
-    name: 'Speech Recognition',
-    description: 'Run approved speech recognition flows on compatible robot hardware.',
-    category: 'speech',
+    stableKey: "speech.recognition",
+    name: "Speech Recognition",
+    description:
+      "Run approved speech recognition flows on compatible robot hardware.",
+    category: "speech",
     version: 1,
     requiredHardware: {
-      capabilities: ['speechRecognition'],
+      capabilities: ["speechRecognition"],
       minAndroidApiLevel: 23,
     },
   },
   {
-    stableKey: 'media.video-playback',
-    name: 'Video Playback',
-    description: 'Play approved video content on compatible robot displays.',
-    category: 'media',
+    stableKey: "media.video-playback",
+    name: "Video Playback",
+    description: "Play approved video content on compatible robot displays.",
+    category: "media",
     version: 1,
-    requiredHardware: { capabilities: ['videoPlayback'] },
+    requiredHardware: { capabilities: ["videoPlayback"] },
   },
 ];
 
 const subscriptionPlans = [
   {
-    stableKey: 'starter',
-    name: 'Starter',
-    description: 'Baseline robot app capabilities for integration testing.',
+    stableKey: "starter",
+    name: "Starter",
+    description: "Baseline robot app capabilities for integration testing.",
     version: 1,
-    capabilityStableKeys: ['audio.speaker', 'display.touch', 'media.video-playback'],
+    capabilityStableKeys: [
+      "audio.speaker",
+      "display.touch",
+      "media.video-playback",
+    ],
   },
   {
-    stableKey: 'speech-plus',
-    name: 'Speech Plus',
-    description: 'Adds speech recognition and microphone input to the starter plan.',
+    stableKey: "speech-plus",
+    name: "Speech Plus",
+    description:
+      "Adds speech recognition and microphone input to the starter plan.",
     version: 1,
-    capabilityStableKeys: ['audio.microphone', 'audio.speaker', 'display.touch', 'media.video-playback', 'speech.recognition'],
+    capabilityStableKeys: [
+      "audio.microphone",
+      "audio.speaker",
+      "display.touch",
+      "media.video-playback",
+      "speech.recognition",
+    ],
   },
 ];
 
@@ -351,11 +378,13 @@ async function main() {
     }
   }
 
-  const defaultOrgPermissionKeys = permissions.map((p) => p.key).filter((k) => k !== 'superadmin.*');
+  const defaultOrgPermissionKeys = permissions
+    .map((p) => p.key)
+    .filter((k) => k !== "superadmin.*");
 
   // Create the single Super Admin (if not exists)
-  const superEmail = process.env.SUPER_ADMIN_EMAIL || 'superadmin@whizrobo.com';
-  const superPass = requiredSeedValue('SUPER_ADMIN_PASSWORD');
+  const superEmail = process.env.SUPER_ADMIN_EMAIL || "superadmin@whizrobo.com";
+  const superPass = requiredSeedValue("SUPER_ADMIN_PASSWORD");
   const passwordHash = await bcrypt.hash(superPass, 10);
 
   const existing = await prisma.user.findUnique({
@@ -365,14 +394,14 @@ async function main() {
     await prisma.user.create({
       data: {
         email: superEmail,
-        fullName: 'Super Admin',
+        fullName: "Super Admin",
         passwordHash,
         isSuperAdmin: true,
       },
     });
-    console.log('✅ Super Admin created:', superEmail);
+    console.log("✅ Super Admin created:", superEmail);
   } else {
-    console.log('ℹ️ Super Admin exists:', superEmail);
+    console.log("ℹ️ Super Admin exists:", superEmail);
   }
 
   // Seed dashboard sections (template-driven UI)
@@ -388,171 +417,188 @@ async function main() {
     templateConfig?: Record<string, any>;
   }> = [
     {
-      key: 'dashboard',
-      label: 'Dashboard',
-      path: '/dashboard',
-      icon: 'home',
+      key: "dashboard",
+      label: "Dashboard",
+      path: "/dashboard",
+      icon: "home",
       sortOrder: 1,
     },
 
     // Super Admin
     {
-      key: 'organizations',
-      label: 'Organizations',
-      path: '/organizations',
-      icon: 'building',
+      key: "organizations",
+      label: "Organizations",
+      path: "/organizations",
+      icon: "building",
       sortOrder: 2,
-      requiredPermission: 'org.read',
+      requiredPermission: "org.read",
       isSuperAdminOnly: true,
     },
     {
-      key: 'course-access',
-      label: 'Course Access',
-      path: '/course-access',
-      icon: 'key',
+      key: "course-access",
+      label: "Course Access",
+      path: "/course-access",
+      icon: "key",
       sortOrder: 3,
-      requiredPermission: 'content.assign',
+      requiredPermission: "content.assign",
       isSuperAdminOnly: true,
     },
     {
-      key: 'permissions',
-      label: 'Permissions',
-      path: '/permissions',
-      icon: 'shield',
+      key: "permissions",
+      label: "Permissions",
+      path: "/permissions",
+      icon: "shield",
       sortOrder: 98,
-      requiredPermission: 'permission.manage',
+      requiredPermission: "permission.manage",
       isSuperAdminOnly: true,
     },
     {
-      key: 'sections',
-      label: 'Sections Builder',
-      path: '/sections',
-      icon: 'layout',
+      key: "sections",
+      label: "Sections Builder",
+      path: "/sections",
+      icon: "layout",
       sortOrder: 99,
-      requiredPermission: 'dashboard.section.manage',
+      requiredPermission: "dashboard.section.manage",
       isSuperAdminOnly: true,
     },
 
     // Org dashboards
     {
-      key: 'team',
-      label: 'Team Home',
-      path: '/team',
-      icon: 'layout',
+      key: "team",
+      label: "Team Home",
+      path: "/team",
+      icon: "layout",
       sortOrder: 9,
-      requiredPermission: 'content.read',
-      templateType: 'WIDGETS' as DashboardTemplateType,
+      requiredPermission: "content.read",
+      templateType: "WIDGETS" as DashboardTemplateType,
       templateConfig: {
-        title: 'Team Dashboard',
-        description: 'Quick shortcuts and KPIs for your team.',
+        title: "Team Dashboard",
+        description: "Quick shortcuts and KPIs for your team.",
         analytics: { days: 7 },
         widgets: [
           {
-            type: 'LINK',
-            label: 'Content',
-            path: '/content',
-            requiredPermission: 'content.read',
+            type: "LINK",
+            label: "Content",
+            path: "/content",
+            requiredPermission: "content.read",
           },
           {
-            type: 'LINK',
-            label: 'Robots',
-            path: '/robots',
-            requiredPermission: 'robot.read',
+            type: "LINK",
+            label: "Robots",
+            path: "/robots",
+            requiredPermission: "robot.read",
           },
           {
-            type: 'LINK',
-            label: 'Users',
-            path: '/users',
-            requiredPermission: 'user.read',
+            type: "LINK",
+            label: "Users",
+            path: "/users",
+            requiredPermission: "user.read",
           },
           {
-            type: 'LINK',
-            label: 'Roles',
-            path: '/roles',
-            requiredPermission: 'role.read',
+            type: "LINK",
+            label: "Roles",
+            path: "/roles",
+            requiredPermission: "role.read",
           },
           {
-            type: 'LINK',
-            label: 'Notifications',
-            path: '/notifications',
-            requiredPermission: 'notification.read',
+            type: "LINK",
+            label: "Notifications",
+            path: "/notifications",
+            requiredPermission: "notification.read",
           },
           {
-            type: 'LINK',
-            label: 'Analytics',
-            path: '/analytics',
-            requiredPermission: 'analytics.read',
+            type: "LINK",
+            label: "Analytics",
+            path: "/analytics",
+            requiredPermission: "analytics.read",
           },
           {
-            type: 'KPI',
-            label: 'Plays (7d)',
-            metric: 'usage.plays',
-            format: 'NUMBER',
-            requiredPermission: 'analytics.read',
+            type: "KPI",
+            label: "Plays (7d)",
+            metric: "usage.plays",
+            format: "NUMBER",
+            requiredPermission: "analytics.read",
           },
           {
-            type: 'KPI',
-            label: 'Duration (7d)',
-            metric: 'usage.durationSec',
-            format: 'HOURS',
-            requiredPermission: 'analytics.read',
+            type: "KPI",
+            label: "Duration (7d)",
+            metric: "usage.durationSec",
+            format: "HOURS",
+            requiredPermission: "analytics.read",
           },
         ],
       },
     },
     {
-      key: 'content',
-      label: 'Content',
-      path: '/content',
-      icon: 'book',
+      key: "content",
+      label: "Content",
+      path: "/content",
+      icon: "book",
       sortOrder: 10,
-      requiredPermission: 'content.read',
+      requiredPermission: "content.read",
     },
     {
-      key: 'robots',
-      label: 'Robots',
-      path: '/robots',
-      icon: 'robot',
+      key: "robots",
+      label: "Robots",
+      path: "/robots",
+      icon: "robot",
       sortOrder: 11,
-      requiredPermission: 'robot.read',
+      requiredPermission: "robot.read",
     },
     {
-      key: 'users',
-      label: 'Users',
-      path: '/users',
-      icon: 'users',
+      key: "users",
+      label: "Users",
+      path: "/users",
+      icon: "users",
       sortOrder: 12,
-      requiredPermission: 'user.read',
+      requiredPermission: "user.read",
     },
     {
-      key: 'roles',
-      label: 'Roles',
-      path: '/roles',
-      icon: 'lock',
+      key: "roles",
+      label: "Roles",
+      path: "/roles",
+      icon: "lock",
       sortOrder: 13,
-      requiredPermission: 'role.read',
+      requiredPermission: "role.read",
     },
     {
-      key: 'notifications',
-      label: 'Notifications',
-      path: '/notifications',
-      icon: 'bell',
+      key: "notifications",
+      label: "Notifications",
+      path: "/notifications",
+      icon: "bell",
       sortOrder: 14,
-      requiredPermission: 'notification.read',
+      requiredPermission: "notification.read",
+    },
+    {
+      key: "subscription-plans",
+      label: "Plans",
+      path: "/subscription-plans",
+      icon: "layers",
+      sortOrder: 16,
+      requiredPermission: "subscription.read",
+    },
+    {
+      key: "capability-assignments",
+      label: "Capability Access",
+      path: "/capability-assignments",
+      icon: "sliders",
+      sortOrder: 17,
+      requiredPermission: "subscription.manage",
     },
 
     // Dynamic analytics page (no code page required)
     {
-      key: 'analytics',
-      label: 'Analytics',
-      path: '/analytics',
-      icon: 'chart',
+      key: "analytics",
+      label: "Analytics",
+      path: "/analytics",
+      icon: "chart",
       sortOrder: 15,
-      requiredPermission: 'analytics.read',
-      templateType: 'KPI_OVERVIEW' as DashboardTemplateType,
+      requiredPermission: "analytics.read",
+      templateType: "KPI_OVERVIEW" as DashboardTemplateType,
       templateConfig: {
-        title: 'Analytics Overview',
-        description: 'Usage insights based on robot logs (offline-first, uploaded asynchronously).',
+        title: "Analytics Overview",
+        description:
+          "Usage insights based on robot logs (offline-first, uploaded asynchronously).",
         days: 7,
         showTopCourses: true,
         showTopLessons: true,
@@ -570,19 +616,19 @@ async function main() {
 
   // --- Seed demo org + org admin (optional, remove in production) ---
   let demoOrg = await prisma.organization.findFirst({
-    where: { name: 'Demo School' },
+    where: { name: "Demo School" },
   });
   if (!demoOrg) {
     demoOrg = await prisma.organization.create({
       data: {
-        name: 'Demo School',
-        state: 'Maharashtra',
-        city: 'Mumbai',
-        authorizedPersonName: 'Rajesh Kumar',
-        contactNo: '9876543210',
-        logoUrl: 'https://assets.whizrobo.test/orgs/demo-school-logo.png',
-        primaryColor: '#1D4ED8',
-        secondaryColor: '#F97316',
+        name: "Demo School",
+        state: "Maharashtra",
+        city: "Mumbai",
+        authorizedPersonName: "Rajesh Kumar",
+        contactNo: "9876543210",
+        logoUrl: "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+        primaryColor: "#1D4ED8",
+        secondaryColor: "#F97316",
         tenantVersion: 1,
       },
     });
@@ -590,9 +636,9 @@ async function main() {
     demoOrg = await prisma.organization.update({
       where: { id: demoOrg.id },
       data: {
-        logoUrl: 'https://assets.whizrobo.test/orgs/demo-school-logo.png',
-        primaryColor: '#1D4ED8',
-        secondaryColor: '#F97316',
+        logoUrl: "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+        primaryColor: "#1D4ED8",
+        secondaryColor: "#F97316",
         tenantVersion: demoOrg.tenantVersion || 1,
       },
     });
@@ -612,34 +658,34 @@ async function main() {
   }
 
   const orgAdminRole = await prisma.role.upsert({
-    where: { orgId_name: { orgId: demoOrg.id, name: 'Org Admin' } },
-    update: { description: 'Organization administrator' },
+    where: { orgId_name: { orgId: demoOrg.id, name: "Org Admin" } },
+    update: { description: "Organization administrator" },
     create: {
       orgId: demoOrg.id,
-      name: 'Org Admin',
-      description: 'Organization administrator',
+      name: "Org Admin",
+      description: "Organization administrator",
     },
   });
 
   const orgPermKeys = [
-    'user.create',
-    'user.read',
-    'user.update',
+    "user.create",
+    "user.read",
+    "user.update",
 
-    'role.create',
-    'role.read',
-    'role.update',
+    "role.create",
+    "role.read",
+    "role.update",
 
-    'content.import',
-    'content.read',
-    'content.write',
+    "content.import",
+    "content.read",
+    "content.write",
 
-    'robot.read',
+    "robot.read",
 
-    'notification.read',
+    "notification.read",
 
-    'analytics.read',
-    'audit.read',
+    "analytics.read",
+    "audit.read",
   ];
 
   for (const key of orgPermKeys) {
@@ -654,17 +700,17 @@ async function main() {
     });
   }
 
-  const demoEmail = process.env.DEMO_ADMIN_EMAIL || 'admin@demo.com';
-  const demoPass = requiredSeedValue('DEMO_ADMIN_PASSWORD');
+  const demoEmail = process.env.DEMO_ADMIN_EMAIL || "admin@demo.com";
+  const demoPass = requiredSeedValue("DEMO_ADMIN_PASSWORD");
   const demoHash = await bcrypt.hash(demoPass, 10);
-  const testUserPass = requiredSeedValue('TEST_USER_PASSWORD');
+  const testUserPass = requiredSeedValue("TEST_USER_PASSWORD");
 
   const demoUser = await prisma.user.upsert({
     where: { email: demoEmail },
-    update: { fullName: 'Demo Admin', orgId: demoOrg.id, isSuperAdmin: false },
+    update: { fullName: "Demo Admin", orgId: demoOrg.id, isSuperAdmin: false },
     create: {
       email: demoEmail,
-      fullName: 'Demo Admin',
+      fullName: "Demo Admin",
       passwordHash: demoHash,
       orgId: demoOrg.id,
     },
@@ -676,45 +722,45 @@ async function main() {
     create: { userId: demoUser.id, roleId: orgAdminRole.id },
   });
 
-  console.log('✅ Demo org admin:', demoEmail);
+  console.log("✅ Demo org admin:", demoEmail);
 
   // --- COMPREHENSIVE TEST DATA ---
 
   // Create more organizations
-  console.log('📦 Creating test organizations...');
+  console.log("📦 Creating test organizations...");
   const orgs = [];
   const testOrgData = [
     {
-      name: 'Test School 1',
-      state: 'Delhi',
-      city: 'New Delhi',
-      authorizedPersonName: 'Amit Sharma',
-      contactNo: '9876543211',
-      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-1-logo.png',
-      primaryColor: '#0F766E',
-      secondaryColor: '#FACC15',
+      name: "Test School 1",
+      state: "Delhi",
+      city: "New Delhi",
+      authorizedPersonName: "Amit Sharma",
+      contactNo: "9876543211",
+      logoUrl: "https://assets.whizrobo.test/orgs/test-school-1-logo.png",
+      primaryColor: "#0F766E",
+      secondaryColor: "#FACC15",
       tenantVersion: 1,
     },
     {
-      name: 'Test School 2',
-      state: 'Karnataka',
-      city: 'Bengaluru',
-      authorizedPersonName: 'Priya Patel',
-      contactNo: '9876543212',
-      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-2-logo.png',
-      primaryColor: '#7C3AED',
-      secondaryColor: '#22C55E',
+      name: "Test School 2",
+      state: "Karnataka",
+      city: "Bengaluru",
+      authorizedPersonName: "Priya Patel",
+      contactNo: "9876543212",
+      logoUrl: "https://assets.whizrobo.test/orgs/test-school-2-logo.png",
+      primaryColor: "#7C3AED",
+      secondaryColor: "#22C55E",
       tenantVersion: 2,
     },
     {
-      name: 'Test School 3',
-      state: 'Tamil Nadu',
-      city: 'Chennai',
-      authorizedPersonName: 'Suresh Reddy',
-      contactNo: '9876543213',
-      logoUrl: 'https://assets.whizrobo.test/orgs/test-school-3-logo.png',
-      primaryColor: '#BE123C',
-      secondaryColor: '#38BDF8',
+      name: "Test School 3",
+      state: "Tamil Nadu",
+      city: "Chennai",
+      authorizedPersonName: "Suresh Reddy",
+      contactNo: "9876543213",
+      logoUrl: "https://assets.whizrobo.test/orgs/test-school-3-logo.png",
+      primaryColor: "#BE123C",
+      secondaryColor: "#38BDF8",
       tenantVersion: 3,
     },
   ];
@@ -760,7 +806,13 @@ async function main() {
     }
   }
 
-  async function seedOrgSubscription(orgId: number, planStableKey: string, validFrom: Date, validUntil: Date, status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE') {
+  async function seedOrgSubscription(
+    orgId: number,
+    planStableKey: string,
+    validFrom: Date,
+    validUntil: Date,
+    status: "ACTIVE" | "INACTIVE" = "ACTIVE",
+  ) {
     const plan = await prisma.subscriptionPlan.findUnique({
       where: { stableKey: planStableKey },
       select: { id: true },
@@ -782,7 +834,7 @@ async function main() {
   const subscriptionNow = new Date();
   await seedOrgSubscription(
     demoOrg.id,
-    'speech-plus',
+    "speech-plus",
     new Date(subscriptionNow.getTime() - 30 * 24 * 60 * 60 * 1000),
     new Date(subscriptionNow.getTime() + 365 * 24 * 60 * 60 * 1000),
   );
@@ -790,16 +842,16 @@ async function main() {
   if (orgs[0]) {
     await seedOrgSubscription(
       orgs[0].id,
-      'starter',
+      "starter",
       new Date(subscriptionNow.getTime() - 365 * 24 * 60 * 60 * 1000),
       new Date(subscriptionNow.getTime() - 30 * 24 * 60 * 60 * 1000),
     );
   }
 
   // Create roles for each org
-  console.log('👥 Creating roles...');
+  console.log("👥 Creating roles...");
   const rolesByOrg: Record<number, any> = {};
-  const roleNames = ['Org Admin', 'Manager', 'Teacher', 'Viewer'];
+  const roleNames = ["Org Admin", "Manager", "Teacher", "Viewer"];
 
   for (const org of [demoOrg, ...orgs]) {
     rolesByOrg[org.id] = {};
@@ -821,36 +873,52 @@ async function main() {
 
       // Assign permissions based on role
       let permKeys: string[] = [];
-      if (roleName === 'Org Admin') {
+      if (roleName === "Org Admin") {
         permKeys = [
-          'user.create',
-          'user.read',
-          'user.update',
-          'user.delete',
-          'role.create',
-          'role.read',
-          'role.update',
-          'role.delete',
-          'content.import',
-          'content.read',
-          'content.write',
-          'robot.create',
-          'robot.read',
-          'robot.update',
-          'robot.lock',
-          'license.issue',
-          'license.renew',
-          'notification.read',
-          'analytics.read',
-          'audit.read',
-          'dashboard.section.manage',
+          "user.create",
+          "user.read",
+          "user.update",
+          "user.delete",
+          "role.create",
+          "role.read",
+          "role.update",
+          "role.delete",
+          "content.import",
+          "content.read",
+          "content.write",
+          "robot.create",
+          "robot.read",
+          "robot.update",
+          "robot.lock",
+          "license.issue",
+          "license.renew",
+          "notification.read",
+          "analytics.read",
+          "audit.read",
+          "dashboard.section.manage",
         ];
-      } else if (roleName === 'Manager') {
-        permKeys = ['user.read', 'user.update', 'content.read', 'content.write', 'robot.read', 'robot.update', 'license.renew', 'notification.read', 'analytics.read'];
-      } else if (roleName === 'Teacher') {
-        permKeys = ['content.read', 'content.write', 'robot.read', 'notification.read', 'analytics.read'];
+      } else if (roleName === "Manager") {
+        permKeys = [
+          "user.read",
+          "user.update",
+          "content.read",
+          "content.write",
+          "robot.read",
+          "robot.update",
+          "license.renew",
+          "notification.read",
+          "analytics.read",
+        ];
+      } else if (roleName === "Teacher") {
+        permKeys = [
+          "content.read",
+          "content.write",
+          "robot.read",
+          "notification.read",
+          "analytics.read",
+        ];
       } else {
-        permKeys = ['content.read', 'notification.read', 'analytics.read'];
+        permKeys = ["content.read", "notification.read", "analytics.read"];
       }
 
       for (const key of permKeys) {
@@ -869,7 +937,7 @@ async function main() {
   }
 
   // Create users for each org
-  console.log('👤 Creating test users...');
+  console.log("👤 Creating test users...");
   const usersByOrg: Record<number, any[]> = {};
 
   for (const org of [demoOrg, ...orgs]) {
@@ -877,29 +945,29 @@ async function main() {
 
     const userConfigs = [
       {
-        email: `admin@${org.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        name: 'Organization Admin',
-        role: 'Org Admin',
+        email: `admin@${org.name.toLowerCase().replace(/\s+/g, "")}.com`,
+        name: "Organization Admin",
+        role: "Org Admin",
       },
       {
-        email: `manager@${org.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        name: 'Manager',
-        role: 'Manager',
+        email: `manager@${org.name.toLowerCase().replace(/\s+/g, "")}.com`,
+        name: "Manager",
+        role: "Manager",
       },
       {
-        email: `teacher1@${org.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        name: 'Teacher 1',
-        role: 'Teacher',
+        email: `teacher1@${org.name.toLowerCase().replace(/\s+/g, "")}.com`,
+        name: "Teacher 1",
+        role: "Teacher",
       },
       {
-        email: `teacher2@${org.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        name: 'Teacher 2',
-        role: 'Teacher',
+        email: `teacher2@${org.name.toLowerCase().replace(/\s+/g, "")}.com`,
+        name: "Teacher 2",
+        role: "Teacher",
       },
       {
-        email: `viewer@${org.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        name: 'Viewer',
-        role: 'Viewer',
+        email: `viewer@${org.name.toLowerCase().replace(/\s+/g, "")}.com`,
+        name: "Viewer",
+        role: "Viewer",
       },
     ];
 
@@ -934,7 +1002,7 @@ async function main() {
   }
 
   // Create courses and lessons
-  console.log('📚 Creating test courses and lessons...');
+  console.log("📚 Creating test courses and lessons...");
   const coursesByOrg: Record<number, any[]> = {};
 
   for (const org of [demoOrg, ...orgs]) {
@@ -942,22 +1010,22 @@ async function main() {
 
     const courseConfigs = [
       {
-        courseCode: 'PROG101',
-        courseName: 'Introduction to Programming',
-        description: 'Learn the basics of programming',
-        lessons: ['Variables', 'Functions', 'Loops'],
+        courseCode: "PROG101",
+        courseName: "Introduction to Programming",
+        description: "Learn the basics of programming",
+        lessons: ["Variables", "Functions", "Loops"],
       },
       {
-        courseCode: 'WEB201',
-        courseName: 'Web Development',
-        description: 'Build responsive web applications',
-        lessons: ['HTML Basics', 'CSS Styling', 'JavaScript'],
+        courseCode: "WEB201",
+        courseName: "Web Development",
+        description: "Build responsive web applications",
+        lessons: ["HTML Basics", "CSS Styling", "JavaScript"],
       },
       {
-        courseCode: 'DATA301',
-        courseName: 'Data Science 101',
-        description: 'Introduction to data science and analytics',
-        lessons: ['Data Collection', 'Data Cleaning', 'Visualization'],
+        courseCode: "DATA301",
+        courseName: "Data Science 101",
+        description: "Introduction to data science and analytics",
+        lessons: ["Data Collection", "Data Cleaning", "Visualization"],
       },
     ];
 
@@ -972,8 +1040,8 @@ async function main() {
             courseCode: courseConfig.courseCode,
             courseName: courseConfig.courseName,
             description: courseConfig.description,
-            source: 'PLATFORM',
-            visibility: 'PUBLIC',
+            source: "PLATFORM",
+            visibility: "PUBLIC",
           },
         });
 
@@ -981,9 +1049,9 @@ async function main() {
         const level = await prisma.level.create({
           data: {
             courseId: course.id,
-            name: 'Beginner',
+            name: "Beginner",
             sequence: 1,
-            description: 'Beginner level',
+            description: "Beginner level",
           },
         });
 
@@ -997,7 +1065,7 @@ async function main() {
               sequence: i + 1,
               description: `${courseConfig.lessons[i]} lesson`,
               durationMins: Math.floor(Math.random() * 120) + 10,
-              contentType: 'VIDEO',
+              contentType: "VIDEO",
               contentUrl: `https://example.com/video/${course.courseCode}/${i + 1}`,
             },
           });
@@ -1009,9 +1077,14 @@ async function main() {
   }
 
   // Create robots with different license statuses
-  console.log('🤖 Creating test robots...');
+  console.log("🤖 Creating test robots...");
   const robotsByOrg: Record<number, any[]> = {};
-  const licenseStatuses = [LicenseStatus.ACTIVE, LicenseStatus.EXPIRING_SOON, LicenseStatus.EXPIRED, LicenseStatus.REVOKED];
+  const licenseStatuses = [
+    LicenseStatus.ACTIVE,
+    LicenseStatus.EXPIRING_SOON,
+    LicenseStatus.EXPIRED,
+    LicenseStatus.REVOKED,
+  ];
 
   function licenseWindow(status: LicenseStatus) {
     const now = new Date();
@@ -1051,8 +1124,10 @@ async function main() {
       if (!robot) {
         const window = licenseWindow(status);
 
-        const licenseKey = `WHRB${String(org.id).padStart(3, '0')}${String(i + 1).padStart(3, '0')}`;
-        const hardware = hardwareProfileData((['MINI_ELF', 'ELF', 'NANO', 'S5'] as const)[i]);
+        const licenseKey = `WHRB${String(org.id).padStart(3, "0")}${String(i + 1).padStart(3, "0")}`;
+        const hardware = hardwareProfileData(
+          (["MINI_ELF", "ELF", "NANO", "S5"] as const)[i],
+        );
 
         robot = await prisma.robot.create({
           data: {
@@ -1066,7 +1141,8 @@ async function main() {
             revokedAt: window.revokedAt,
             hardwareModel: hardware.hardwareModel,
             hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
-            hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
+            hardwareCapabilities:
+              hardware.hardwareCapabilities ?? Prisma.JsonNull,
           },
         });
       }
@@ -1077,15 +1153,15 @@ async function main() {
 
   const inactiveRobotOrg =
     (await prisma.organization.findFirst({
-      where: { name: 'Robot Login Inactive Test Org' },
+      where: { name: "Robot Login Inactive Test Org" },
     })) ??
     (await prisma.organization.create({
       data: {
-        name: 'Robot Login Inactive Test Org',
-        state: 'Maharashtra',
-        city: 'Mumbai',
-        authorizedPersonName: 'Inactive Robot Tester',
-        contactNo: '9876543299',
+        name: "Robot Login Inactive Test Org",
+        state: "Maharashtra",
+        city: "Mumbai",
+        authorizedPersonName: "Inactive Robot Tester",
+        contactNo: "9876543299",
         isActive: false,
       },
     }));
@@ -1100,35 +1176,35 @@ async function main() {
   const stableRobotCases = [
     {
       orgId: demoOrg.id,
-      serialNumber: 'TEST-ACTIVE-001',
-      name: 'API Test Robot (ACTIVE)',
-      licenseKey: 'WHRB900001',
+      serialNumber: "TEST-ACTIVE-001",
+      name: "API Test Robot (ACTIVE)",
+      licenseKey: "WHRB900001",
       status: LicenseStatus.ACTIVE,
-      hardwareModel: 'MINI_ELF' as const,
+      hardwareModel: "MINI_ELF" as const,
     },
     {
       orgId: demoOrg.id,
-      serialNumber: 'TEST-EXPIRED-001',
-      name: 'API Test Robot (EXPIRED)',
-      licenseKey: 'WHRB900002',
+      serialNumber: "TEST-EXPIRED-001",
+      name: "API Test Robot (EXPIRED)",
+      licenseKey: "WHRB900002",
       status: LicenseStatus.EXPIRED,
-      hardwareModel: 'ELF' as const,
+      hardwareModel: "ELF" as const,
     },
     {
       orgId: demoOrg.id,
-      serialNumber: 'TEST-REVOKED-001',
-      name: 'API Test Robot (REVOKED)',
-      licenseKey: 'WHRB900003',
+      serialNumber: "TEST-REVOKED-001",
+      name: "API Test Robot (REVOKED)",
+      licenseKey: "WHRB900003",
       status: LicenseStatus.REVOKED,
-      hardwareModel: 'NANO' as const,
+      hardwareModel: "NANO" as const,
     },
     {
       orgId: inactiveRobotOrg.id,
-      serialNumber: 'TEST-INACTIVE-ORG-001',
-      name: 'API Test Robot (INACTIVE ORG)',
-      licenseKey: 'WHRB900004',
+      serialNumber: "TEST-INACTIVE-ORG-001",
+      name: "API Test Robot (INACTIVE ORG)",
+      licenseKey: "WHRB900004",
       status: LicenseStatus.ACTIVE,
-      hardwareModel: 'S5' as const,
+      hardwareModel: "S5" as const,
     },
   ];
 
@@ -1169,10 +1245,12 @@ async function main() {
     }
   }
 
-  console.log('✅ Stable robot API test serials: TEST-ACTIVE-001, TEST-EXPIRED-001, TEST-REVOKED-001, TEST-INACTIVE-ORG-001');
+  console.log(
+    "✅ Stable robot API test serials: TEST-ACTIVE-001, TEST-EXPIRED-001, TEST-REVOKED-001, TEST-INACTIVE-ORG-001",
+  );
 
   // Create usage logs (offline-first, will be accumulated)
-  console.log('📊 Creating test usage logs...');
+  console.log("📊 Creating test usage logs...");
   for (const org of [demoOrg, ...orgs]) {
     const courses = coursesByOrg[org.id];
     const robots = robotsByOrg[org.id];
@@ -1188,7 +1266,12 @@ async function main() {
       const daysAgo = Math.floor(Math.random() * 30);
       const timestamp = new Date();
       timestamp.setDate(timestamp.getDate() - daysAgo);
-      timestamp.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60), 0, 0);
+      timestamp.setHours(
+        Math.floor(Math.random() * 24),
+        Math.floor(Math.random() * 60),
+        0,
+        0,
+      );
 
       await prisma.robotUsageLog.create({
         data: {
@@ -1205,20 +1288,24 @@ async function main() {
   }
 
   // Create notifications
-  console.log('🔔 Creating test notifications...');
+  console.log("🔔 Creating test notifications...");
   for (const org of [demoOrg, ...orgs]) {
     // License expiration notifications
     const expiringRobots = robotsByOrg[org.id].filter((r) => {
-      const daysUntil = (r.validUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+      const daysUntil =
+        (r.validUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
       return daysUntil > 0 && daysUntil <= 30;
     });
 
     for (const robot of expiringRobots) {
-      const daysLeft = Math.ceil((robot.validUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+      const daysLeft = Math.ceil(
+        (robot.validUntil.getTime() - new Date().getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
       const existing = await prisma.notification.findFirst({
         where: {
           orgId: org.id,
-          type: 'LICENSE_EXPIRING',
+          type: "LICENSE_EXPIRING",
         },
       });
 
@@ -1226,8 +1313,8 @@ async function main() {
         await prisma.notification.create({
           data: {
             orgId: org.id,
-            type: 'LICENSE_EXPIRING',
-            title: 'License Expiring Soon',
+            type: "LICENSE_EXPIRING",
+            title: "License Expiring Soon",
             message: `Robot ${robot.serialNumber} license expires in ${daysLeft} days`,
             payload: {
               robotId: robot.id,
@@ -1241,19 +1328,19 @@ async function main() {
     // System notifications
     const notificationTypes = [
       {
-        type: 'SYSTEM',
-        title: 'System Update',
-        message: 'A new system update is available',
+        type: "SYSTEM",
+        title: "System Update",
+        message: "A new system update is available",
       },
       {
-        type: 'CONTENT_UPDATE',
-        title: 'Content Update',
-        message: 'New courses have been added to your organization',
+        type: "CONTENT_UPDATE",
+        title: "Content Update",
+        message: "New courses have been added to your organization",
       },
       {
-        type: 'USER_ALERT',
-        title: 'User Alert',
-        message: 'A new user has joined your organization',
+        type: "USER_ALERT",
+        title: "User Alert",
+        message: "A new user has joined your organization",
       },
     ];
 
@@ -1279,7 +1366,7 @@ async function main() {
     }
   }
 
-  console.log('✅ Comprehensive seed data created');
+  console.log("✅ Comprehensive seed data created");
 }
 
 main()

@@ -1,14 +1,27 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { CapabilityOverrideEffect, SubscriptionStatus } from '@prisma/client';
-import { PrismaService } from '../../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
-import { AssignOrgSubscriptionDto, CreateOrgDto, UpdateOrgDto, UpsertOrgCapabilityOverrideDto } from './orgs.dto';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { CapabilityOverrideEffect, SubscriptionStatus } from "@prisma/client";
+import { PrismaService } from "../../prisma/prisma.service";
+import { AuditService } from "../audit/audit.service";
+import { EntitlementsService } from "../entitlements/entitlements.service";
+import {
+  AssignOrgSubscriptionDto,
+  CreateOrgDto,
+  UpdateOrgDto,
+  UpsertOrgCapabilityOverrideDto,
+} from "./orgs.dto";
 
 @Injectable()
 export class OrgsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private entitlements?: EntitlementsService,
   ) {}
 
   private readonly organizationSelect = {
@@ -29,7 +42,7 @@ export class OrgsService {
 
   async listAll() {
     return this.prisma.organization.findMany({
-      orderBy: { id: 'desc' },
+      orderBy: { id: "desc" },
       select: this.organizationSelect,
     });
   }
@@ -38,7 +51,8 @@ export class OrgsService {
     const existingAdmin = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    if (existingAdmin) throw new ConflictException('Admin email already exists');
+    if (existingAdmin)
+      throw new ConflictException("Admin email already exists");
 
     const org = await this.prisma.organization.create({
       data: {
@@ -53,10 +67,12 @@ export class OrgsService {
 
     // Default org policy excludes superadmin.* and org.* permissions.
     const allNonSuperAdminPerms = await this.prisma.permission.findMany({
-      where: { key: { not: 'superadmin.*' } },
+      where: { key: { not: "superadmin.*" } },
       select: { id: true, key: true },
     });
-    const defaultPerms = allNonSuperAdminPerms.filter((p) => !p.key.startsWith('org.') && !p.key.startsWith('superadmin.'));
+    const defaultPerms = allNonSuperAdminPerms.filter(
+      (p) => !p.key.startsWith("org.") && !p.key.startsWith("superadmin."),
+    );
 
     if (defaultPerms.length) {
       await this.prisma.orgPermission.createMany({
@@ -66,18 +82,18 @@ export class OrgsService {
     }
 
     await this.prisma.role.upsert({
-      where: { orgId_name: { orgId: org.id, name: 'Org Admin' } },
-      update: { description: 'Organization administrator' },
+      where: { orgId_name: { orgId: org.id, name: "Org Admin" } },
+      update: { description: "Organization administrator" },
       create: {
         orgId: org.id,
-        name: 'Org Admin',
-        description: 'Organization administrator',
+        name: "Org Admin",
+        description: "Organization administrator",
       },
     });
 
     if (defaultPerms.length) {
       const orgAdminRole = await this.prisma.role.findUnique({
-        where: { orgId_name: { orgId: org.id, name: 'Org Admin' } },
+        where: { orgId_name: { orgId: org.id, name: "Org Admin" } },
         select: { id: true },
       });
 
@@ -97,7 +113,7 @@ export class OrgsService {
 
   async update(id: number, dto: UpdateOrgDto) {
     const org = await this.prisma.organization.findUnique({ where: { id } });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     return this.prisma.organization.update({
       where: { id },
@@ -117,13 +133,13 @@ export class OrgsService {
       where: { id },
       select: this.organizationSelect,
     });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
     return org;
   }
 
   async delete(id: number) {
     const org = await this.prisma.organization.findUnique({ where: { id } });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     return this.prisma.organization.delete({
       where: { id },
@@ -131,9 +147,13 @@ export class OrgsService {
     });
   }
 
-  async toggleActive(id: number, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }, correlationId?: string) {
+  async toggleActive(
+    id: number,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
     const org = await this.prisma.organization.findUnique({ where: { id } });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.organization.update({
@@ -145,14 +165,16 @@ export class OrgsService {
       await this.audit.recordCritical(
         {
           actor,
-          action: updated.isActive ? 'organization.reactivated' : 'organization.deactivated',
-          targetType: 'organization',
+          action: updated.isActive
+            ? "organization.reactivated"
+            : "organization.deactivated",
+          targetType: "organization",
           targetId: updated.id,
           targetOrgId: updated.id,
           correlationId,
           metadata: {
-            previousStatus: org.isActive ? 'active' : 'inactive',
-            newStatus: updated.isActive ? 'active' : 'inactive',
+            previousStatus: org.isActive ? "active" : "inactive",
+            newStatus: updated.isActive ? "active" : "inactive",
           },
         },
         tx,
@@ -170,11 +192,18 @@ export class OrgsService {
   private normalizeSubscriptionWindow(dto: AssignOrgSubscriptionDto) {
     const validFrom = new Date(dto.validFrom);
     const validUntil = new Date(dto.validUntil);
-    if (Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())) {
-      throw new BadRequestException('Subscription validity dates must be valid ISO-8601 date strings');
+    if (
+      Number.isNaN(validFrom.getTime()) ||
+      Number.isNaN(validUntil.getTime())
+    ) {
+      throw new BadRequestException(
+        "Subscription validity dates must be valid ISO-8601 date strings",
+      );
     }
     if (validUntil <= validFrom) {
-      throw new BadRequestException('Subscription validUntil must be after validFrom');
+      throw new BadRequestException(
+        "Subscription validUntil must be after validFrom",
+      );
     }
 
     return {
@@ -190,7 +219,7 @@ export class OrgsService {
         include: {
           capabilities: {
             include: { capability: true },
-            orderBy: { capability: { stableKey: 'asc' as const } },
+            orderBy: { capability: { stableKey: "asc" as const } },
           },
         },
       },
@@ -227,35 +256,41 @@ export class OrgsService {
       where: { id: orgId },
       select: { id: true },
     });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     const subscription = await this.prisma.organizationSubscription.findFirst({
       where: { orgId },
       include: this.subscriptionInclude(),
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
     });
 
     return subscription ? this.toSubscriptionResponse(subscription) : null;
   }
 
-  async assignSubscription(orgId: number, dto: AssignOrgSubscriptionDto, actor: { userId: number; orgId: number | null; isSuperAdmin: boolean }, correlationId?: string) {
+  async assignSubscription(
+    orgId: number,
+    dto: AssignOrgSubscriptionDto,
+    actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
       select: { id: true, tenantVersion: true },
     });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     const plan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: dto.planId },
       select: { id: true, stableKey: true, isActive: true },
     });
-    if (!plan) throw new NotFoundException('Subscription plan not found');
-    if (!plan.isActive) throw new ForbiddenException('Subscription plan is inactive');
+    if (!plan) throw new NotFoundException("Subscription plan not found");
+    if (!plan.isActive)
+      throw new ForbiddenException("Subscription plan is inactive");
 
     const window = this.normalizeSubscriptionWindow(dto);
     const previous = await this.prisma.organizationSubscription.findFirst({
       where: { orgId },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         planId: true,
@@ -287,8 +322,8 @@ export class OrgsService {
       await this.audit.recordCritical(
         {
           actor,
-          action: 'organization.subscription.assigned',
-          targetType: 'organization',
+          action: "organization.subscription.assigned",
+          targetType: "organization",
           targetId: orgId,
           targetOrgId: orgId,
           correlationId,
@@ -323,8 +358,10 @@ export class OrgsService {
 
   private cleanOverrideReason(reason: string) {
     const trimmed = reason.trim();
-    if (!trimmed) throw new BadRequestException('Capability override reason is required');
-    if (trimmed.length > 500) throw new BadRequestException('Capability override reason is too long');
+    if (!trimmed)
+      throw new BadRequestException("Capability override reason is required");
+    if (trimmed.length > 500)
+      throw new BadRequestException("Capability override reason is too long");
     return trimmed;
   }
 
@@ -351,17 +388,41 @@ export class OrgsService {
     };
   }
 
-  async listCapabilityOverrides(orgId: number) {
-    const org = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
-    if (!org) throw new NotFoundException('Organization not found');
-
-    const overrides = await this.prisma.organizationCapabilityOverride.findMany({
-      where: { orgId },
-      include: { capability: true },
-      orderBy: { capability: { stableKey: 'asc' } },
+  async getEffectiveCapabilities(orgId: number) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true },
     });
+    if (!org) throw new NotFoundException("Organization not found");
+    if (!this.entitlements)
+      throw new Error("Entitlements service is not configured");
 
-    return overrides.map((override) => this.toCapabilityOverrideResponse(override));
+    const entitlements = await this.entitlements.resolve({ orgId });
+    return {
+      orgId,
+      subscription: entitlements.subscription,
+      capabilities: entitlements.paidCapabilities,
+    };
+  }
+
+  async listCapabilityOverrides(orgId: number) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true },
+    });
+    if (!org) throw new NotFoundException("Organization not found");
+
+    const overrides = await this.prisma.organizationCapabilityOverride.findMany(
+      {
+        where: { orgId },
+        include: { capability: true },
+        orderBy: { capability: { stableKey: "asc" } },
+      },
+    );
+
+    return overrides.map((override) =>
+      this.toCapabilityOverrideResponse(override),
+    );
   }
 
   async upsertCapabilityOverride(
@@ -370,26 +431,39 @@ export class OrgsService {
     actor: { userId: number; orgId: number | null; isSuperAdmin: boolean },
     correlationId?: string,
   ) {
-    const org = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } });
-    if (!org) throw new NotFoundException('Organization not found');
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true },
+    });
+    if (!org) throw new NotFoundException("Organization not found");
 
     const stableKey = dto.capabilityStableKey.trim();
-    const capability = await this.prisma.capability.findUnique({ where: { stableKey } });
-    if (!capability) throw new NotFoundException('Capability not found');
-    if (!capability.isActive) throw new ForbiddenException('Capability is inactive');
+    const capability = await this.prisma.capability.findUnique({
+      where: { stableKey },
+    });
+    if (!capability) throw new NotFoundException("Capability not found");
+    if (!capability.isActive)
+      throw new ForbiddenException("Capability is inactive");
 
     const reason = this.cleanOverrideReason(dto.reason);
     const effect = dto.effect as CapabilityOverrideEffect;
-    const previous = await this.prisma.organizationCapabilityOverride.findUnique({
-      where: { orgId_capabilityId: { orgId, capabilityId: capability.id } },
-      select: { id: true, effect: true, reason: true },
-    });
+    const previous =
+      await this.prisma.organizationCapabilityOverride.findUnique({
+        where: { orgId_capabilityId: { orgId, capabilityId: capability.id } },
+        select: { id: true, effect: true, reason: true },
+      });
 
     const override = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.organizationCapabilityOverride.upsert({
         where: { orgId_capabilityId: { orgId, capabilityId: capability.id } },
         update: { effect, reason, createdByUserId: actor.userId },
-        create: { orgId, capabilityId: capability.id, effect, reason, createdByUserId: actor.userId },
+        create: {
+          orgId,
+          capabilityId: capability.id,
+          effect,
+          reason,
+          createdByUserId: actor.userId,
+        },
         include: { capability: true },
       });
 
@@ -402,15 +476,17 @@ export class OrgsService {
       await this.audit.recordCritical(
         {
           actor,
-          action: 'organization.capability_override.upserted',
-          targetType: 'organization',
+          action: "organization.capability_override.upserted",
+          targetType: "organization",
           targetId: orgId,
           targetOrgId: orgId,
           correlationId,
           metadata: {
             capabilityId: capability.id,
             capabilityStableKey: capability.stableKey,
-            previous: previous ? { effect: previous.effect, reason: previous.reason } : null,
+            previous: previous
+              ? { effect: previous.effect, reason: previous.reason }
+              : null,
             next: { effect, reason, tenantVersion: updatedOrg.tenantVersion },
           },
         },
@@ -427,12 +503,12 @@ export class OrgsService {
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
     });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
     const rows = await this.prisma.orgPermission.findMany({
       where: { orgId },
       include: { permission: true },
-      orderBy: { permission: { key: 'asc' } },
+      orderBy: { permission: { key: "asc" } },
     });
 
     return rows.map((r) => r.permission);
@@ -442,16 +518,25 @@ export class OrgsService {
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
     });
-    if (!org) throw new NotFoundException('Organization not found');
+    if (!org) throw new NotFoundException("Organization not found");
 
-    const keys = Array.from(new Set(permissionKeys.map((k) => k.trim()).filter(Boolean)));
-    if (keys.some((k) => k.startsWith('org.') || k.startsWith('superadmin.'))) {
-      throw new ForbiddenException('org.* and superadmin.* permissions cannot be granted to organizations');
+    const keys = Array.from(
+      new Set(permissionKeys.map((k) => k.trim()).filter(Boolean)),
+    );
+    if (keys.some((k) => k.startsWith("org.") || k.startsWith("superadmin."))) {
+      throw new ForbiddenException(
+        "org.* and superadmin.* permissions cannot be granted to organizations",
+      );
     }
-    const perms = keys.length ? await this.prisma.permission.findMany({ where: { key: { in: keys } } }) : [];
+    const perms = keys.length
+      ? await this.prisma.permission.findMany({ where: { key: { in: keys } } })
+      : [];
     const found = new Set(perms.map((p) => p.key));
     const missing = keys.filter((k) => !found.has(k));
-    if (missing.length) throw new NotFoundException(`Unknown permission keys: ${missing.join(', ')}`);
+    if (missing.length)
+      throw new NotFoundException(
+        `Unknown permission keys: ${missing.join(", ")}`,
+      );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.orgPermission.deleteMany({ where: { orgId } });
@@ -462,7 +547,7 @@ export class OrgsService {
 
       // Keep default Org Admin role aligned with org policy.
       const orgAdminRole = await tx.role.findFirst({
-        where: { orgId, name: 'Org Admin' },
+        where: { orgId, name: "Org Admin" },
         select: { id: true },
       });
 

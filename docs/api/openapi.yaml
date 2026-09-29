@@ -45,41 +45,41 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
             examples:
               superAdmin:
                 value:
                   email: superadmin@whizrobo.com
-                  password: '<password>'
+                  password: "<password>"
       responses:
-        '201':
+        "201":
           description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserLoginResponse'
+                $ref: "#/components/schemas/UserLoginResponse"
               examples:
                 success:
                   value:
-                    token: '<jwt>'
+                    token: "<jwt>"
                     user:
                       id: 1
                       email: superadmin@whizrobo.com
                       fullName: Super Admin
                       orgId: null
                       isSuperAdmin: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /v1/robot/auth/login:
     post:
@@ -93,7 +93,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotLoginRequest'
+              $ref: "#/components/schemas/RobotLoginRequest"
             examples:
               robot:
                 value:
@@ -107,18 +107,18 @@ paths:
                     appVersionName: 0.1.0
                     appVersionCode: 2
       responses:
-        '201':
+        "201":
           description: Robot login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotLoginResponse'
+                $ref: "#/components/schemas/RobotLoginResponse"
               examples:
                 success:
                   value:
-                    token: '<robot-access-jwt>'
-                    accessToken: '<robot-access-jwt>'
-                    refreshToken: '<robot-refresh-jwt>'
+                    token: "<robot-access-jwt>"
+                    accessToken: "<robot-access-jwt>"
+                    refreshToken: "<robot-refresh-jwt>"
                     expiresIn: 900
                     refreshExpiresIn: 604800
                     tokenType: Bearer
@@ -128,18 +128,18 @@ paths:
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       status: ACTIVE
                       locked: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
           description: Invalid robot credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidLicense:
                   value:
@@ -151,12 +151,12 @@ paths:
                     statusCode: 401
                     message: Invalid robot credentials
                     error: Unauthorized
-        '423':
+        "423":
           description: Robot login is locked by license or organization state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LockedErrorResponse'
+                $ref: "#/components/schemas/LockedErrorResponse"
               examples:
                 expired:
                   value:
@@ -176,10 +176,10 @@ paths:
                       code: ORG_INACTIVE
                       message: Organization is inactive
                       locked: true
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /v1/robot/auth/refresh:
     post:
@@ -193,23 +193,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotTokenRefreshRequest'
+              $ref: "#/components/schemas/RobotTokenRefreshRequest"
             examples:
               refresh:
                 value:
-                  refreshToken: '<robot-refresh-jwt>'
+                  refreshToken: "<robot-refresh-jwt>"
       responses:
-        '201':
+        "201":
           description: Robot access token renewed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotTokenRefreshResponse'
+                $ref: "#/components/schemas/RobotTokenRefreshResponse"
               examples:
                 success:
                   value:
-                    token: '<robot-access-jwt>'
-                    accessToken: '<robot-access-jwt>'
+                    token: "<robot-access-jwt>"
+                    accessToken: "<robot-access-jwt>"
                     expiresIn: 900
                     tokenType: Bearer
                     robot:
@@ -218,30 +218,30 @@ paths:
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       status: ACTIVE
                       locked: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
           description: Invalid or expired refresh token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidRefreshToken:
                   value:
                     statusCode: 401
                     message: Invalid refresh token
                     error: Unauthorized
-        '423':
+        "423":
           description: Robot refresh is locked by license or organization state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LockedErrorResponse'
+                $ref: "#/components/schemas/LockedErrorResponse"
               examples:
                 expired:
                   value:
@@ -261,8 +261,8 @@ paths:
                       code: ORG_INACTIVE
                       message: Organization is inactive
                       locked: true
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /v1/robot/sync:
     get:
@@ -279,7 +279,7 @@ paths:
           schema:
             type: string
             maxLength: 40
-            pattern: '^[0-9A-Za-z._+-]+$'
+            pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
           description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
         - name: X-Robot-Device-Model
@@ -288,31 +288,31 @@ paths:
           schema:
             type: string
             maxLength: 80
-            pattern: '^[0-9A-Za-z._+() -]+$'
+            pattern: "^[0-9A-Za-z._+() -]+$"
           example: Mini ELF
           description: Optional robot model heartbeat. Stored on the authenticated robot record only.
       responses:
-        '200':
+        "200":
           description: Sync payload
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotSyncResponse'
+                $ref: "#/components/schemas/RobotSyncResponse"
               examples:
                 success:
                   value:
                     locked: false
                     license:
                       status: ACTIVE
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                     organization:
                       orgId: 1
                       orgName: Demo School
                       displayName: Demo School
                       logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
-                      primaryColor: '#1D4ED8'
-                      secondaryColor: '#F97316'
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
                       tenantVersion: 1
                       cacheVersion: org-1-v1
                     entitlements:
@@ -321,8 +321,8 @@ paths:
                         planId: 2
                         planStableKey: speech-plus
                         planVersion: 1
-                        validFrom: '2026-09-01T00:00:00.000Z'
-                        validUntil: '2027-09-01T00:00:00.000Z'
+                        validFrom: "2026-09-01T00:00:00.000Z"
+                        validUntil: "2027-09-01T00:00:00.000Z"
                       paidCapabilities:
                         - id: 1
                           stableKey: audio.speaker
@@ -333,27 +333,27 @@ paths:
                             capabilities: [speaker]
                     myCourses: []
                     publicCatalog: []
-                    syncedAt: '2026-08-27T00:00:00.000Z'
-        '400':
+                    syncedAt: "2026-08-27T00:00:00.000Z"
+        "400":
           description: Invalid robot heartbeat header
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidHeartbeat:
                   value:
                     statusCode: 400
                     message: x-robot-app-version is invalid
                     error: Bad Request
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /v1/robot/device-profile:
     put:
@@ -368,7 +368,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotDeviceProfileUpdateRequest'
+              $ref: "#/components/schemas/RobotDeviceProfileUpdateRequest"
             examples:
               miniElf:
                 value:
@@ -391,12 +391,12 @@ paths:
                       autonomousNavigation: true
                       armMotion: true
       responses:
-        '200':
+        "200":
           description: Device profile accepted and stored on the authenticated robot
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotDeviceProfileUpdateResponse'
+                $ref: "#/components/schemas/RobotDeviceProfileUpdateResponse"
               examples:
                 updated:
                   value:
@@ -406,10 +406,10 @@ paths:
                       serialNumber: TEST-ACTIVE-001
                       name: Robot 1 (ACTIVE)
                       licenseStatus: ACTIVE
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       revokedAt: null
-                      lastSeenAt: '2026-09-19T10:00:00.000Z'
+                      lastSeenAt: "2026-09-19T10:00:00.000Z"
                       appVersion: 0.1.0
                       deviceModel: Mini ELF
                       deviceMetadata:
@@ -441,32 +441,32 @@ paths:
                         speechRecognition: true
                         autonomousNavigation: false
                         armMotion: false
-                      updatedAt: '2026-09-19T10:00:00.000Z'
+                      updatedAt: "2026-09-19T10:00:00.000Z"
                     license:
                       status: ACTIVE
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
-                    updatedAt: '2026-09-19T10:00:00.000Z'
-        '400':
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
+                    updatedAt: "2026-09-19T10:00:00.000Z"
+        "400":
           description: Invalid device or hardware profile payload
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidHardware:
                   value:
                     statusCode: 400
                     message: Invalid robot hardware Android API level
                     error: Bad Request
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /v1/robot/logs/batch:
     post:
@@ -481,7 +481,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UploadUsageLogsRequest'
+              $ref: "#/components/schemas/UploadUsageLogsRequest"
             examples:
               oneLog:
                 value:
@@ -489,21 +489,21 @@ paths:
                     - eventId: thunder-test-001
                       courseId: 1
                       lessonId: 1
-                      openedAt: '2026-08-31T10:00:00.000Z'
+                      openedAt: "2026-08-31T10:00:00.000Z"
                       durationSec: 60
               minimalLog:
                 value:
                   logs:
                     - eventId: thunder-test-002
-                      openedAt: '2026-08-31T10:05:00.000Z'
+                      openedAt: "2026-08-31T10:05:00.000Z"
                       durationSec: 30
       responses:
-        '201':
+        "201":
           description: Logs accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UploadUsageLogsResponse'
+                $ref: "#/components/schemas/UploadUsageLogsResponse"
               examples:
                 success:
                   value:
@@ -511,16 +511,16 @@ paths:
                 duplicate:
                   value:
                     inserted: 0
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /auth/login:
     post:
@@ -537,39 +537,39 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
             examples:
               superAdmin:
                 value:
                   email: superadmin@whizrobo.com
-                  password: '<password>'
+                  password: "<password>"
       responses:
-        '201':
+        "201":
           description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserLoginResponse'
+                $ref: "#/components/schemas/UserLoginResponse"
               examples:
                 success:
                   value:
-                    token: '<jwt>'
+                    token: "<jwt>"
                     user:
                       id: 1
                       email: superadmin@whizrobo.com
                       fullName: Super Admin
                       orgId: null
                       isSuperAdmin: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robot/auth/login:
     post:
@@ -586,7 +586,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotLoginRequest'
+              $ref: "#/components/schemas/RobotLoginRequest"
             examples:
               robot:
                 value:
@@ -601,18 +601,18 @@ paths:
                     appVersionCode: 2
                   deviceMetadataConsent: true
       responses:
-        '201':
+        "201":
           description: Robot login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotLoginResponse'
+                $ref: "#/components/schemas/RobotLoginResponse"
               examples:
                 success:
                   value:
-                    token: '<robot-access-jwt>'
-                    accessToken: '<robot-access-jwt>'
-                    refreshToken: '<robot-refresh-jwt>'
+                    token: "<robot-access-jwt>"
+                    accessToken: "<robot-access-jwt>"
+                    refreshToken: "<robot-refresh-jwt>"
                     expiresIn: 900
                     refreshExpiresIn: 604800
                     tokenType: Bearer
@@ -622,18 +622,18 @@ paths:
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       status: ACTIVE
                       locked: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
           description: Invalid robot credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidLicense:
                   value:
@@ -645,12 +645,12 @@ paths:
                     statusCode: 401
                     message: Invalid robot credentials
                     error: Unauthorized
-        '423':
+        "423":
           description: Robot login is locked by license or organization state
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LockedErrorResponse'
+                $ref: "#/components/schemas/LockedErrorResponse"
               examples:
                 expired:
                   value:
@@ -670,10 +670,10 @@ paths:
                       code: ORG_INACTIVE
                       message: Organization is inactive
                       locked: true
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robot/auth/refresh:
     post:
@@ -690,23 +690,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotTokenRefreshRequest'
+              $ref: "#/components/schemas/RobotTokenRefreshRequest"
             examples:
               refresh:
                 value:
-                  refreshToken: '<robot-refresh-jwt>'
+                  refreshToken: "<robot-refresh-jwt>"
       responses:
-        '201':
+        "201":
           description: Robot access token renewed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotTokenRefreshResponse'
+                $ref: "#/components/schemas/RobotTokenRefreshResponse"
               examples:
                 success:
                   value:
-                    token: '<robot-access-jwt>'
-                    accessToken: '<robot-access-jwt>'
+                    token: "<robot-access-jwt>"
+                    accessToken: "<robot-access-jwt>"
                     expiresIn: 900
                     tokenType: Bearer
                     robot:
@@ -715,28 +715,28 @@ paths:
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Robot
                     license:
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       status: ACTIVE
                       locked: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
           description: Invalid or expired refresh token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidRefreshToken:
                   value:
                     statusCode: 401
                     message: Invalid refresh token
                     error: Unauthorized
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robot/sync:
     get:
@@ -756,7 +756,7 @@ paths:
           schema:
             type: string
             maxLength: 40
-            pattern: '^[0-9A-Za-z._+-]+$'
+            pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
           description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
         - name: X-Robot-Device-Model
@@ -765,31 +765,31 @@ paths:
           schema:
             type: string
             maxLength: 80
-            pattern: '^[0-9A-Za-z._+() -]+$'
+            pattern: "^[0-9A-Za-z._+() -]+$"
           example: Mini ELF
           description: Optional robot model heartbeat. Stored on the authenticated robot record only.
       responses:
-        '200':
+        "200":
           description: Sync payload
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotSyncResponse'
+                $ref: "#/components/schemas/RobotSyncResponse"
               examples:
                 success:
                   value:
                     locked: false
                     license:
                       status: ACTIVE
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                     organization:
                       orgId: 1
                       orgName: Demo School
                       displayName: Demo School
                       logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
-                      primaryColor: '#1D4ED8'
-                      secondaryColor: '#F97316'
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
                       tenantVersion: 1
                       cacheVersion: org-1-v1
                     entitlements:
@@ -798,8 +798,8 @@ paths:
                         planId: 2
                         planStableKey: speech-plus
                         planVersion: 1
-                        validFrom: '2026-09-01T00:00:00.000Z'
-                        validUntil: '2027-09-01T00:00:00.000Z'
+                        validFrom: "2026-09-01T00:00:00.000Z"
+                        validUntil: "2027-09-01T00:00:00.000Z"
                       paidCapabilities:
                         - id: 1
                           stableKey: audio.speaker
@@ -810,27 +810,27 @@ paths:
                             capabilities: [speaker]
                     myCourses: []
                     publicCatalog: []
-                    syncedAt: '2026-08-27T00:00:00.000Z'
-        '400':
+                    syncedAt: "2026-08-27T00:00:00.000Z"
+        "400":
           description: Invalid robot heartbeat header
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidHeartbeat:
                   value:
                     statusCode: 400
                     message: x-robot-app-version is invalid
                     error: Bad Request
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robot/device-profile:
     put:
@@ -848,34 +848,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RobotDeviceProfileUpdateRequest'
+              $ref: "#/components/schemas/RobotDeviceProfileUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Device profile accepted and stored on the authenticated robot
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotDeviceProfileUpdateResponse'
-        '400':
+                $ref: "#/components/schemas/RobotDeviceProfileUpdateResponse"
+        "400":
           description: Invalid device or hardware profile payload
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 invalidHardware:
                   value:
                     statusCode: 400
                     message: Invalid robot hardware Android API level
                     error: Bad Request
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robot/logs/batch:
     post:
@@ -893,7 +893,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UploadUsageLogsRequest'
+              $ref: "#/components/schemas/UploadUsageLogsRequest"
             examples:
               oneLog:
                 value:
@@ -901,15 +901,15 @@ paths:
                     - eventId: thunder-test-001
                       courseId: 1
                       lessonId: 1
-                      openedAt: '2026-08-31T10:00:00.000Z'
+                      openedAt: "2026-08-31T10:00:00.000Z"
                       durationSec: 60
       responses:
-        '201':
+        "201":
           description: Logs accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UploadUsageLogsResponse'
+                $ref: "#/components/schemas/UploadUsageLogsResponse"
               examples:
                 success:
                   value:
@@ -917,65 +917,65 @@ paths:
                 duplicate:
                   value:
                     inserted: 0
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /me:
     get:
       tags: [Dashboard]
       summary: Get current user profile
       responses:
-        '200':
+        "200":
           description: Current user
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /me/navigation:
     get:
       tags: [Dashboard]
       summary: Get navigation for current user
       responses:
-        '200':
+        "200":
           description: Navigation sections
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DashboardSection'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/DashboardSection"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs:
     get:
       tags: [Organizations]
       summary: List organizations
       responses:
-        '200':
+        "200":
           description: Organizations
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Organization'
+                  $ref: "#/components/schemas/Organization"
               examples:
                 success:
                   value:
@@ -984,14 +984,14 @@ paths:
                       state: Maharashtra
                       city: Mumbai
                       authorizedPersonName: Rajesh Kumar
-                      contactNo: '9876543210'
+                      contactNo: "9876543210"
                       isActive: true
-                      createdAt: '2026-01-01T00:00:00.000Z'
-                      updatedAt: '2026-01-01T00:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                      createdAt: "2026-01-01T00:00:00.000Z"
+                      updatedAt: "2026-01-01T00:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Organizations]
       summary: Create organization
@@ -1000,121 +1000,120 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOrganizationRequest'
+              $ref: "#/components/schemas/CreateOrganizationRequest"
       responses:
-        '201':
+        "201":
           description: Organization created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                $ref: "#/components/schemas/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /orgs/me:
     get:
       tags: [Organizations]
       summary: Get current organization
       responses:
-        '200':
+        "200":
           description: Current organization or null
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/Organization'
+                  - $ref: "#/components/schemas/Organization"
                   - type: object
                     nullable: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs/{id}:
     get:
       tags: [Organizations]
       summary: Get organization by ID
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Organization
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/Organization"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     put:
       tags: [Organizations]
       summary: Update organization
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateOrganizationRequest'
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
       responses:
-        '200':
+        "200":
           description: Organization updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     delete:
       tags: [Organizations]
       summary: Delete organization
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Deleted organization
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Organization"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs/{id}/toggle-active:
     patch:
       tags: [Organizations]
       summary: Toggle organization active status
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
-        '200':
+        "200":
           description: Organization updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
+                $ref: "#/components/schemas/Organization"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs/{id}/subscription:
     get:
@@ -1123,15 +1122,15 @@ paths:
       summary: Get organization subscription assignment
       description: Super Admin-only read of the current organization subscription assignment and configured plan capabilities.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Current subscription assignment or null when none is assigned.
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/OrganizationSubscription'
+                  - $ref: "#/components/schemas/OrganizationSubscription"
                   - type: object
                     nullable: true
               examples:
@@ -1141,8 +1140,8 @@ paths:
                     orgId: 7
                     planId: 2
                     status: ACTIVE
-                    validFrom: '2026-09-01T00:00:00.000Z'
-                    validUntil: '2027-09-01T00:00:00.000Z'
+                    validFrom: "2026-09-01T00:00:00.000Z"
+                    validUntil: "2027-09-01T00:00:00.000Z"
                     plan:
                       id: 2
                       stableKey: speech-plus
@@ -1159,58 +1158,102 @@ paths:
                           requiredHardware:
                             capabilities: [speaker]
                           isActive: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     put:
       tags: [Organizations]
       operationId: assignOrganizationSubscription
       summary: Assign organization subscription and validity
       description: Super Admin-only assignment. Replaces the current organization subscription, bumps tenantVersion for robot cache reset, and writes a sanitized audit event.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssignOrganizationSubscriptionRequest'
+              $ref: "#/components/schemas/AssignOrganizationSubscriptionRequest"
             examples:
               assignActive:
                 value:
                   planId: 2
                   status: ACTIVE
-                  validFrom: '2026-09-01T00:00:00.000Z'
-                  validUntil: '2027-09-01T00:00:00.000Z'
+                  validFrom: "2026-09-01T00:00:00.000Z"
+                  validUntil: "2027-09-01T00:00:00.000Z"
               assignInactive:
                 value:
                   planId: 2
                   status: INACTIVE
-                  validFrom: '2026-09-01T00:00:00.000Z'
-                  validUntil: '2027-09-01T00:00:00.000Z'
+                  validFrom: "2026-09-01T00:00:00.000Z"
+                  validUntil: "2027-09-01T00:00:00.000Z"
       responses:
-        '200':
+        "200":
           description: Subscription assigned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationSubscription'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/OrganizationSubscription"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /orgs/{id}/effective-capabilities:
+    get:
+      tags: [Organizations]
+      operationId: getOrganizationEffectiveCapabilities
+      summary: Preview effective organization capabilities
+      description: Super Admin-only resolver-backed preview of the active subscription and organization override capability set. The response excludes credentials, tokens and license secrets.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Effective organization capability preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationEffectiveCapabilitiesResponse"
+              examples:
+                effective:
+                  value:
+                    orgId: 7
+                    subscription:
+                      status: ACTIVE
+                      planId: 2
+                      planStableKey: pro
+                      planVersion: 1
+                      validFrom: "2026-09-01T00:00:00.000Z"
+                      validUntil: "2027-09-01T00:00:00.000Z"
+                    capabilities:
+                      - id: 1
+                        stableKey: audio.speaker
+                        name: Speaker Output
+                        category: audio
+                        version: 1
+                        requiredHardware:
+                          capabilities: [speaker]
+                        limits: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /orgs/{id}/capability-overrides:
     get:
@@ -1219,16 +1262,16 @@ paths:
       summary: List organization capability overrides
       description: Super Admin-only read of capability overrides for one organization. Override responses include stable capability identifiers and sanitized reason text only.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Capability overrides for the target organization
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/OrganizationCapabilityOverride'
+                  $ref: "#/components/schemas/OrganizationCapabilityOverride"
               examples:
                 overrides:
                   value:
@@ -1240,30 +1283,30 @@ paths:
                       effect: DENY
                       reason: Temporarily disabled until microphone QA passes.
                       createdByUserId: 1
-                      createdAt: '2026-09-25T10:00:00.000Z'
-                      updatedAt: '2026-09-25T10:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-25T10:00:00.000Z"
+                      updatedAt: "2026-09-25T10:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     put:
       tags: [Organizations]
       operationId: upsertOrganizationCapabilityOverride
       summary: Add or update an organization capability override
       description: Super Admin-only upsert. The override affects only the target organization, bumps tenantVersion for robot cache reset, and records a sanitized audit event with the supplied reason.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpsertOrgCapabilityOverrideRequest'
+              $ref: "#/components/schemas/UpsertOrgCapabilityOverrideRequest"
             examples:
               allowCapability:
                 value:
@@ -1276,12 +1319,12 @@ paths:
                   effect: DENY
                   reason: Temporarily disabled until microphone QA passes.
       responses:
-        '200':
+        "200":
           description: Capability override upserted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationCapabilityOverride'
+                $ref: "#/components/schemas/OrganizationCapabilityOverride"
               examples:
                 denied:
                   value:
@@ -1293,18 +1336,18 @@ paths:
                     effect: DENY
                     reason: Temporarily disabled until microphone QA passes.
                     createdByUserId: 1
-                    createdAt: '2026-09-25T10:00:00.000Z'
-                    updatedAt: '2026-09-25T10:00:00.000Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                    createdAt: "2026-09-25T10:00:00.000Z"
+                    updatedAt: "2026-09-25T10:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /audit-events:
     get:
@@ -1312,7 +1355,7 @@ paths:
       summary: List administrative audit events
       description: Super Admin can read all audit events or filter by orgId. Organization users require audit.read and can only read their own organization audit events.
       parameters:
-        - $ref: '#/components/parameters/OrgIdQuery'
+        - $ref: "#/components/parameters/OrgIdQuery"
         - name: action
           in: query
           required: false
@@ -1331,14 +1374,14 @@ paths:
             default: 50
             maximum: 100
       responses:
-        '200':
+        "200":
           description: Audit events
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AuditEvent'
+                  $ref: "#/components/schemas/AuditEvent"
               examples:
                 organizationDeactivated:
                   value:
@@ -1347,67 +1390,67 @@ paths:
                       actorOrgId: null
                       action: organization.deactivated
                       targetType: organization
-                      targetId: '7'
+                      targetId: "7"
                       targetOrgId: 7
                       correlationId: request-123
                       metadata:
                         previousStatus: active
                         newStatus: inactive
-                      createdAt: '2026-09-01T10:00:00.000Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-01T10:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /orgs/{id}/permissions:
     get:
       tags: [Organizations]
       summary: List organization permissions
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Permissions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Permission'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     put:
       tags: [Organizations]
       summary: Replace organization permission policy
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateOrgPermissionsRequest'
+              $ref: "#/components/schemas/UpdateOrgPermissionsRequest"
       responses:
-        '200':
+        "200":
           description: Permissions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Permission'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Permission"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /users:
     get:
@@ -1420,18 +1463,18 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Users
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Users]
       summary: Create user
@@ -1440,98 +1483,98 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateUserRequest'
+              $ref: "#/components/schemas/CreateUserRequest"
       responses:
-        '201':
+        "201":
           description: User created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /users/{id}:
     patch:
       tags: [Users]
       summary: Update user
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
+              $ref: "#/components/schemas/UpdateUserRequest"
       responses:
-        '200':
+        "200":
           description: User updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     delete:
       tags: [Users]
       summary: Delete user
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: User deleted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /users/{id}/roles:
     post:
       tags: [Users]
       summary: Assign role to user
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssignRoleRequest'
+              $ref: "#/components/schemas/AssignRoleRequest"
       responses:
-        '201':
+        "201":
           description: Role assigned
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /users/{id}/permissions:
     post:
       tags: [Users]
       summary: Replace direct user permissions
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
@@ -1545,19 +1588,19 @@ paths:
                   items:
                     type: string
       responses:
-        '201':
+        "201":
           description: Permissions updated
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /users/{id}/capability-assignments:
     get:
@@ -1566,16 +1609,16 @@ paths:
       summary: List user capability assignments
       description: Returns optional per-user capability assignments for an authorized administrator. Organization users are tenant-scoped and cannot read another organization's users by direct ID.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: User capability assignments
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserCapabilityAssignment'
+                  $ref: "#/components/schemas/UserCapabilityAssignment"
               examples:
                 assigned:
                   value:
@@ -1589,30 +1632,30 @@ paths:
                       limits:
                         maxVolume: 80
                       createdByUserId: 1
-                      createdAt: '2026-09-25T12:00:00.000Z'
-                      updatedAt: '2026-09-25T12:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-25T12:00:00.000Z"
+                      updatedAt: "2026-09-25T12:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     put:
       tags: [Users]
       operationId: upsertUserCapabilityAssignment
       summary: Add or update a user capability assignment
       description: Assigns one active organization-permitted capability to one user with optional safe limits. The write is tenant-scoped and records a sanitized audit event.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpsertUserCapabilityAssignmentRequest'
+              $ref: "#/components/schemas/UpsertUserCapabilityAssignmentRequest"
             examples:
               speakerLimits:
                 value:
@@ -1621,22 +1664,22 @@ paths:
                   limits:
                     maxVolume: 80
       responses:
-        '200':
+        "200":
           description: User capability assignment upserted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserCapabilityAssignment'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/UserCapabilityAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /users/{id}/effective-capabilities:
     get:
@@ -1645,14 +1688,14 @@ paths:
       summary: Get effective user capabilities
       description: Returns the intersection of enabled user capability assignments and the target user's organization-effective capability set.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Effective user capabilities
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserEffectiveCapabilitiesResponse'
+                $ref: "#/components/schemas/UserEffectiveCapabilitiesResponse"
               examples:
                 effective:
                   value:
@@ -1668,23 +1711,23 @@ paths:
                           capabilities: [speaker]
                         limits:
                           maxVolume: 80
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /users/{id}/toggle-lock:
     post:
       tags: [Users]
       summary: Toggle user lock status
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '201':
+        "201":
           description: Lock status updated
           content:
             application/json:
@@ -1700,10 +1743,10 @@ paths:
                   value:
                     ok: true
                     isLocked: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /users/{id}/lock:
     patch:
@@ -1711,13 +1754,13 @@ paths:
       summary: Set user lock status
       description: Authorized administrators can explicitly lock or unlock a user. The action is tenant-scoped and records a sanitized audit event.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LockUserRequest'
+              $ref: "#/components/schemas/LockUserRequest"
             examples:
               lock:
                 value:
@@ -1726,12 +1769,12 @@ paths:
                 value:
                   locked: false
       responses:
-        '200':
+        "200":
           description: Lock status updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LockUserResponse'
+                $ref: "#/components/schemas/LockUserResponse"
               examples:
                 locked:
                   value:
@@ -1741,14 +1784,14 @@ paths:
                   value:
                     ok: true
                     isLocked: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /roles:
     get:
@@ -1760,18 +1803,18 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Roles
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Role'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Roles]
       summary: Create role
@@ -1780,90 +1823,90 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateRoleRequest'
+              $ref: "#/components/schemas/CreateRoleRequest"
       responses:
-        '201':
+        "201":
           description: Role created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Role'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /roles/{id}/permissions:
     post:
       tags: [Roles]
       summary: Add permission to role
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RolePermissionRequest'
+              $ref: "#/components/schemas/RolePermissionRequest"
       responses:
-        '201':
+        "201":
           description: Permission added
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     delete:
       tags: [Roles]
       summary: Remove permission from role
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RolePermissionRequest'
+              $ref: "#/components/schemas/RolePermissionRequest"
       responses:
-        '200':
+        "200":
           description: Permission removed
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /permissions:
     get:
       tags: [Permissions]
       summary: List permissions
       responses:
-        '200':
+        "200":
           description: Permissions
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Permission'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Permissions]
       summary: Create permission
@@ -1872,30 +1915,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePermissionRequest'
+              $ref: "#/components/schemas/CreatePermissionRequest"
       responses:
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /permissions/catalog:
     get:
       tags: [Permissions]
       summary: List permission catalog
       responses:
-        '200':
+        "200":
           description: Permission catalog
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Permission'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-
+                  $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /subscription-plans:
     get:
@@ -1911,14 +1952,14 @@ paths:
             type: boolean
           description: Super Admin-only flag to include disabled plans.
       responses:
-        '200':
+        "200":
           description: Subscription plans
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SubscriptionPlan'
+                  $ref: "#/components/schemas/SubscriptionPlan"
               examples:
                 starter:
                   value:
@@ -1938,16 +1979,16 @@ paths:
                           requiredHardware:
                             capabilities: [speaker]
                           isActive: true
-                          createdAt: '2026-09-24T00:00:00.000Z'
-                          updatedAt: '2026-09-24T00:00:00.000Z'
-                      createdAt: '2026-09-24T00:00:00.000Z'
-                      updatedAt: '2026-09-24T00:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                          createdAt: "2026-09-24T00:00:00.000Z"
+                          updatedAt: "2026-09-24T00:00:00.000Z"
+                      createdAt: "2026-09-24T00:00:00.000Z"
+                      updatedAt: "2026-09-24T00:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     post:
       tags: [Subscription Plans]
       operationId: createSubscriptionPlan
@@ -1958,7 +1999,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSubscriptionPlanRequest'
+              $ref: "#/components/schemas/CreateSubscriptionPlanRequest"
             examples:
               createStarter:
                 value:
@@ -1966,26 +2007,27 @@ paths:
                   name: Starter
                   description: Baseline robot app capabilities for integration testing.
                   version: 1
-                  capabilityStableKeys: [audio.speaker, display.touch, media.video-playback]
+                  capabilityStableKeys:
+                    [audio.speaker, display.touch, media.video-playback]
       responses:
-        '201':
+        "201":
           description: Subscription plan created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionPlan'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/SubscriptionPlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /subscription-plans/{id}:
     get:
@@ -1993,7 +2035,7 @@ paths:
       operationId: getSubscriptionPlan
       summary: Get subscription plan
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: includeInactive
           in: query
           required: false
@@ -2001,77 +2043,77 @@ paths:
             type: boolean
           description: Super Admin-only flag to include disabled plans.
       responses:
-        '200':
+        "200":
           description: Subscription plan
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionPlan'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/SubscriptionPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     patch:
       tags: [Subscription Plans]
       operationId: updateSubscriptionPlan
       summary: Update subscription plan metadata
       description: Super Admin-only plan metadata update. Capability membership is replaced with PUT /subscription-plans/{id}/capabilities.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateSubscriptionPlanRequest'
+              $ref: "#/components/schemas/UpdateSubscriptionPlanRequest"
             examples:
               bumpVersion:
                 value:
                   version: 2
                   name: Starter v2
       responses:
-        '200':
+        "200":
           description: Subscription plan updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionPlan'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/SubscriptionPlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Subscription Plans]
       operationId: disableSubscriptionPlan
       summary: Disable subscription plan
       description: Super Admin-only soft disable. The plan row remains for versioned traceability.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Subscription plan disabled
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionPlan'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/SubscriptionPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /subscription-plans/{id}/capabilities:
     put:
@@ -2080,34 +2122,35 @@ paths:
       summary: Replace subscription plan capabilities
       description: Super Admin-only idempotent replacement. The response returns exactly the configured active capability set.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SetPlanCapabilitiesRequest'
+              $ref: "#/components/schemas/SetPlanCapabilitiesRequest"
             examples:
               setStarterCapabilities:
                 value:
-                  capabilityStableKeys: [audio.speaker, display.touch, media.video-playback]
+                  capabilityStableKeys:
+                    [audio.speaker, display.touch, media.video-playback]
       responses:
-        '200':
+        "200":
           description: Subscription plan capabilities replaced
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionPlan'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/SubscriptionPlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /capabilities:
     get:
@@ -2122,14 +2165,14 @@ paths:
             type: boolean
           description: Super Admin-only flag to include disabled catalog entries.
       responses:
-        '200':
+        "200":
           description: Capability catalog
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Capability'
+                  $ref: "#/components/schemas/Capability"
               examples:
                 catalog:
                   value:
@@ -2144,14 +2187,14 @@ paths:
                         capabilities: [speechRecognition]
                         minAndroidApiLevel: 23
                       isActive: true
-                      createdAt: '2026-09-24T00:00:00.000Z'
-                      updatedAt: '2026-09-24T00:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-24T00:00:00.000Z"
+                      updatedAt: "2026-09-24T00:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     post:
       tags: [Capabilities]
       summary: Create capability catalog entry
@@ -2161,7 +2204,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateCapabilityRequest'
+              $ref: "#/components/schemas/CreateCapabilityRequest"
             examples:
               createSpeech:
                 value:
@@ -2175,29 +2218,29 @@ paths:
                     capabilities: [speechRecognition]
                     minAndroidApiLevel: 23
       responses:
-        '201':
+        "201":
           description: Capability created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Capability'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/Capability"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /capabilities/{id}:
     get:
       tags: [Capabilities]
       summary: Get capability catalog entry
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: includeInactive
           in: query
           required: false
@@ -2205,32 +2248,32 @@ paths:
             type: boolean
           description: Super Admin-only flag to include disabled catalog entries.
       responses:
-        '200':
+        "200":
           description: Capability
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Capability'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/Capability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     patch:
       tags: [Capabilities]
       summary: Update capability catalog entry
       description: Super Admin-only update. Stable keys are not changed after creation; use version to revise catalog semantics.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateCapabilityRequest'
+              $ref: "#/components/schemas/UpdateCapabilityRequest"
             examples:
               bumpVersion:
                 value:
@@ -2240,43 +2283,43 @@ paths:
                     capabilities: [speechRecognition]
                     minAndroidApiLevel: 25
       responses:
-        '200':
+        "200":
           description: Capability updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Capability'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/Capability"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     delete:
       tags: [Capabilities]
       summary: Disable capability catalog entry
       description: Super Admin-only soft disable. The catalog row remains for versioned traceability.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Capability disabled
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Capability'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                $ref: "#/components/schemas/Capability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots:
     get:
@@ -2292,19 +2335,19 @@ paths:
         - name: status
           in: query
           schema:
-            $ref: '#/components/schemas/LicenseStatus'
+            $ref: "#/components/schemas/LicenseStatus"
           description: Filter by robot license status.
         - name: model
           in: query
           schema:
-            $ref: '#/components/schemas/RobotHardwareModel'
+            $ref: "#/components/schemas/RobotHardwareModel"
           description: Filter by validated robot hardware model.
         - name: version
           in: query
           schema:
             type: string
             maxLength: 80
-            pattern: '^[0-9A-Za-z._+() -]+$'
+            pattern: "^[0-9A-Za-z._+() -]+$"
           example: 0.1.0
           description: Filter by stored Android app version.
         - name: lastSeenFrom
@@ -2327,14 +2370,14 @@ paths:
             maximum: 100
           description: Maximum rows to return. Values above 100 are clamped by the backend.
       responses:
-        '200':
+        "200":
           description: Robots
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Robot'
+                  $ref: "#/components/schemas/Robot"
               examples:
                 filteredFleet:
                   value:
@@ -2342,11 +2385,11 @@ paths:
                       orgId: 1
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Mini ELF
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       licenseStatus: ACTIVE
                       revokedAt: null
-                      lastSeenAt: '2026-09-21T10:00:00.000Z'
+                      lastSeenAt: "2026-09-21T10:00:00.000Z"
                       appVersion: 0.1.0
                       deviceModel: Mini ELF
                       hardwareModel: MINI_ELF
@@ -2369,14 +2412,14 @@ paths:
                         speechRecognition: true
                         autonomousNavigation: false
                         armMotion: false
-                      createdAt: '2026-01-01T00:00:00.000Z'
-                      updatedAt: '2026-09-21T10:00:00.000Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                      createdAt: "2026-01-01T00:00:00.000Z"
+                      updatedAt: "2026-09-21T10:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Robot]
       summary: Enroll/register a robot
@@ -2386,7 +2429,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateRobotRequest'
+              $ref: "#/components/schemas/CreateRobotRequest"
             examples:
               miniElfEnrollment:
                 summary: Enroll a Mini ELF robot with validated hardware metadata
@@ -2394,8 +2437,8 @@ paths:
                   orgId: 1
                   serialNumber: TEST-ACTIVE-001
                   name: Demo Mini ELF
-                  validFrom: '2026-01-01T00:00:00.000Z'
-                  validUntil: '2027-01-01T00:00:00.000Z'
+                  validFrom: "2026-01-01T00:00:00.000Z"
+                  validUntil: "2027-01-01T00:00:00.000Z"
                   hardwareProfile:
                     model: MINI_ELF
                     manufacturer: Sanbot
@@ -2414,12 +2457,12 @@ paths:
                       autonomousNavigation: true
                       armMotion: true
       responses:
-        '201':
+        "201":
           description: Robot enrolled. Response includes the generated activation licenseKey for Super Admin.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotEnrollmentResponse'
+                $ref: "#/components/schemas/RobotEnrollmentResponse"
               examples:
                 miniElfEnrollment:
                   summary: Enrolled robot with effective safety-filtered capabilities
@@ -2428,8 +2471,8 @@ paths:
                     orgId: 1
                     serialNumber: TEST-ACTIVE-001
                     name: Demo Mini ELF
-                    validFrom: '2026-01-01T00:00:00.000Z'
-                    validUntil: '2027-01-01T00:00:00.000Z'
+                    validFrom: "2026-01-01T00:00:00.000Z"
+                    validUntil: "2027-01-01T00:00:00.000Z"
                     licenseStatus: ACTIVE
                     revokedAt: null
                     lastSeenAt: null
@@ -2457,18 +2500,18 @@ paths:
                       armMotion: false
                     licenseKey: WHRB123456
                     licenseKeyMasked: WHRB12...3456
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
           description: Duplicate robot serial number
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 duplicateSerial:
                   value:
@@ -2482,7 +2525,7 @@ paths:
       summary: Get robot detail with license and audit history
       description: Returns the current robot state, license state and sanitized audit history for an authorized administrator. Organization users are tenant-scoped. The response never includes license keys, ciphertext, fingerprints, tokens or credential secrets.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: limit
           in: query
           required: false
@@ -2493,12 +2536,12 @@ paths:
             default: 50
           description: Maximum audit history rows to return.
       responses:
-        '200':
+        "200":
           description: Robot detail
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotDetailResponse'
+                $ref: "#/components/schemas/RobotDetailResponse"
               examples:
                 detail:
                   value:
@@ -2507,11 +2550,11 @@ paths:
                       orgId: 1
                       serialNumber: TEST-ACTIVE-001
                       name: Demo Mini ELF
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       licenseStatus: ACTIVE
                       revokedAt: null
-                      lastSeenAt: '2026-09-21T10:00:00.000Z'
+                      lastSeenAt: "2026-09-21T10:00:00.000Z"
                       appVersion: 0.1.0
                       deviceModel: Mini ELF
                       hardwareModel: MINI_ELF
@@ -2534,8 +2577,8 @@ paths:
                         speechRecognition: true
                         autonomousNavigation: false
                         armMotion: false
-                      createdAt: '2026-01-01T00:00:00.000Z'
-                      updatedAt: '2026-09-21T10:00:00.000Z'
+                      createdAt: "2026-01-01T00:00:00.000Z"
+                      updatedAt: "2026-09-21T10:00:00.000Z"
                       org:
                         id: 1
                         name: Demo School
@@ -2543,8 +2586,8 @@ paths:
                         tenantVersion: 4
                     license:
                       status: ACTIVE
-                      validFrom: '2026-01-01T00:00:00.000Z'
-                      validUntil: '2027-01-01T00:00:00.000Z'
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
                       revokedAt: null
                     auditHistory:
                       - id: 201
@@ -2556,41 +2599,41 @@ paths:
                         metadata:
                           serialNumber: TEST-ACTIVE-001
                           licenseStatus: ACTIVE
-                        createdAt: '2026-09-20T10:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                        createdAt: "2026-09-20T10:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/license/renew:
     put:
       tags: [Robot]
       summary: Renew robot license
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RenewLicenseRequest'
+              $ref: "#/components/schemas/RenewLicenseRequest"
       responses:
-        '200':
+        "200":
           description: Robot updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Robot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /robots/{id}/credentials/rotate:
     post:
@@ -2598,15 +2641,15 @@ paths:
       summary: Rotate robot credential
       description: Super Admin-only credential rotation. Replaces the robot activation license key, records a redacted audit event, and returns the new license key in this rotation response. The previous license key stops working immediately.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
-        '200':
+        "200":
           description: Robot credential rotated. Response includes the new activation licenseKey.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotCredentialRotationResponse'
+                $ref: "#/components/schemas/RobotCredentialRotationResponse"
               examples:
                 success:
                   value:
@@ -2616,31 +2659,31 @@ paths:
                     name: API Test Robot (ACTIVE)
                     licenseKey: WHRB123456
                     licenseKeyMasked: WHRB12...3456
-                    validFrom: '2026-02-28T11:26:06.106Z'
-                    validUntil: '2026-11-25T11:26:06.106Z'
+                    validFrom: "2026-02-28T11:26:06.106Z"
+                    validUntil: "2026-11-25T11:26:06.106Z"
                     licenseStatus: ACTIVE
                     revokedAt: null
                     lastSeenAt: null
                     appVersion: null
                     deviceModel: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
           description: Robot not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 notFound:
                   value:
                     statusCode: 404
                     message: Robot not found
                     error: Not Found
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/credentials/revoke:
     post:
@@ -2648,15 +2691,15 @@ paths:
       summary: Revoke robot credential
       description: Super Admin-only credential revocation. Marks the robot license as revoked, records a redacted audit event, and does not return the license key.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
-        '200':
+        "200":
           description: Robot credential revoked
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
+                $ref: "#/components/schemas/Robot"
               examples:
                 success:
                   value:
@@ -2664,77 +2707,77 @@ paths:
                     orgId: 1
                     serialNumber: TEST-ACTIVE-001
                     name: API Test Robot (ACTIVE)
-                    validFrom: '2026-02-28T11:26:06.106Z'
-                    validUntil: '2026-11-25T11:26:06.106Z'
+                    validFrom: "2026-02-28T11:26:06.106Z"
+                    validUntil: "2026-11-25T11:26:06.106Z"
                     licenseStatus: REVOKED
-                    revokedAt: '2026-09-11T00:00:00.000Z'
+                    revokedAt: "2026-09-11T00:00:00.000Z"
                     lastSeenAt: null
                     appVersion: null
                     deviceModel: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
           description: Robot not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               examples:
                 notFound:
                   value:
                     statusCode: 404
                     message: Robot not found
                     error: Not Found
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/lock:
     put:
       tags: [Robot]
       summary: Lock or unlock robot
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LockRobotRequest'
+              $ref: "#/components/schemas/LockRobotRequest"
       responses:
-        '200':
+        "200":
           description: Robot updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Robot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     get:
       tags: [Robot]
       summary: Backward-compatible lock or unlock endpoint
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: lock
           in: query
           schema:
             type: boolean
       responses:
-        '200':
+        "200":
           description: Robot updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Robot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /robots/{id}/reassign:
     patch:
@@ -2742,25 +2785,25 @@ paths:
       summary: Reassign robot to another organization
       description: Super Admin-only robot reassignment. Moves the robot to a new organization, increments tenant cache versions, and records a sanitized audit event. The response does not include license keys or credentials.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ReassignRobotRequest'
+              $ref: "#/components/schemas/ReassignRobotRequest"
             examples:
               reassign:
                 value:
                   orgId: 2
       responses:
-        '200':
+        "200":
           description: Robot reassigned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotReassignmentResponse'
+                $ref: "#/components/schemas/RobotReassignmentResponse"
               examples:
                 success:
                   value:
@@ -2768,27 +2811,27 @@ paths:
                     orgId: 2
                     serialNumber: TEST-ACTIVE-001
                     name: Demo Robot
-                    validFrom: '2026-01-01T00:00:00.000Z'
-                    validUntil: '2027-01-01T00:00:00.000Z'
+                    validFrom: "2026-01-01T00:00:00.000Z"
+                    validUntil: "2027-01-01T00:00:00.000Z"
                     licenseStatus: ACTIVE
                     revokedAt: null
-                    lastSeenAt: '2026-01-02T00:00:00.000Z'
-                    appVersion: '0.1.0'
+                    lastSeenAt: "2026-01-02T00:00:00.000Z"
+                    appVersion: "0.1.0"
                     deviceModel: Mini ELF
                     org:
                       id: 2
                       name: Test School 2
                       tenantVersion: 6
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/reassignment-history:
     get:
@@ -2796,7 +2839,7 @@ paths:
       summary: List robot reassignment history
       description: Returns sanitized reassignment history recorded from robot.reassigned audit events. Preserves the existing reassignment/cache-reset contract and does not return license keys, tokens, credentials or raw audit metadata.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
         - name: limit
           in: query
           required: false
@@ -2806,14 +2849,14 @@ paths:
             maximum: 100
             default: 50
       responses:
-        '200':
+        "200":
           description: Sanitized reassignment history
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RobotReassignmentHistoryItem'
+                  $ref: "#/components/schemas/RobotReassignmentHistoryItem"
               examples:
                 history:
                   value:
@@ -2825,15 +2868,61 @@ paths:
                       newOrgId: 2
                       targetOrgId: 2
                       correlationId: reassign-123
-                      createdAt: '2026-09-20T10:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-20T10:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /robots/{id}/effective-capabilities:
+    get:
+      tags: [Robot]
+      operationId: getRobotEffectiveCapabilities
+      summary: Preview effective robot capabilities
+      description: Resolver-backed preview of the effective robot capability set after subscription, organization override, per-robot assignment and hardware filtering. Organization users are tenant-scoped and cannot read another organization robot by direct ID.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Effective robot capability preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotEffectiveCapabilitiesResponse"
+              examples:
+                effective:
+                  value:
+                    robotId: 10
+                    orgId: 7
+                    subscription:
+                      status: ACTIVE
+                      planId: 2
+                      planStableKey: pro
+                      planVersion: 1
+                      validFrom: "2026-09-01T00:00:00.000Z"
+                      validUntil: "2027-09-01T00:00:00.000Z"
+                    capabilities:
+                      - id: 1
+                        stableKey: audio.speaker
+                        name: Speaker Output
+                        category: audio
+                        version: 1
+                        requiredHardware:
+                          capabilities: [speaker]
+                        limits:
+                          maxVolume: 80
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/capability-assignments:
     get:
@@ -2842,16 +2931,16 @@ paths:
       summary: List robot capability assignments
       description: Returns per-robot capability assignments for an authorized administrator. Organization users are tenant-scoped and cannot read another organization robot by direct ID. Responses do not include robot credentials, license keys or tokens.
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Robot capability assignments
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RobotCapabilityAssignment'
+                  $ref: "#/components/schemas/RobotCapabilityAssignment"
               examples:
                 assigned:
                   value:
@@ -2865,30 +2954,30 @@ paths:
                       limits:
                         maxVolume: 80
                       createdByUserId: 1
-                      createdAt: '2026-09-25T11:00:00.000Z'
-                      updatedAt: '2026-09-25T11:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                      createdAt: "2026-09-25T11:00:00.000Z"
+                      updatedAt: "2026-09-25T11:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
     put:
       tags: [Robot]
       operationId: upsertRobotCapabilityAssignment
       summary: Add or update a robot capability assignment
       description: Assigns one active organization-permitted capability to one robot with validated parameter limits. The write is tenant-scoped, bumps tenantVersion for robot cache reset, and records a sanitized audit event.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpsertRobotCapabilityAssignmentRequest'
+              $ref: "#/components/schemas/UpsertRobotCapabilityAssignmentRequest"
             examples:
               speakerLimits:
                 value:
@@ -2898,12 +2987,12 @@ paths:
                     maxVolume: 80
                     modes: [classroom]
       responses:
-        '200':
+        "200":
           description: Robot capability assignment upserted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RobotCapabilityAssignment'
+                $ref: "#/components/schemas/RobotCapabilityAssignment"
               examples:
                 assigned:
                   value:
@@ -2918,18 +3007,18 @@ paths:
                       maxVolume: 80
                       modes: [classroom]
                     createdByUserId: 1
-                    createdAt: '2026-09-25T11:00:00.000Z'
-                    updatedAt: '2026-09-25T11:00:00.000Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+                    createdAt: "2026-09-25T11:00:00.000Z"
+                    updatedAt: "2026-09-25T11:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /robots/{id}/device-metadata:
     delete:
@@ -2937,15 +3026,15 @@ paths:
       summary: Erase stored robot device metadata
       description: Clears stored robot device identity metadata for an authorized administrator and records a critical audit event.
       parameters:
-        - $ref: '#/components/parameters/Id'
-        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
       responses:
-        '200':
+        "200":
           description: Robot device metadata erased
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Robot'
+                $ref: "#/components/schemas/Robot"
               examples:
                 success:
                   value:
@@ -2953,104 +3042,104 @@ paths:
                     orgId: 1
                     serialNumber: TEST-ACTIVE-001
                     name: Demo Robot
-                    validFrom: '2026-01-01T00:00:00.000Z'
-                    validUntil: '2027-01-01T00:00:00.000Z'
+                    validFrom: "2026-01-01T00:00:00.000Z"
+                    validUntil: "2027-01-01T00:00:00.000Z"
                     licenseStatus: ACTIVE
                     revokedAt: null
-                    lastSeenAt: '2026-01-02T00:00:00.000Z'
+                    lastSeenAt: "2026-01-02T00:00:00.000Z"
                     appVersion: null
                     deviceModel: null
-                    createdAt: '2026-01-01T00:00:00.000Z'
-                    updatedAt: '2026-01-02T00:00:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                    createdAt: "2026-01-01T00:00:00.000Z"
+                    updatedAt: "2026-01-02T00:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/my:
     get:
       tags: [Content]
       summary: List courses visible to current user
       responses:
-        '200':
+        "200":
           description: Courses
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Course'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/platform:
     get:
       tags: [Content]
       summary: List platform courses
       responses:
-        '200':
+        "200":
           description: Platform courses
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Course'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                  $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/course/{id}:
     get:
       tags: [Content]
       summary: Get course details
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Course
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Course'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     patch:
       tags: [Content]
       summary: Update course
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateCourseRequest'
+              $ref: "#/components/schemas/UpdateCourseRequest"
       responses:
-        '200':
+        "200":
           description: Course updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Course'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/Course"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     delete:
       tags: [Content]
       summary: Delete course
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Course deleted
           content:
             application/json:
@@ -3063,220 +3152,220 @@ paths:
       tags: [Content]
       summary: Update level
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLevelRequest'
+              $ref: "#/components/schemas/UpdateLevelRequest"
       responses:
-        '200':
+        "200":
           description: Level updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Level'
+                $ref: "#/components/schemas/Level"
 
   /content/chapter/{id}:
     patch:
       tags: [Content]
       summary: Update chapter
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateChapterRequest'
+              $ref: "#/components/schemas/UpdateChapterRequest"
       responses:
-        '200':
+        "200":
           description: Chapter updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Chapter'
+                $ref: "#/components/schemas/Chapter"
 
   /content/lesson/{id}:
     patch:
       tags: [Content]
       summary: Update lesson
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLessonRequest'
+              $ref: "#/components/schemas/UpdateLessonRequest"
       responses:
-        '200':
+        "200":
           description: Lesson updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Lesson'
+                $ref: "#/components/schemas/Lesson"
 
   /content/import:
     post:
       tags: [Content]
       summary: Import organization content CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/platform:
     post:
       tags: [Content]
       summary: Import platform content CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/courses:
     post:
       tags: [Content]
       summary: Import organization courses CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/platform/courses:
     post:
       tags: [Content]
       summary: Import platform courses CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/chapters:
     post:
       tags: [Content]
       summary: Import organization chapters CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/platform/chapters:
     post:
       tags: [Content]
       summary: Import platform chapters CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/lessons:
     post:
       tags: [Content]
       summary: Import organization lessons CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /content/import/platform/lessons:
     post:
       tags: [Content]
       summary: Import platform lessons CSV/XLSX
       requestBody:
-        $ref: '#/components/requestBodies/FileUpload'
+        $ref: "#/components/requestBodies/FileUpload"
       responses:
-        '201':
-          $ref: '#/components/responses/ImportResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "201":
+          $ref: "#/components/responses/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs/{orgId}/course-access:
     get:
       tags: [Course Access]
       summary: List course access for organization
       parameters:
-        - $ref: '#/components/parameters/OrgId'
+        - $ref: "#/components/parameters/OrgId"
       responses:
-        '200':
+        "200":
           description: Course access rows
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/CourseAccess'
+                  $ref: "#/components/schemas/CourseAccess"
     post:
       tags: [Course Access]
       summary: Grant course access
       parameters:
-        - $ref: '#/components/parameters/OrgId'
+        - $ref: "#/components/parameters/OrgId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateCourseAccessRequest'
+              $ref: "#/components/schemas/CreateCourseAccessRequest"
       responses:
-        '201':
+        "201":
           description: Course access created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CourseAccess'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                $ref: "#/components/schemas/CourseAccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /orgs/{orgId}/course-access/{id}:
     delete:
       tags: [Course Access]
       summary: Revoke course access
       parameters:
-        - $ref: '#/components/parameters/OrgId'
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Access revoked
           content:
             application/json:
@@ -3289,14 +3378,14 @@ paths:
       tags: [Dashboard]
       summary: List dashboard sections
       responses:
-        '200':
+        "200":
           description: Dashboard sections
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DashboardSection'
+                  $ref: "#/components/schemas/DashboardSection"
     post:
       tags: [Dashboard]
       summary: Create dashboard section
@@ -3305,48 +3394,48 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSectionRequest'
+              $ref: "#/components/schemas/CreateSectionRequest"
       responses:
-        '201':
+        "201":
           description: Section created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSection'
+                $ref: "#/components/schemas/DashboardSection"
 
   /dashboard/sections/{id}:
     put:
       tags: [Dashboard]
       summary: Update dashboard section
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateSectionRequest'
+              $ref: "#/components/schemas/UpdateSectionRequest"
       responses:
-        '200':
+        "200":
           description: Section updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSection'
+                $ref: "#/components/schemas/DashboardSection"
 
   /sections:
     get:
       tags: [Dashboard]
       summary: List section builder sections
       responses:
-        '200':
+        "200":
           description: Dashboard sections
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DashboardSection'
+                  $ref: "#/components/schemas/DashboardSection"
     post:
       tags: [Dashboard]
       summary: Create section builder section
@@ -3355,85 +3444,85 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSectionRequest'
+              $ref: "#/components/schemas/CreateSectionRequest"
       responses:
-        '201':
+        "201":
           description: Section created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSection'
+                $ref: "#/components/schemas/DashboardSection"
 
   /sections/{id}:
     put:
       tags: [Dashboard]
       summary: Update section builder section
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateSectionRequest'
+              $ref: "#/components/schemas/UpdateSectionRequest"
       responses:
-        '200':
+        "200":
           description: Section updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSection'
+                $ref: "#/components/schemas/DashboardSection"
     delete:
       tags: [Dashboard]
       summary: Deactivate section
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '200':
+        "200":
           description: Section deactivated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSection'
+                $ref: "#/components/schemas/DashboardSection"
 
   /notifications:
     get:
       tags: [Notifications]
       summary: List notifications
       responses:
-        '200':
+        "200":
           description: Notifications
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Notification'
+                  $ref: "#/components/schemas/Notification"
 
   /notifications/{id}/read:
     post:
       tags: [Notifications]
       summary: Mark notification read
       parameters:
-        - $ref: '#/components/parameters/Id'
+        - $ref: "#/components/parameters/Id"
       responses:
-        '201':
+        "201":
           description: Notification updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Notification'
+                $ref: "#/components/schemas/Notification"
 
   /analytics/overview:
     get:
       tags: [Analytics]
       summary: Usage and license overview
       parameters:
-        - $ref: '#/components/parameters/Days'
-        - $ref: '#/components/parameters/OrgIdQuery'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/Days"
+        - $ref: "#/components/parameters/OrgIdQuery"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
+        "200":
           description: Analytics overview
           content:
             application/json:
@@ -3446,11 +3535,11 @@ paths:
       tags: [Analytics]
       summary: Top courses by usage
       parameters:
-        - $ref: '#/components/parameters/Days'
-        - $ref: '#/components/parameters/OrgIdQuery'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/Days"
+        - $ref: "#/components/parameters/OrgIdQuery"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
+        "200":
           description: Top courses
           content:
             application/json:
@@ -3465,11 +3554,11 @@ paths:
       tags: [Analytics]
       summary: Top lessons by usage
       parameters:
-        - $ref: '#/components/parameters/Days'
-        - $ref: '#/components/parameters/OrgIdQuery'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/Days"
+        - $ref: "#/components/parameters/OrgIdQuery"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
+        "200":
           description: Top lessons
           content:
             application/json:
@@ -3547,7 +3636,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             validation:
               value:
@@ -3560,7 +3649,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             invalidCredentials:
               value:
@@ -3572,7 +3661,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             forbidden:
               value:
@@ -3584,7 +3673,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             notFound:
               value:
@@ -3596,7 +3685,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             duplicate:
               value:
@@ -3608,7 +3697,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LockedErrorResponse'
+            $ref: "#/components/schemas/LockedErrorResponse"
           examples:
             orgInactive:
               value:
@@ -3621,7 +3710,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             throttled:
               value:
@@ -3633,7 +3722,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             error:
               value:
@@ -3704,22 +3793,30 @@ components:
           type: string
           minLength: 10
           maxLength: 10
-          pattern: '^WHRB[0-9]{6}$'
+          pattern: "^WHRB[0-9]{6}$"
           description: Robot activation value in WHRB plus six digits format. Never returned in login responses, logs or unauthorized robot resource APIs.
         serialNumber:
           type: string
           maxLength: 64
-          pattern: '^[A-Za-z0-9._:-]+$'
+          pattern: "^[A-Za-z0-9._:-]+$"
           description: Sanbot robot ID fetched from device settings and paired with the registered license key.
         deviceMetadata:
-          $ref: '#/components/schemas/RobotDeviceMetadata'
+          $ref: "#/components/schemas/RobotDeviceMetadata"
         deviceMetadataConsent:
           type: boolean
           description: Optional legacy field. If present, it must be true. Android robot clients may omit this field.
           enum: [true]
     RobotDeviceMetadata:
       type: object
-      required: [manufacturer, model, androidVersion, apiLevel, appVersionName, appVersionCode]
+      required:
+        [
+          manufacturer,
+          model,
+          androidVersion,
+          apiLevel,
+          appVersionName,
+          appVersionCode,
+        ]
       additionalProperties: false
       properties:
         manufacturer:
@@ -3733,7 +3830,7 @@ components:
         androidVersion:
           type: string
           maxLength: 32
-          pattern: '^[0-9A-Za-z._ -]+$'
+          pattern: "^[0-9A-Za-z._ -]+$"
           example: 7.1.2
         apiLevel:
           type: integer
@@ -3742,7 +3839,7 @@ components:
         appVersionName:
           type: string
           maxLength: 40
-          pattern: '^[0-9A-Za-z._+-]+$'
+          pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
         appVersionCode:
           type: integer
@@ -3755,10 +3852,20 @@ components:
         token:
           type: string
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
     RobotLoginResponse:
       type: object
-      required: [token, accessToken, refreshToken, expiresIn, refreshExpiresIn, tokenType, robot, license]
+      required:
+        [
+          token,
+          accessToken,
+          refreshToken,
+          expiresIn,
+          refreshExpiresIn,
+          tokenType,
+          robot,
+          license,
+        ]
       properties:
         token:
           type: string
@@ -3781,9 +3888,9 @@ components:
           type: string
           enum: [Bearer]
         robot:
-          $ref: '#/components/schemas/Robot'
+          $ref: "#/components/schemas/Robot"
         license:
-          $ref: '#/components/schemas/RobotLoginLicense'
+          $ref: "#/components/schemas/RobotLoginLicense"
     RobotTokenRefreshRequest:
       type: object
       required: [refreshToken]
@@ -3810,12 +3917,13 @@ components:
           type: string
           enum: [Bearer]
         robot:
-          $ref: '#/components/schemas/Robot'
+          $ref: "#/components/schemas/Robot"
         license:
-          $ref: '#/components/schemas/RobotLoginLicense'
+          $ref: "#/components/schemas/RobotLoginLicense"
     Organization:
       type: object
-      required: [id, name, state, city, authorizedPersonName, contactNo, isActive]
+      required:
+        [id, name, state, city, authorizedPersonName, contactNo, isActive]
       properties:
         id:
           type: integer
@@ -3852,7 +3960,7 @@ components:
         planId:
           type: integer
         status:
-          $ref: '#/components/schemas/SubscriptionStatus'
+          $ref: "#/components/schemas/SubscriptionStatus"
         validFrom:
           type: string
           format: date-time
@@ -3885,7 +3993,7 @@ components:
             capabilities:
               type: array
               items:
-                $ref: '#/components/schemas/Capability'
+                $ref: "#/components/schemas/Capability"
     AssignOrganizationSubscriptionRequest:
       type: object
       required: [planId, validFrom, validUntil]
@@ -3894,7 +4002,7 @@ components:
         planId:
           type: integer
         status:
-          $ref: '#/components/schemas/SubscriptionStatus'
+          $ref: "#/components/schemas/SubscriptionStatus"
           default: ACTIVE
         validFrom:
           type: string
@@ -3908,7 +4016,18 @@ components:
       enum: [ALLOW, DENY]
     OrganizationCapabilityOverride:
       type: object
-      required: [id, orgId, capabilityId, capabilityStableKey, capabilityName, effect, reason, createdAt, updatedAt]
+      required:
+        [
+          id,
+          orgId,
+          capabilityId,
+          capabilityStableKey,
+          capabilityName,
+          effect,
+          reason,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           type: integer
@@ -3923,7 +4042,7 @@ components:
           type: string
           example: Speech Recognition
         effect:
-          $ref: '#/components/schemas/CapabilityOverrideEffect'
+          $ref: "#/components/schemas/CapabilityOverrideEffect"
         reason:
           type: string
           maxLength: 500
@@ -3946,7 +4065,7 @@ components:
           type: string
           example: speech.recognition
         effect:
-          $ref: '#/components/schemas/CapabilityOverrideEffect'
+          $ref: "#/components/schemas/CapabilityOverrideEffect"
         reason:
           type: string
           minLength: 1
@@ -3959,7 +4078,17 @@ components:
       description: Safe validated primitive/object/array limit values. Secret-like keys and values are rejected by the backend.
     RobotCapabilityAssignment:
       type: object
-      required: [id, robotId, capabilityId, capabilityStableKey, capabilityName, isEnabled, createdAt, updatedAt]
+      required:
+        [
+          id,
+          robotId,
+          capabilityId,
+          capabilityStableKey,
+          capabilityName,
+          isEnabled,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           type: integer
@@ -3982,7 +4111,7 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotCapabilityLimits'
+            - $ref: "#/components/schemas/RobotCapabilityLimits"
         createdByUserId:
           type: integer
           nullable: true
@@ -4007,11 +4136,21 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotCapabilityLimits'
+            - $ref: "#/components/schemas/RobotCapabilityLimits"
 
     UserCapabilityAssignment:
       type: object
-      required: [id, userId, capabilityId, capabilityStableKey, capabilityName, isEnabled, createdAt, updatedAt]
+      required:
+        [
+          id,
+          userId,
+          capabilityId,
+          capabilityStableKey,
+          capabilityName,
+          isEnabled,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           type: integer
@@ -4034,7 +4173,7 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotCapabilityLimits'
+            - $ref: "#/components/schemas/RobotCapabilityLimits"
         createdByUserId:
           type: integer
           nullable: true
@@ -4059,7 +4198,7 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotCapabilityLimits'
+            - $ref: "#/components/schemas/RobotCapabilityLimits"
     UserEffectiveCapabilitiesResponse:
       type: object
       required: [userId, orgId, capabilities]
@@ -4072,7 +4211,33 @@ components:
         capabilities:
           type: array
           items:
-            $ref: '#/components/schemas/EntitlementCapability'
+            $ref: "#/components/schemas/EntitlementCapability"
+    OrganizationEffectiveCapabilitiesResponse:
+      type: object
+      required: [orgId, subscription, capabilities]
+      properties:
+        orgId:
+          type: integer
+        subscription:
+          $ref: "#/components/schemas/EntitlementSubscription"
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntitlementCapability"
+    RobotEffectiveCapabilitiesResponse:
+      type: object
+      required: [robotId, orgId, subscription, capabilities]
+      properties:
+        robotId:
+          type: integer
+        orgId:
+          type: integer
+        subscription:
+          $ref: "#/components/schemas/EntitlementSubscription"
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntitlementCapability"
 
     EntitlementCapability:
       type: object
@@ -4101,39 +4266,42 @@ components:
           nullable: true
           additionalProperties: true
           description: Validated per-robot capability parameter limits.
+    EntitlementSubscription:
+      type: object
+      required: [status, planStableKey, validFrom, validUntil]
+      properties:
+        status:
+          type: string
+          enum: [NONE, ACTIVE, EXPIRED, INACTIVE, NOT_YET_ACTIVE]
+        planId:
+          type: integer
+          nullable: true
+        planStableKey:
+          type: string
+          nullable: true
+        planVersion:
+          type: integer
+          nullable: true
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+
     RobotEntitlements:
       type: object
       required: [subscription, paidCapabilities]
       properties:
         subscription:
-          type: object
-          required: [status, planStableKey, validFrom, validUntil]
-          properties:
-            status:
-              type: string
-              enum: [NONE, ACTIVE, EXPIRED, INACTIVE, NOT_YET_ACTIVE]
-            planId:
-              type: integer
-              nullable: true
-            planStableKey:
-              type: string
-              nullable: true
-            planVersion:
-              type: integer
-              nullable: true
-            validFrom:
-              type: string
-              format: date-time
-              nullable: true
-            validUntil:
-              type: string
-              format: date-time
-              nullable: true
+          $ref: "#/components/schemas/EntitlementSubscription"
         paidCapabilities:
           type: array
           description: Effective paid capability set after active subscription capabilities are adjusted by organization ALLOW/DENY overrides and filtered by enabled per-robot assignments. Empty when subscription is missing, inactive, expired, not yet active, assigned to an inactive plan, all capabilities are denied by overrides, or the robot has no enabled assignments.
           items:
-            $ref: '#/components/schemas/EntitlementCapability'
+            $ref: "#/components/schemas/EntitlementCapability"
     CreateOrganizationRequest:
       type: object
       required: [name, state, city, authorizedPersonName, contactNo, email]
@@ -4208,7 +4376,7 @@ components:
           example: organization
         targetId:
           type: string
-          example: '7'
+          example: "7"
         targetOrgId:
           type: integer
           nullable: true
@@ -4344,12 +4512,22 @@ components:
         models:
           type: array
           items:
-            $ref: '#/components/schemas/RobotHardwareModel'
+            $ref: "#/components/schemas/RobotHardwareModel"
         capabilities:
           type: array
           items:
             type: string
-            enum: [camera, microphone, speaker, touchDisplay, videoPlayback, speechRecognition, autonomousNavigation, armMotion]
+            enum:
+              [
+                camera,
+                microphone,
+                speaker,
+                touchDisplay,
+                videoPlayback,
+                speechRecognition,
+                autonomousNavigation,
+                armMotion,
+              ]
         minAndroidApiLevel:
           type: integer
           minimum: 1
@@ -4367,7 +4545,7 @@ components:
           type: integer
         stableKey:
           type: string
-          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
           description: Stable immutable capability key used by clients and entitlement policies.
         name:
           type: string
@@ -4384,7 +4562,7 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/CapabilityHardwareRequirements'
+            - $ref: "#/components/schemas/CapabilityHardwareRequirements"
         isActive:
           type: boolean
         createdAt:
@@ -4400,7 +4578,7 @@ components:
       properties:
         stableKey:
           type: string
-          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
           example: speech.recognition
         name:
           type: string
@@ -4415,7 +4593,7 @@ components:
           minimum: 1
           example: 1
         requiredHardware:
-          $ref: '#/components/schemas/CapabilityHardwareRequirements'
+          $ref: "#/components/schemas/CapabilityHardwareRequirements"
         isActive:
           type: boolean
           default: true
@@ -4438,19 +4616,29 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/CapabilityHardwareRequirements'
+            - $ref: "#/components/schemas/CapabilityHardwareRequirements"
         isActive:
           type: boolean
 
     SubscriptionPlan:
       type: object
-      required: [id, stableKey, name, version, isActive, capabilities, createdAt, updatedAt]
+      required:
+        [
+          id,
+          stableKey,
+          name,
+          version,
+          isActive,
+          capabilities,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           type: integer
         stableKey:
           type: string
-          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
           description: Stable immutable plan key used by entitlement policies.
         name:
           type: string
@@ -4466,7 +4654,7 @@ components:
           type: array
           description: Exactly the active capabilities configured on this subscription plan.
           items:
-            $ref: '#/components/schemas/Capability'
+            $ref: "#/components/schemas/Capability"
         createdAt:
           type: string
           format: date-time
@@ -4480,7 +4668,7 @@ components:
       properties:
         stableKey:
           type: string
-          pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
           example: starter
         name:
           type: string
@@ -4536,7 +4724,7 @@ components:
         serialNumber:
           type: string
           maxLength: 64
-          pattern: '^[A-Za-z0-9._:-]+$'
+          pattern: "^[A-Za-z0-9._:-]+$"
         name:
           type: string
           nullable: true
@@ -4547,7 +4735,7 @@ components:
           type: string
           format: date-time
         licenseStatus:
-          $ref: '#/components/schemas/LicenseStatus'
+          $ref: "#/components/schemas/LicenseStatus"
         revokedAt:
           type: string
           format: date-time
@@ -4577,13 +4765,13 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotHardwareProfile'
+            - $ref: "#/components/schemas/RobotHardwareProfile"
           description: Validated robot hardware profile. This is metadata only; final entitlement and safety-policy resolution are handled by later CMS phases.
         hardwareCapabilities:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotHardwareCapabilitySet'
+            - $ref: "#/components/schemas/RobotHardwareCapabilitySet"
           description: Effective permitted capability set returned by CMS for the stored hardware profile. F03 disables safety-controlled capabilities.
         createdAt:
           type: string
@@ -4595,7 +4783,7 @@ components:
           type: string
           minLength: 10
           maxLength: 10
-          pattern: '^WHRB[0-9]{6}$'
+          pattern: "^WHRB[0-9]{6}$"
           description: Returned only to Super Admin in robot management responses. Organization users never receive this field from list APIs.
         licenseKeyMasked:
           type: string
@@ -4613,7 +4801,7 @@ components:
         serialNumber:
           type: string
           maxLength: 64
-          pattern: '^[A-Za-z0-9._:-]+$'
+          pattern: "^[A-Za-z0-9._:-]+$"
         name:
           type: string
           nullable: true
@@ -4624,7 +4812,7 @@ components:
           type: string
           format: date-time
         licenseStatus:
-          $ref: '#/components/schemas/LicenseStatus'
+          $ref: "#/components/schemas/LicenseStatus"
         revokedAt:
           type: string
           format: date-time
@@ -4654,13 +4842,13 @@ components:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotHardwareProfile'
+            - $ref: "#/components/schemas/RobotHardwareProfile"
           description: Validated robot hardware profile. This is metadata only; final entitlement and safety-policy resolution are handled by later CMS phases.
         hardwareCapabilities:
           type: object
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/RobotHardwareCapabilitySet'
+            - $ref: "#/components/schemas/RobotHardwareCapabilitySet"
           description: Effective permitted capability set returned by CMS for the stored hardware profile. F03 disables safety-controlled capabilities.
         createdAt:
           type: string
@@ -4684,7 +4872,7 @@ components:
       required: [status, validFrom, validUntil, revokedAt]
       properties:
         status:
-          $ref: '#/components/schemas/LicenseStatus'
+          $ref: "#/components/schemas/LicenseStatus"
         validFrom:
           type: string
           format: date-time
@@ -4698,7 +4886,17 @@ components:
     RobotAuditHistoryItem:
       type: object
       description: Sanitized robot audit event. Metadata is redacted using the shared audit sanitizer and never includes tokens, license keys, ciphertext, fingerprints or credential secrets.
-      required: [id, action, actorUserId, actorOrgId, targetOrgId, correlationId, metadata, createdAt]
+      required:
+        [
+          id,
+          action,
+          actorUserId,
+          actorOrgId,
+          targetOrgId,
+          correlationId,
+          metadata,
+          createdAt,
+        ]
       properties:
         id:
           type: integer
@@ -4728,13 +4926,13 @@ components:
       required: [robot, license, auditHistory]
       properties:
         robot:
-          $ref: '#/components/schemas/RobotDetail'
+          $ref: "#/components/schemas/RobotDetail"
         license:
-          $ref: '#/components/schemas/RobotLicenseState'
+          $ref: "#/components/schemas/RobotLicenseState"
         auditHistory:
           type: array
           items:
-            $ref: '#/components/schemas/RobotAuditHistoryItem'
+            $ref: "#/components/schemas/RobotAuditHistoryItem"
     CreateRobotRequest:
       type: object
       required: [serialNumber, validFrom, validUntil]
@@ -4745,7 +4943,7 @@ components:
         serialNumber:
           type: string
           maxLength: 64
-          pattern: '^[A-Za-z0-9._:-]+$'
+          pattern: "^[A-Za-z0-9._:-]+$"
         name:
           type: string
           maxLength: 80
@@ -4756,7 +4954,7 @@ components:
           type: string
           format: date-time
         hardwareProfile:
-          $ref: '#/components/schemas/RobotHardwareProfile'
+          $ref: "#/components/schemas/RobotHardwareProfile"
     RobotHardwareModel:
       type: string
       enum: [MINI_ELF, ELF, NANO, S5]
@@ -4806,7 +5004,7 @@ components:
           readOnly: true
           example: 1
         model:
-          $ref: '#/components/schemas/RobotHardwareModel'
+          $ref: "#/components/schemas/RobotHardwareModel"
         label:
           type: string
           readOnly: true
@@ -4823,12 +5021,21 @@ components:
           type: string
           enum: [arm64-v8a, armeabi-v7a]
         display:
-          $ref: '#/components/schemas/RobotHardwareDisplay'
+          $ref: "#/components/schemas/RobotHardwareDisplay"
         capabilities:
-          $ref: '#/components/schemas/RobotHardwareCapabilitySet'
+          $ref: "#/components/schemas/RobotHardwareCapabilitySet"
     RobotDeviceProfileUpdateRequest:
       type: object
-      required: [manufacturer, deviceModel, androidVersion, apiLevel, appVersionName, appVersionCode, hardwareProfile]
+      required:
+        [
+          manufacturer,
+          deviceModel,
+          androidVersion,
+          apiLevel,
+          appVersionName,
+          appVersionCode,
+          hardwareProfile,
+        ]
       additionalProperties: false
       properties:
         manufacturer:
@@ -4845,7 +5052,7 @@ components:
           type: string
           minLength: 1
           maxLength: 32
-          pattern: '^[0-9A-Za-z._ -]+$'
+          pattern: "^[0-9A-Za-z._ -]+$"
           example: 7.1.2
         apiLevel:
           type: integer
@@ -4855,26 +5062,26 @@ components:
           type: string
           minLength: 1
           maxLength: 40
-          pattern: '^[0-9A-Za-z._+-]+$'
+          pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
         appVersionCode:
           type: integer
           minimum: 1
           example: 2
         hardwareProfile:
-          $ref: '#/components/schemas/RobotHardwareProfile'
+          $ref: "#/components/schemas/RobotHardwareProfile"
     RobotDeviceProfileUpdateResponse:
       type: object
       required: [robot, license, updatedAt]
       properties:
         robot:
-          $ref: '#/components/schemas/Robot'
+          $ref: "#/components/schemas/Robot"
         license:
           type: object
           required: [status, validFrom, validUntil]
           properties:
             status:
-              $ref: '#/components/schemas/LicenseStatus'
+              $ref: "#/components/schemas/LicenseStatus"
             validFrom:
               type: string
               format: date-time
@@ -4886,7 +5093,7 @@ components:
           format: date-time
     RobotEnrollmentResponse:
       allOf:
-        - $ref: '#/components/schemas/Robot'
+        - $ref: "#/components/schemas/Robot"
         - type: object
           required: [licenseKey]
           properties:
@@ -4894,7 +5101,7 @@ components:
               type: string
               minLength: 10
               maxLength: 10
-              pattern: '^WHRB[0-9]{6}$'
+              pattern: "^WHRB[0-9]{6}$"
               description: Activation license key generated during enrollment in WHRB plus six digits format.
             licenseKeyMasked:
               type: string
@@ -4902,7 +5109,7 @@ components:
               example: WHRB12...3456
     RobotCredentialRotationResponse:
       allOf:
-        - $ref: '#/components/schemas/Robot'
+        - $ref: "#/components/schemas/Robot"
         - type: object
           required: [licenseKey]
           properties:
@@ -4910,7 +5117,7 @@ components:
               type: string
               minLength: 10
               maxLength: 10
-              pattern: '^WHRB[0-9]{6}$'
+              pattern: "^WHRB[0-9]{6}$"
               description: New activation license key generated during credential rotation. The previous key is no longer valid.
             licenseKeyMasked:
               type: string
@@ -4950,15 +5157,26 @@ components:
           description: Incremented when tenant-scoped cache should be reset.
     RobotReassignmentResponse:
       allOf:
-        - $ref: '#/components/schemas/Robot'
+        - $ref: "#/components/schemas/Robot"
         - type: object
           required: [org]
           properties:
             org:
-              $ref: '#/components/schemas/RobotOrganizationSummary'
+              $ref: "#/components/schemas/RobotOrganizationSummary"
     RobotReassignmentHistoryItem:
       type: object
-      required: [id, robotId, actorUserId, actorOrgId, oldOrgId, newOrgId, targetOrgId, correlationId, createdAt]
+      required:
+        [
+          id,
+          robotId,
+          actorUserId,
+          actorOrgId,
+          oldOrgId,
+          newOrgId,
+          targetOrgId,
+          correlationId,
+          createdAt,
+        ]
       additionalProperties: false
       properties:
         id:
@@ -4996,7 +5214,7 @@ components:
           type: string
           format: date-time
         status:
-          $ref: '#/components/schemas/LicenseStatus'
+          $ref: "#/components/schemas/LicenseStatus"
         locked:
           type: boolean
     RobotLoginLicense:
@@ -5010,7 +5228,7 @@ components:
           type: string
           format: date-time
         status:
-          $ref: '#/components/schemas/LicenseStatus'
+          $ref: "#/components/schemas/LicenseStatus"
         locked:
           type: boolean
     LicenseStatus:
@@ -5033,11 +5251,11 @@ components:
         primaryColor:
           type: string
           nullable: true
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
         secondaryColor:
           type: string
           nullable: true
-          pattern: '^#[0-9A-Fa-f]{6}$'
+          pattern: "^#[0-9A-Fa-f]{6}$"
         tenantVersion:
           type: integer
         cacheVersion:
@@ -5053,17 +5271,17 @@ components:
           type: object
           additionalProperties: true
         organization:
-          $ref: '#/components/schemas/OrganizationContext'
+          $ref: "#/components/schemas/OrganizationContext"
         entitlements:
-          $ref: '#/components/schemas/RobotEntitlements'
+          $ref: "#/components/schemas/RobotEntitlements"
         myCourses:
           type: array
           items:
-            $ref: '#/components/schemas/Course'
+            $ref: "#/components/schemas/Course"
         publicCatalog:
           type: array
           items:
-            $ref: '#/components/schemas/Course'
+            $ref: "#/components/schemas/Course"
         syncedAt:
           type: string
           format: date-time
@@ -5074,7 +5292,7 @@ components:
         logs:
           type: array
           items:
-            $ref: '#/components/schemas/UsageLogItem'
+            $ref: "#/components/schemas/UsageLogItem"
     UploadUsageLogsResponse:
       type: object
       required: [inserted]
@@ -5126,7 +5344,7 @@ components:
         levels:
           type: array
           items:
-            $ref: '#/components/schemas/Level'
+            $ref: "#/components/schemas/Level"
     Level:
       type: object
       additionalProperties: true
@@ -5145,11 +5363,11 @@ components:
         chapters:
           type: array
           items:
-            $ref: '#/components/schemas/Chapter'
+            $ref: "#/components/schemas/Chapter"
         lessons:
           type: array
           items:
-            $ref: '#/components/schemas/Lesson'
+            $ref: "#/components/schemas/Lesson"
     Chapter:
       type: object
       additionalProperties: true
@@ -5168,7 +5386,7 @@ components:
         lessons:
           type: array
           items:
-            $ref: '#/components/schemas/Lesson'
+            $ref: "#/components/schemas/Lesson"
     Lesson:
       type: object
       additionalProperties: true
@@ -5368,7 +5586,7 @@ components:
           additionalProperties: true
     UpdateSectionRequest:
       allOf:
-        - $ref: '#/components/schemas/CreateSectionRequest'
+        - $ref: "#/components/schemas/CreateSectionRequest"
     Notification:
       type: object
       additionalProperties: true

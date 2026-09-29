@@ -39,6 +39,11 @@ git diff --check -- <CMS-51 files>
 
 ## Results
 
-Pending final rerun after CMS_V1 CMS-51 blocker fixes.
+PASS.
 
-OpenAPI SHA-256: `640F80411088B5696EFF4B5328D07A84183D87B6BF9D7DA87C8B737090F732EF`.
+- Targeted resolver suite passed: 5 suites, 63 tests.
+- `npm run prisma:generate` passed.
+- `npm run build` passed.
+- `npm run test:unit` passed: 23 suites, 146 tests.
+- User-only effective capability regression is covered so missing robot hardware context does not remove user-visible capabilities.
+- OpenAPI SHA-256: `640F80411088B5696EFF4B5328D07A84183D87B6BF9D7DA87C8B737090F732EF`.
