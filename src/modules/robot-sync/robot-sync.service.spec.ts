@@ -517,6 +517,131 @@ describe("RobotSyncService heartbeat updates", () => {
     expect((result as any).entitlements.paidCapabilities).toEqual([]);
   });
 
+  it("applies entitlement revocation on the next manifest sync", async () => {
+    const audio = {
+      id: 1,
+      stableKey: "audio.speaker",
+      name: "Speaker Output",
+      description: null,
+      category: "audio",
+      version: 1,
+      requiredHardware: null,
+      isActive: true,
+    };
+    const speech = {
+      id: 2,
+      stableKey: "speech.recognition",
+      name: "Speech Recognition",
+      description: null,
+      category: "speech",
+      version: 1,
+      requiredHardware: null,
+      isActive: true,
+    };
+
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 1,
+      orgId: 1,
+      planId: 2,
+      status: SubscriptionStatus.ACTIVE,
+      validFrom: new Date("2026-01-01T00:00:00.000Z"),
+      validUntil: new Date("2099-01-01T00:00:00.000Z"),
+      plan: {
+        id: 2,
+        stableKey: "speech-plus",
+        version: 1,
+        isActive: true,
+        capabilities: [{ capability: audio }, { capability: speech }],
+      },
+    });
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([
+      {
+        id: 1,
+        robotId: 10,
+        capabilityId: 1,
+        isEnabled: true,
+        limits: null,
+        capability: audio,
+      },
+      {
+        id: 2,
+        robotId: 10,
+        capabilityId: 2,
+        isEnabled: true,
+        limits: null,
+        capability: speech,
+      },
+    ]);
+
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValueOnce([]);
+    const beforeRevocation = await service.sync(10);
+    expect(
+      (beforeRevocation as any).entitlements.paidCapabilities.map(
+        (capability: any) => capability.stableKey,
+      ),
+    ).toEqual(["audio.speaker", "speech.recognition"]);
+
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValueOnce([
+      {
+        id: 10,
+        orgId: 1,
+        capabilityId: 2,
+        effect: CapabilityOverrideEffect.DENY,
+        reason: "Revoked after QA failure",
+        capability: speech,
+      },
+    ]);
+    const afterRevocation = await service.sync(10);
+
+    expect(
+      (afterRevocation as any).entitlements.paidCapabilities.map(
+        (capability: any) => capability.stableKey,
+      ),
+    ).toEqual(["audio.speaker"]);
+    expect(JSON.stringify((afterRevocation as any).entitlements)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("removes paid capabilities on the next manifest sync when subscription is inactive", async () => {
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 1,
+      orgId: 1,
+      planId: 2,
+      status: SubscriptionStatus.INACTIVE,
+      validFrom: new Date("2026-01-01T00:00:00.000Z"),
+      validUntil: new Date("2099-01-01T00:00:00.000Z"),
+      plan: {
+        id: 2,
+        stableKey: "starter",
+        version: 1,
+        isActive: true,
+        capabilities: [
+          {
+            capability: {
+              id: 1,
+              stableKey: "audio.speaker",
+              name: "Speaker Output",
+              description: null,
+              category: "audio",
+              version: 1,
+              requiredHardware: null,
+              isActive: true,
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await service.sync(10);
+
+    expect((result as any).entitlements.subscription.status).toBe("INACTIVE");
+    expect((result as any).entitlements.paidCapabilities).toEqual([]);
+    expect(JSON.stringify((result as any).entitlements)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
   it("stores the approved Android device and hardware profile for the authenticated robot", async () => {
     const { licenseKey: _licenseKey, ...robotWithoutLicenseKey } = buildRobot();
     prisma.robot.update.mockResolvedValue({

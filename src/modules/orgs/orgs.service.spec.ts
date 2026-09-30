@@ -330,6 +330,9 @@ describe("OrgsService", () => {
       }),
       tx,
     );
+    expect(JSON.stringify(audit.recordCritical.mock.calls)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
     expect(result.capabilityStableKey).toBe("speech.recognition");
     expect(result.capabilityName).toBe("Speech Recognition");
     expect(result.capability.stableKey).toBe("speech.recognition");
