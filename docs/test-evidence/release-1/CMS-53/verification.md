@@ -47,3 +47,9 @@ npm run build
 - Frontend lint passed with existing warnings outside the CMS-53 page.
 - OpenAPI YAML parse passed after adding the preview endpoint contract.
 - Focused `git diff --check` passed for CMS-53 backend and frontend files.
+
+# CMS-53 V1 Fix Note
+
+- Capability Access remains Super Admin-only because it depends on Super Admin organization administration endpoints.
+- Organization capability override responses include top-level `capabilityStableKey` and `capabilityName` to match OpenAPI.
+- Org-user navigation excludes stale `capability-assignments` dashboard rows.

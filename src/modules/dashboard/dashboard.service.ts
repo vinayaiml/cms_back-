@@ -33,7 +33,7 @@ export class DashboardService {
       icon: "sliders",
       sortOrder: 17,
       requiredPermission: "subscription.manage",
-      isSuperAdminOnly: false,
+      isSuperAdminOnly: true,
       isActive: true,
       templateType: "NONE",
       templateConfig: null,
@@ -142,7 +142,11 @@ export class DashboardService {
 
     const sections: DashboardSection[] =
       await this.prisma.dashboardSection.findMany({
-        where: { isActive: true, isSuperAdminOnly: false },
+        where: {
+          isActive: true,
+          isSuperAdminOnly: false,
+          key: { not: "capability-assignments" },
+        },
         orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       });
 
@@ -152,13 +156,6 @@ export class DashboardService {
     ) {
       sections.push(this.subscriptionPlansSection());
     }
-    if (
-      permKeys.has("subscription.manage") &&
-      !sections.some((s) => s.key === "capability-assignments")
-    ) {
-      sections.push(this.capabilityAssignmentsSection());
-    }
-
     return sections.filter(
       (s: DashboardSection) =>
         !s.requiredPermission || permKeys.has(s.requiredPermission),

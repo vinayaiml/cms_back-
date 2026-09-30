@@ -584,6 +584,7 @@ async function main() {
       icon: "sliders",
       sortOrder: 17,
       requiredPermission: "subscription.manage",
+      isSuperAdminOnly: true,
     },
 
     // Dynamic analytics page (no code page required)

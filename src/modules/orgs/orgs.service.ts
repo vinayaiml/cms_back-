@@ -370,6 +370,8 @@ export class OrgsService {
       id: override.id,
       orgId: override.orgId,
       capabilityId: override.capabilityId,
+      capabilityStableKey: override.capability.stableKey,
+      capabilityName: override.capability.name,
       effect: override.effect,
       reason: override.reason,
       createdByUserId: override.createdByUserId,

@@ -46,3 +46,9 @@ PASS.
 - `npm run test:unit` in backend passed: 23 suites, 146 tests.
 - Focused `git diff --check` passed in both CMS_V1 backend and frontend repositories.
 - No OpenAPI route/schema change was required because CMS-52 consumes existing capability and subscription-plan APIs.
+
+# CMS-52 V1 Fix Note
+
+- `/capabilities` and `/capabilities/:id` allow either `capability.read` or `subscription.read` for safe catalogue reads.
+- Capability mutations still require `capability.manage` and Super Admin checks.
+- Regression coverage added for any-permission guard behavior and capability controller metadata.
