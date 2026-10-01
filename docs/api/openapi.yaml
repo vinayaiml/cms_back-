@@ -301,11 +301,52 @@ paths:
               examples:
                 success:
                   value:
+                    manifestVersion: 1.0.0
                     locked: false
+                    tenant:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
                     license:
                       status: ACTIVE
                       validFrom: "2026-01-01T00:00:00.000Z"
                       validUntil: "2027-01-01T00:00:00.000Z"
+                    capabilities:
+                      schemaVersion: 1
+                      resolver: cms-entitlements-v1
+                      effective:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
+                    policies:
+                      schemaVersion: 1
+                      offlineCache:
+                        enabled: true
+                        scope: tenant
+                        cacheVersion: org-1-v1
+                      sync:
+                        fullSyncRequired: false
+                        retryAfterSeconds: 30
+                    contentVersions:
+                      cacheVersion: org-1-v1
+                      tenantVersion: 1
+                      myCoursesVersion: my-courses-org-1-v1-0
+                      publicCatalogVersion: public-catalog-v1-0
+                      myCoursesCount: 0
+                      publicCatalogCount: 0
+                    sync:
+                      serverTime: "2026-08-27T00:00:00.000Z"
+                      syncedAt: "2026-08-27T00:00:00.000Z"
+                      idempotencyKey: robot-10-org-1-org-1-v1
                     organization:
                       orgId: 1
                       orgName: Demo School
@@ -778,11 +819,52 @@ paths:
               examples:
                 success:
                   value:
+                    manifestVersion: 1.0.0
                     locked: false
+                    tenant:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
                     license:
                       status: ACTIVE
                       validFrom: "2026-01-01T00:00:00.000Z"
                       validUntil: "2027-01-01T00:00:00.000Z"
+                    capabilities:
+                      schemaVersion: 1
+                      resolver: cms-entitlements-v1
+                      effective:
+                        - id: 1
+                          stableKey: audio.speaker
+                          name: Speaker Output
+                          category: audio
+                          version: 1
+                          requiredHardware:
+                            capabilities: [speaker]
+                    policies:
+                      schemaVersion: 1
+                      offlineCache:
+                        enabled: true
+                        scope: tenant
+                        cacheVersion: org-1-v1
+                      sync:
+                        fullSyncRequired: false
+                        retryAfterSeconds: 30
+                    contentVersions:
+                      cacheVersion: org-1-v1
+                      tenantVersion: 1
+                      myCoursesVersion: my-courses-org-1-v1-0
+                      publicCatalogVersion: public-catalog-v1-0
+                      myCoursesCount: 0
+                      publicCatalogCount: 0
+                    sync:
+                      serverTime: "2026-08-27T00:00:00.000Z"
+                      syncedAt: "2026-08-27T00:00:00.000Z"
+                      idempotencyKey: robot-10-org-1-org-1-v1
                     organization:
                       orgId: 1
                       orgName: Demo School
@@ -5260,20 +5342,121 @@ components:
           type: integer
         cacheVersion:
           type: string
+    RobotBootstrapCapabilities:
+      type: object
+      required: [schemaVersion, effective, resolver]
+      additionalProperties: false
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        resolver:
+          type: string
+          example: cms-entitlements-v1
+        effective:
+          type: array
+          description: Effective capability set after subscription, organization overrides, robot assignment and hardware filtering.
+          items:
+            $ref: "#/components/schemas/EntitlementCapability"
+    RobotBootstrapPolicies:
+      type: object
+      required: [schemaVersion, offlineCache, sync]
+      additionalProperties: false
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        offlineCache:
+          type: object
+          required: [enabled, scope, cacheVersion]
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+            scope:
+              type: string
+              enum: [tenant]
+            cacheVersion:
+              type: string
+        sync:
+          type: object
+          required: [fullSyncRequired, retryAfterSeconds]
+          additionalProperties: false
+          properties:
+            fullSyncRequired:
+              type: boolean
+            retryAfterSeconds:
+              type: integer
+              minimum: 0
+    RobotBootstrapContentVersions:
+      type: object
+      required:
+        [cacheVersion, tenantVersion, myCoursesVersion, publicCatalogVersion, myCoursesCount, publicCatalogCount]
+      additionalProperties: false
+      properties:
+        cacheVersion:
+          type: string
+        tenantVersion:
+          type: integer
+        myCoursesVersion:
+          type: string
+        publicCatalogVersion:
+          type: string
+        myCoursesCount:
+          type: integer
+          minimum: 0
+        publicCatalogCount:
+          type: integer
+          minimum: 0
+    RobotBootstrapSyncMetadata:
+      type: object
+      required: [serverTime, syncedAt, idempotencyKey]
+      additionalProperties: false
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        syncedAt:
+          type: string
+          format: date-time
+        idempotencyKey:
+          type: string
     RobotSyncResponse:
       type: object
+      required:
+        [manifestVersion, locked, tenant, license, capabilities, policies, contentVersions, sync]
       properties:
+        manifestVersion:
+          type: string
+          description: Bootstrap manifest contract version. Android should branch on this value for offline cache parsing.
+          example: 1.0.0
         locked:
           type: boolean
         reason:
           type: string
+        tenant:
+          $ref: "#/components/schemas/OrganizationContext"
         license:
           type: object
           additionalProperties: true
+        capabilities:
+          $ref: "#/components/schemas/RobotBootstrapCapabilities"
+        policies:
+          $ref: "#/components/schemas/RobotBootstrapPolicies"
+        contentVersions:
+          $ref: "#/components/schemas/RobotBootstrapContentVersions"
+        sync:
+          $ref: "#/components/schemas/RobotBootstrapSyncMetadata"
         organization:
-          $ref: "#/components/schemas/OrganizationContext"
+          allOf:
+            - $ref: "#/components/schemas/OrganizationContext"
+          deprecated: true
+          description: Backward-compatible alias of tenant. New clients should read tenant.
         entitlements:
-          $ref: "#/components/schemas/RobotEntitlements"
+          allOf:
+            - $ref: "#/components/schemas/RobotEntitlements"
+          deprecated: true
+          description: Backward-compatible entitlement block. New clients should read capabilities.effective.
         myCourses:
           type: array
           items:
@@ -5285,6 +5468,8 @@ components:
         syncedAt:
           type: string
           format: date-time
+          deprecated: true
+          description: Backward-compatible alias of sync.syncedAt.
     UploadUsageLogsRequest:
       type: object
       required: [logs]

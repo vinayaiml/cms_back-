@@ -101,6 +101,72 @@ export class RobotSyncService {
     };
   }
 
+  private buildBootstrapManifest(input: {
+    robotId: number;
+    tenant: ReturnType<RobotSyncService["toOrganizationContext"]>;
+    locked: boolean;
+    reason?: string;
+    license: {
+      status: LicenseStatus;
+      validFrom: Date;
+      validUntil: Date;
+    };
+    entitlements: { subscription: unknown; paidCapabilities: unknown[] };
+    myCourses?: unknown[];
+    publicCatalog?: unknown[];
+    syncedAt?: string;
+  }) {
+    const myCourses = input.myCourses ?? [];
+    const publicCatalog = input.publicCatalog ?? [];
+    const syncedAt = input.syncedAt ?? new Date().toISOString();
+    const contentVersions = {
+      cacheVersion: input.tenant.cacheVersion,
+      tenantVersion: input.tenant.tenantVersion,
+      myCoursesVersion: `my-courses-org-${input.tenant.orgId}-v${input.tenant.tenantVersion}-${myCourses.length}`,
+      publicCatalogVersion: `public-catalog-v1-${publicCatalog.length}`,
+      myCoursesCount: myCourses.length,
+      publicCatalogCount: publicCatalog.length,
+    };
+    const policies = {
+      schemaVersion: 1,
+      offlineCache: {
+        enabled: true,
+        scope: "tenant",
+        cacheVersion: input.tenant.cacheVersion,
+      },
+      sync: {
+        fullSyncRequired: false,
+        retryAfterSeconds: 30,
+      },
+    };
+    const capabilities = {
+      schemaVersion: 1,
+      effective: input.entitlements.paidCapabilities,
+      resolver: "cms-entitlements-v1",
+    };
+
+    return {
+      manifestVersion: "1.0.0",
+      locked: input.locked,
+      ...(input.reason ? { reason: input.reason } : {}),
+      tenant: input.tenant,
+      license: input.license,
+      capabilities,
+      policies,
+      contentVersions,
+      sync: {
+        serverTime: syncedAt,
+        syncedAt,
+        idempotencyKey: `robot-${input.robotId}-org-${input.tenant.orgId}-${input.tenant.cacheVersion}`,
+      },
+      organization: input.tenant,
+      entitlements: input.entitlements,
+      myCourses,
+      publicCatalog,
+      syncedAt,
+    };
+  }
+
   private computeLicenseStatus(
     validUntil: Date,
     revokedAt: Date | null,
@@ -333,7 +399,9 @@ export class RobotSyncService {
     });
 
     if (locked) {
-      return {
+      return this.buildBootstrapManifest({
+        robotId: robot.id,
+        tenant: this.toOrganizationContext(robot.org),
         locked: true,
         reason: status,
         license: {
@@ -341,7 +409,16 @@ export class RobotSyncService {
           validFrom: robot.validFrom,
           validUntil: robot.validUntil,
         },
-      };
+        entitlements: {
+          subscription: {
+            status,
+            planStableKey: null,
+            validFrom: null,
+            validUntil: null,
+          },
+          paidCapabilities: [],
+        },
+      });
     }
 
     // 1) Org-owned courses (always full access)
@@ -459,27 +536,29 @@ export class RobotSyncService {
       },
     });
 
-    return {
+    const tenant = this.toOrganizationContext(robot.org);
+    const publicCatalog = publicCourses.map((c: PublicCourse) => ({
+      id: c.id,
+      courseCode: c.courseCode,
+      courseName: c.courseName,
+      description: c.description,
+      courseImageUrl: c.courseImageUrl,
+      logoUrl: c.logoUrl,
+      introLevel: c.introLevel,
+    }));
+    return this.buildBootstrapManifest({
+      robotId: robot.id,
+      tenant,
       locked: false,
       license: {
         status,
         validFrom: robot.validFrom,
         validUntil: robot.validUntil,
       },
-      organization: this.toOrganizationContext(robot.org),
       entitlements,
       myCourses,
-      publicCatalog: publicCourses.map((c: PublicCourse) => ({
-        id: c.id,
-        courseCode: c.courseCode,
-        courseName: c.courseName,
-        description: c.description,
-        courseImageUrl: c.courseImageUrl,
-        logoUrl: c.logoUrl,
-        introLevel: c.introLevel,
-      })),
-      syncedAt: new Date().toISOString(),
-    };
+      publicCatalog,
+    });
   }
 
   async updateDeviceProfile(robotId: number, input: RobotDeviceProfileUpdate) {

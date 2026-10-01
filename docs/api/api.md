@@ -35,13 +35,13 @@ New Android, CMS frontend, and backend integrations should use `/api/v1`.
 
 Approved legacy test routes still work temporarily, but they are deprecated:
 
-| Legacy route | Version 1 route |
-| --- | --- |
-| `POST /api/auth/login` | `POST /api/v1/auth/login` |
-| `POST /api/robot/auth/login` | `POST /api/v1/robot/auth/login` |
+| Legacy route                   | Version 1 route                   |
+| ------------------------------ | --------------------------------- |
+| `POST /api/auth/login`         | `POST /api/v1/auth/login`         |
+| `POST /api/robot/auth/login`   | `POST /api/v1/robot/auth/login`   |
 | `POST /api/robot/auth/refresh` | `POST /api/v1/robot/auth/refresh` |
-| `GET /api/robot/sync` | `GET /api/v1/robot/sync` |
-| `POST /api/robot/logs/batch` | `POST /api/v1/robot/logs/batch` |
+| `GET /api/robot/sync`          | `GET /api/v1/robot/sync`          |
+| `POST /api/robot/logs/batch`   | `POST /api/v1/robot/logs/batch`   |
 
 Legacy routes log a warning in the backend terminal:
 
@@ -105,10 +105,6 @@ Expected status:
 201 Created
 ```
 
-
-
-
-
 ## Organization Subscription Assignment
 
 F04 organization subscriptions connect an organization to a configured subscription plan and validity window. Reads require `subscription.read`; assignment requires Super Admin with `subscription.manage`.
@@ -151,7 +147,6 @@ Robot sync returns the effective paid entitlement set under `entitlements`. If t
 ```
 
 Subscription assignment and robot sync entitlement responses never return robot license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
-
 
 ## Organization Capability Overrides
 
@@ -238,7 +233,11 @@ Authorization: Bearer <user-token>
 
 ```json
 {
-  "capabilityStableKeys": ["audio.speaker", "display.touch", "media.video-playback"]
+  "capabilityStableKeys": [
+    "audio.speaker",
+    "display.touch",
+    "media.video-playback"
+  ]
 }
 ```
 
@@ -500,7 +499,6 @@ Authorization: Bearer <user-token>
 X-Correlation-Id: <request-id>
 ```
 
-
 Per-robot capability assignments restrict which organization-effective capabilities a robot actually receives during sync. Authorized admins can assign one active, organization-permitted capability and optional validated parameter limits.
 
 ```text
@@ -608,7 +606,7 @@ Robot sync uses this resolver for `entitlements.paidCapabilities`, so Android re
 
 ## Robot Sync
 
-Use this route after robot login. It returns the robot configuration and available content.
+Use this route after robot login. It returns the versioned robot bootstrap manifest for tenant context, license state, effective capabilities, offline/cache policy, content version markers and sync metadata.
 
 ```text
 GET http://localhost:3001/api/v1/robot/sync
@@ -628,15 +626,55 @@ Success response:
 
 ```json
 {
+  "manifestVersion": "1.0.0",
   "locked": false,
+  "tenant": {
+    "orgId": 1,
+    "orgName": "Demo School",
+    "displayName": "Demo School",
+    "logoUrl": "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+    "primaryColor": "#1D4ED8",
+    "secondaryColor": "#F97316",
+    "tenantVersion": 1,
+    "cacheVersion": "org-1-v1"
+  },
   "license": {
     "status": "ACTIVE",
     "validFrom": "2026-02-28T11:26:06.106Z",
     "validUntil": "2026-11-25T11:26:06.106Z"
   },
+  "capabilities": {
+    "schemaVersion": 1,
+    "resolver": "cms-entitlements-v1",
+    "effective": []
+  },
+  "policies": {
+    "schemaVersion": 1,
+    "offlineCache": {
+      "enabled": true,
+      "scope": "tenant",
+      "cacheVersion": "org-1-v1"
+    },
+    "sync": {
+      "fullSyncRequired": false,
+      "retryAfterSeconds": 30
+    }
+  },
+  "contentVersions": {
+    "cacheVersion": "org-1-v1",
+    "tenantVersion": 1,
+    "myCoursesVersion": "my-courses-org-1-v1-0",
+    "publicCatalogVersion": "public-catalog-v1-0",
+    "myCoursesCount": 0,
+    "publicCatalogCount": 0
+  },
+  "sync": {
+    "serverTime": "2026-08-31T06:41:24.929Z",
+    "syncedAt": "2026-08-31T06:41:24.929Z",
+    "idempotencyKey": "robot-10-org-1-org-1-v1"
+  },
   "myCourses": [],
-  "publicCatalog": [],
-  "syncedAt": "2026-08-31T06:41:24.929Z"
+  "publicCatalog": []
 }
 ```
 
@@ -760,13 +798,13 @@ Content-Type: application/json
 
 Android mock fixtures should map to the OpenAPI examples by operation ID:
 
-| Operation ID | Route | Fixture purpose |
-| --- | --- | --- |
-| `loginUserV1` | `POST /api/v1/auth/login` | CMS user/admin login success and credential failures |
-| `loginRobotV1` | `POST /api/v1/robot/auth/login` | Robot activation login success, invalid license or serial, expired license, revoked license and inactive organisation |
-| `refreshRobotTokenV1` | `POST /api/v1/robot/auth/refresh` | Access-token renewal success, invalid or expired refresh token, expired license, revoked license and inactive organisation |
-| `syncRobotV1` | `GET /api/v1/robot/sync` | Active robot configuration, locked license and inactive organisation |
-| `uploadRobotLogsBatchV1` | `POST /api/v1/robot/logs/batch` | New log upload, duplicate retry and validation errors |
+| Operation ID             | Route                             | Fixture purpose                                                                                                            |
+| ------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `loginUserV1`            | `POST /api/v1/auth/login`         | CMS user/admin login success and credential failures                                                                       |
+| `loginRobotV1`           | `POST /api/v1/robot/auth/login`   | Robot activation login success, invalid license or serial, expired license, revoked license and inactive organisation      |
+| `refreshRobotTokenV1`    | `POST /api/v1/robot/auth/refresh` | Access-token renewal success, invalid or expired refresh token, expired license, revoked license and inactive organisation |
+| `syncRobotV1`            | `GET /api/v1/robot/sync`          | Active robot configuration, locked license and inactive organisation                                                       |
+| `uploadRobotLogsBatchV1` | `POST /api/v1/robot/logs/batch`   | New log upload, duplicate retry and validation errors                                                                      |
 
 Use the `/api/v1` examples as the fixture source. Legacy examples exist only to verify temporary backwards compatibility.
 
@@ -798,9 +836,7 @@ Wrong request body:
 
 ```json
 {
-  "message": [
-    "logs must be an array"
-  ],
+  "message": ["logs must be an array"],
   "error": "Bad Request",
   "statusCode": 400
 }

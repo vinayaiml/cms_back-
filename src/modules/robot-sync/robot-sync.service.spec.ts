@@ -132,6 +132,169 @@ describe("RobotSyncService heartbeat updates", () => {
     expect(prisma.event.create).not.toHaveBeenCalled();
   });
 
+  it("returns the versioned bootstrap manifest contract", async () => {
+    const result = await service.sync(10);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        manifestVersion: "1.0.0",
+        locked: false,
+        tenant: {
+          orgId: 1,
+          orgName: "Demo School",
+          displayName: "Demo School",
+          logoUrl: "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+          primaryColor: "#1D4ED8",
+          secondaryColor: "#F97316",
+          tenantVersion: 1,
+          cacheVersion: "org-1-v1",
+        },
+        license: {
+          status: LicenseStatus.ACTIVE,
+          validFrom: new Date("2026-01-01T00:00:00.000Z"),
+          validUntil: new Date("2099-01-01T00:00:00.000Z"),
+        },
+        capabilities: {
+          schemaVersion: 1,
+          effective: [],
+          resolver: "cms-entitlements-v1",
+        },
+        policies: {
+          schemaVersion: 1,
+          offlineCache: {
+            enabled: true,
+            scope: "tenant",
+            cacheVersion: "org-1-v1",
+          },
+          sync: {
+            fullSyncRequired: false,
+            retryAfterSeconds: 30,
+          },
+        },
+        contentVersions: {
+          cacheVersion: "org-1-v1",
+          tenantVersion: 1,
+          myCoursesVersion: "my-courses-org-1-v1-0",
+          publicCatalogVersion: "public-catalog-v1-0",
+          myCoursesCount: 0,
+          publicCatalogCount: 0,
+        },
+        sync: {
+          serverTime: expect.any(String),
+          syncedAt: expect.any(String),
+          idempotencyKey: "robot-10-org-1-org-1-v1",
+        },
+      }),
+    );
+    expect((result as any).organization).toEqual((result as any).tenant);
+    expect((result as any).entitlements.paidCapabilities).toBe(
+      (result as any).capabilities.effective,
+    );
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it.each([
+    {
+      name: "expired",
+      robot: buildRobot({
+        validUntil: new Date("2025-01-01T00:00:00.000Z"),
+        licenseStatus: LicenseStatus.ACTIVE,
+      }),
+      expectedStatus: LicenseStatus.EXPIRED,
+    },
+    {
+      name: "revoked",
+      robot: buildRobot({
+        revokedAt: new Date("2026-02-01T00:00:00.000Z"),
+        licenseStatus: LicenseStatus.ACTIVE,
+      }),
+      expectedStatus: LicenseStatus.REVOKED,
+    },
+  ])(
+    "returns the versioned bootstrap manifest contract when a robot license is $name",
+    async ({ robot, expectedStatus }) => {
+      prisma.robot.findUnique.mockResolvedValue(robot);
+
+      const result = await service.sync(10);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          manifestVersion: "1.0.0",
+          locked: true,
+          reason: expectedStatus,
+          tenant: expect.objectContaining({
+            orgId: 1,
+            tenantVersion: 1,
+            cacheVersion: "org-1-v1",
+          }),
+          license: {
+            status: expectedStatus,
+            validFrom: new Date("2026-01-01T00:00:00.000Z"),
+            validUntil: robot.validUntil,
+          },
+          capabilities: {
+            schemaVersion: 1,
+            effective: [],
+            resolver: "cms-entitlements-v1",
+          },
+          policies: expect.objectContaining({
+            schemaVersion: 1,
+            offlineCache: expect.objectContaining({ cacheVersion: "org-1-v1" }),
+          }),
+          contentVersions: expect.objectContaining({
+            cacheVersion: "org-1-v1",
+            myCoursesCount: 0,
+            publicCatalogCount: 0,
+          }),
+          sync: expect.objectContaining({
+            serverTime: expect.any(String),
+            syncedAt: expect.any(String),
+          }),
+        }),
+      );
+      expect((result as any).organization).toEqual((result as any).tenant);
+      expect((result as any).entitlements.paidCapabilities).toEqual([]);
+      expect(prisma.course.findMany).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toMatch(
+        /licenseKey|token|password|secret/i,
+      );
+    },
+  );
+
+  it("rejects inactive organization sync with the shared locked error before building content", async () => {
+    prisma.robot.findUnique.mockResolvedValue(
+      buildRobot({
+        org: {
+          id: 1,
+          name: "Demo School",
+          isActive: false,
+          logoUrl: "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+          primaryColor: "#1D4ED8",
+          secondaryColor: "#F97316",
+          tenantVersion: 1,
+        },
+      }),
+    );
+
+    await expect(service.sync(10)).rejects.toBeInstanceOf(
+      DomainLockedException,
+    );
+    expect(prisma.event.create).toHaveBeenCalledWith({
+      data: {
+        orgId: 1,
+        robotId: 10,
+        type: "ROBOT_ACCESS_REJECTED_ORG_INACTIVE",
+        payload: {
+          reason: "ORG_INACTIVE",
+          endpoint: "robot.sync",
+        },
+      },
+    });
+    expect(prisma.course.findMany).not.toHaveBeenCalled();
+  });
+
   it("returns safe organization context for the authenticated robot tenant", async () => {
     const result = await service.sync(10);
 
