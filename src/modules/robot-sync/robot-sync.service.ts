@@ -10,7 +10,7 @@ import {
 } from "@prisma/client";
 import { DomainLockedException } from "../../common/errors/domain-locked.exception";
 import { normalizeRobotHardwareProfile } from "../robots/robot-hardware-profile";
-import { EntitlementsService } from "../entitlements/entitlements.service";
+import { RobotManifestResolver } from "./robot-manifest.resolver";
 
 type Allowed = {
   full: boolean;
@@ -85,87 +85,8 @@ type PublicCourse = Prisma.CourseGetPayload<{
 export class RobotSyncService {
   constructor(
     private prisma: PrismaService,
-    private entitlements: EntitlementsService,
+    private manifestResolver: RobotManifestResolver,
   ) {}
-
-  private toOrganizationContext(org: OrgContext) {
-    return {
-      orgId: org.id,
-      orgName: org.name,
-      displayName: org.name,
-      logoUrl: org.logoUrl,
-      primaryColor: org.primaryColor,
-      secondaryColor: org.secondaryColor,
-      tenantVersion: org.tenantVersion,
-      cacheVersion: `org-${org.id}-v${org.tenantVersion}`,
-    };
-  }
-
-  private buildBootstrapManifest(input: {
-    robotId: number;
-    tenant: ReturnType<RobotSyncService["toOrganizationContext"]>;
-    locked: boolean;
-    reason?: string;
-    license: {
-      status: LicenseStatus;
-      validFrom: Date;
-      validUntil: Date;
-    };
-    entitlements: { subscription: unknown; paidCapabilities: unknown[] };
-    myCourses?: unknown[];
-    publicCatalog?: unknown[];
-    syncedAt?: string;
-  }) {
-    const myCourses = input.myCourses ?? [];
-    const publicCatalog = input.publicCatalog ?? [];
-    const syncedAt = input.syncedAt ?? new Date().toISOString();
-    const contentVersions = {
-      cacheVersion: input.tenant.cacheVersion,
-      tenantVersion: input.tenant.tenantVersion,
-      myCoursesVersion: `my-courses-org-${input.tenant.orgId}-v${input.tenant.tenantVersion}-${myCourses.length}`,
-      publicCatalogVersion: `public-catalog-v1-${publicCatalog.length}`,
-      myCoursesCount: myCourses.length,
-      publicCatalogCount: publicCatalog.length,
-    };
-    const policies = {
-      schemaVersion: 1,
-      offlineCache: {
-        enabled: true,
-        scope: "tenant",
-        cacheVersion: input.tenant.cacheVersion,
-      },
-      sync: {
-        fullSyncRequired: false,
-        retryAfterSeconds: 30,
-      },
-    };
-    const capabilities = {
-      schemaVersion: 1,
-      effective: input.entitlements.paidCapabilities,
-      resolver: "cms-entitlements-v1",
-    };
-
-    return {
-      manifestVersion: "1.0.0",
-      locked: input.locked,
-      ...(input.reason ? { reason: input.reason } : {}),
-      tenant: input.tenant,
-      license: input.license,
-      capabilities,
-      policies,
-      contentVersions,
-      sync: {
-        serverTime: syncedAt,
-        syncedAt,
-        idempotencyKey: `robot-${input.robotId}-org-${input.tenant.orgId}-${input.tenant.cacheVersion}`,
-      },
-      organization: input.tenant,
-      entitlements: input.entitlements,
-      myCourses,
-      publicCatalog,
-      syncedAt,
-    };
-  }
 
   private computeLicenseStatus(
     validUntil: Date,
@@ -399,25 +320,11 @@ export class RobotSyncService {
     });
 
     if (locked) {
-      return this.buildBootstrapManifest({
-        robotId: robot.id,
-        tenant: this.toOrganizationContext(robot.org),
+      return this.manifestResolver.resolve({
+        robot,
+        licenseStatus: status,
         locked: true,
         reason: status,
-        license: {
-          status,
-          validFrom: robot.validFrom,
-          validUntil: robot.validUntil,
-        },
-        entitlements: {
-          subscription: {
-            status,
-            planStableKey: null,
-            validFrom: null,
-            validUntil: null,
-          },
-          paidCapabilities: [],
-        },
       });
     }
 
@@ -498,13 +405,6 @@ export class RobotSyncService {
       ...orgOwnedCourses,
       ...filteredAssigned,
     ];
-    const entitlements = await this.entitlements.resolve({
-      orgId: robot.orgId,
-      robotId: robot.id,
-      hardwareCapabilities: robot.hardwareCapabilities,
-      enforceHardware: true,
-    });
-
     // 3) Public catalog = PUBLIC courses, only intro level, only PUBLIC_PREVIEW lessons
     const publicCourses: PublicCourse[] = await this.prisma.course.findMany({
       where: {
@@ -536,7 +436,6 @@ export class RobotSyncService {
       },
     });
 
-    const tenant = this.toOrganizationContext(robot.org);
     const publicCatalog = publicCourses.map((c: PublicCourse) => ({
       id: c.id,
       courseCode: c.courseCode,
@@ -546,16 +445,10 @@ export class RobotSyncService {
       logoUrl: c.logoUrl,
       introLevel: c.introLevel,
     }));
-    return this.buildBootstrapManifest({
-      robotId: robot.id,
-      tenant,
+    return this.manifestResolver.resolve({
+      robot,
+      licenseStatus: status,
       locked: false,
-      license: {
-        status,
-        validFrom: robot.validFrom,
-        validUntil: robot.validUntil,
-      },
-      entitlements,
       myCourses,
       publicCatalog,
     });

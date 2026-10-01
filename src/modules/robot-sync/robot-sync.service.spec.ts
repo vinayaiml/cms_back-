@@ -8,6 +8,7 @@ import { DomainLockedException } from "../../common/errors/domain-locked.excepti
 import { PrismaService } from "../../prisma/prisma.service";
 import { RobotSyncService } from "./robot-sync.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { RobotManifestResolver } from "./robot-manifest.resolver";
 
 function buildRobot(overrides: Record<string, unknown> = {}) {
   return {
@@ -74,9 +75,12 @@ describe("RobotSyncService heartbeat updates", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const entitlements = new EntitlementsService(
+      prisma as unknown as PrismaService,
+    );
     service = new RobotSyncService(
       prisma as unknown as PrismaService,
-      new EntitlementsService(prisma as unknown as PrismaService),
+      new RobotManifestResolver(entitlements),
     );
     prisma.robot.findUnique.mockResolvedValue(buildRobot());
     prisma.robot.update.mockResolvedValue({});
@@ -348,6 +352,164 @@ describe("RobotSyncService heartbeat updates", () => {
       cacheVersion: "org-2-v2",
     });
     expect((result as any).organization.orgId).not.toBe(1);
+  });
+
+  it("returns a complete manifest with content and effective entitlements for the test robot", async () => {
+    const orgCourse = {
+      id: 101,
+      courseCode: "ORG-MATH-1",
+      courseName: "Org Math",
+      source: "ORGANIZATION",
+      visibility: "PRIVATE",
+      levels: [],
+    };
+    const publicCourse = {
+      id: 201,
+      courseCode: "PUBLIC-INTRO",
+      courseName: "Public Intro",
+      description: "Intro preview",
+      courseImageUrl: null,
+      logoUrl: null,
+      introLevel: { id: 301, name: "Intro", chapters: [], lessons: [] },
+    };
+    prisma.course.findMany
+      .mockResolvedValueOnce([orgCourse])
+      .mockResolvedValueOnce([publicCourse]);
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 1,
+      orgId: 1,
+      planId: 2,
+      status: SubscriptionStatus.ACTIVE,
+      validFrom: new Date("2026-01-01T00:00:00.000Z"),
+      validUntil: new Date("2099-01-01T00:00:00.000Z"),
+      plan: {
+        id: 2,
+        stableKey: "speech-plus",
+        version: 1,
+        isActive: true,
+        capabilities: [
+          {
+            capability: {
+              id: 1,
+              stableKey: "audio.speaker",
+              name: "Speaker Output",
+              description: null,
+              category: "audio",
+              version: 1,
+              requiredHardware: null,
+              isActive: true,
+            },
+          },
+          {
+            capability: {
+              id: 2,
+              stableKey: "speech.recognition",
+              name: "Speech Recognition",
+              description: null,
+              category: "speech",
+              version: 1,
+              requiredHardware: null,
+              isActive: true,
+            },
+          },
+        ],
+      },
+    });
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([
+      {
+        id: 1,
+        orgId: 1,
+        capabilityId: 2,
+        effect: CapabilityOverrideEffect.DENY,
+        reason: "Disabled for pilot",
+        capability: {
+          id: 2,
+          stableKey: "speech.recognition",
+          name: "Speech Recognition",
+          description: null,
+          category: "speech",
+          version: 1,
+          requiredHardware: null,
+          isActive: true,
+        },
+      },
+    ]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([
+      {
+        id: 1,
+        robotId: 10,
+        capabilityId: 1,
+        isEnabled: true,
+        limits: { maxVolume: 80 },
+        capability: {
+          id: 1,
+          stableKey: "audio.speaker",
+          name: "Speaker Output",
+          description: null,
+          category: "audio",
+          version: 1,
+          requiredHardware: null,
+          isActive: true,
+        },
+      },
+      {
+        id: 2,
+        robotId: 10,
+        capabilityId: 2,
+        isEnabled: true,
+        limits: null,
+        capability: {
+          id: 2,
+          stableKey: "speech.recognition",
+          name: "Speech Recognition",
+          description: null,
+          category: "speech",
+          version: 1,
+          requiredHardware: null,
+          isActive: true,
+        },
+      },
+    ]);
+
+    const result = await service.sync(10);
+
+    expect((result as any).manifestVersion).toBe("1.0.0");
+    expect((result as any).tenant).toEqual({
+      orgId: 1,
+      orgName: "Demo School",
+      displayName: "Demo School",
+      logoUrl: "https://assets.whizrobo.test/orgs/demo-school-logo.png",
+      primaryColor: "#1D4ED8",
+      secondaryColor: "#F97316",
+      tenantVersion: 1,
+      cacheVersion: "org-1-v1",
+    });
+    expect(
+      (result as any).capabilities.effective.map(
+        (capability: any) => capability.stableKey,
+      ),
+    ).toEqual(["audio.speaker"]);
+    expect((result as any).capabilities.effective[0].limits).toEqual({
+      maxVolume: 80,
+    });
+    expect((result as any).entitlements.paidCapabilities).toBe(
+      (result as any).capabilities.effective,
+    );
+    expect((result as any).myCourses).toEqual([orgCourse]);
+    expect((result as any).publicCatalog).toEqual([publicCourse]);
+    expect((result as any).contentVersions).toEqual({
+      cacheVersion: "org-1-v1",
+      tenantVersion: 1,
+      myCoursesVersion: "my-courses-org-1-v1-1",
+      publicCatalogVersion: "public-catalog-v1-1",
+      myCoursesCount: 1,
+      publicCatalogCount: 1,
+    });
+    expect((result as any).policies.offlineCache.cacheVersion).toBe("org-1-v1");
+    expect((result as any).sync.idempotencyKey).toBe("robot-10-org-1-org-1-v1");
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
   });
 
   it("returns active subscription paid capabilities exactly from the assigned plan", async () => {

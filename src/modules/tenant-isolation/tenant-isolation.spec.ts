@@ -5,6 +5,7 @@ import { JwtPayload } from "../../common/auth/jwt.types";
 import { OrgsController } from "../orgs/orgs.controller";
 import { RobotSyncService } from "../robot-sync/robot-sync.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
 import { RobotsController } from "../robots/robots.controller";
 import { RolesController } from "../roles/roles.controller";
 import { RolesService } from "../roles/roles.service";
@@ -236,18 +237,10 @@ describe("CMS-37 cross-tenant authorization regression suite", () => {
       event: { create: jest.fn() },
       course: { findMany: jest.fn() },
       orgCourseAccess: { findMany: jest.fn() },
-      organizationSubscription: {
-        findFirst: jest.fn().mockResolvedValue(null),
-      },
-      organizationCapabilityOverride: {
-        findMany: jest.fn().mockResolvedValue([]),
-      },
-      robotCapabilityAssignment: { findMany: jest.fn().mockResolvedValue([]) },
-      userCapabilityAssignment: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const service = new RobotSyncService(
       prisma as any,
-      new EntitlementsService(prisma as any),
+      new RobotManifestResolver(new EntitlementsService(prisma as any)),
     );
 
     await expect(service.sync(77)).rejects.toBeInstanceOf(
