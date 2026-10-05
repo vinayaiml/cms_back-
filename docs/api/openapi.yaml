@@ -282,6 +282,14 @@ paths:
             pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
           description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-App-Version-Code
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 2
+          description: Optional Android app version code heartbeat used to evaluate app update policy fields.
         - name: X-Robot-Device-Model
           in: header
           required: false
@@ -350,6 +358,14 @@ paths:
                       sync:
                         fullSyncRequired: false
                         retryAfterSeconds: 30
+                      appUpdate:
+                        minimumSupportedVersionName: 0.1.0
+                        minimumSupportedVersionCode: 1
+                        recommendedVersionName: 0.1.0
+                        recommendedVersionCode: 1
+                        currentVersionCode: 2
+                        updateRequired: false
+                        updateRecommended: false
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
@@ -437,6 +453,14 @@ paths:
             pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
           description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-App-Version-Code
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 2
+          description: Optional Android app version code heartbeat used to evaluate app update policy fields.
         - name: X-Robot-Device-Model
           in: header
           required: false
@@ -978,6 +1002,14 @@ paths:
             pattern: "^[0-9A-Za-z._+-]+$"
           example: 0.1.0
           description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-App-Version-Code
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 2
+          description: Optional Android app version code heartbeat used to evaluate app update policy fields.
         - name: X-Robot-Device-Model
           in: header
           required: false
@@ -1046,6 +1078,14 @@ paths:
                       sync:
                         fullSyncRequired: false
                         retryAfterSeconds: 30
+                      appUpdate:
+                        minimumSupportedVersionName: 0.1.0
+                        minimumSupportedVersionCode: 1
+                        recommendedVersionName: 0.1.0
+                        recommendedVersionCode: 1
+                        currentVersionCode: 2
+                        updateRequired: false
+                        updateRecommended: false
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
@@ -5561,7 +5601,7 @@ components:
             $ref: "#/components/schemas/EntitlementCapability"
     RobotBootstrapPolicies:
       type: object
-      required: [schemaVersion, offlineCache, sync]
+      required: [schemaVersion, offlineCache, sync, appUpdate]
       additionalProperties: false
       properties:
         schemaVersion:
@@ -5589,6 +5629,35 @@ components:
             retryAfterSeconds:
               type: integer
               minimum: 0
+        appUpdate:
+          type: object
+          required:
+            [minimumSupportedVersionName, minimumSupportedVersionCode, recommendedVersionName, recommendedVersionCode, currentVersionCode, updateRequired, updateRecommended]
+          additionalProperties: false
+          properties:
+            minimumSupportedVersionName:
+              type: string
+              example: 0.1.0
+            minimumSupportedVersionCode:
+              type: integer
+              minimum: 0
+              example: 1
+            recommendedVersionName:
+              type: string
+              example: 0.1.0
+            recommendedVersionCode:
+              type: integer
+              minimum: 0
+              example: 1
+            currentVersionCode:
+              type: integer
+              minimum: 0
+              nullable: true
+              example: 2
+            updateRequired:
+              type: boolean
+            updateRecommended:
+              type: boolean
     RobotBootstrapContentVersions:
       type: object
       required:

@@ -52,7 +52,11 @@ function validateOptionalIntegerHeader(value: string | undefined, name: string) 
   return Number(trimmed);
 }
 
-function buildHeartbeat(appVersionHeader?: string | string[], deviceModelHeader?: string | string[]) {
+function buildHeartbeat(
+  appVersionHeader?: string | string[],
+  deviceModelHeader?: string | string[],
+  appVersionCodeHeader?: string | string[],
+) {
   return {
     appVersion: validateOptionalHeader(
       optionalHeader(appVersionHeader),
@@ -65,6 +69,10 @@ function buildHeartbeat(appVersionHeader?: string | string[], deviceModelHeader?
       'x-robot-device-model',
       80,
       /^[0-9A-Za-z._+() -]+$/,
+    ),
+    appVersionCode: validateOptionalIntegerHeader(
+      optionalHeader(appVersionCodeHeader),
+      'x-robot-app-version-code',
     ),
   };
 }
@@ -86,6 +94,7 @@ export class RobotSyncController {
     @CurrentUser() actor: JwtPayload,
     @Headers('x-robot-app-version') appVersionHeader?: string | string[],
     @Headers('x-robot-device-model') deviceModelHeader?: string | string[],
+    @Headers('x-robot-app-version-code') appVersionCodeHeader?: string | string[],
     @Headers('if-none-match') ifNoneMatchHeader?: string | string[],
     @Res({ passthrough: true }) response?: Response,
   ) {
@@ -94,6 +103,7 @@ export class RobotSyncController {
     const heartbeat: RobotSyncHeartbeat = buildHeartbeat(
       appVersionHeader,
       deviceModelHeader,
+      appVersionCodeHeader,
     );
 
     const manifest = await this.syncService.sync(actor.sub, heartbeat);
@@ -115,6 +125,7 @@ export class RobotSyncController {
     @CurrentUser() actor: JwtPayload,
     @Headers('x-robot-app-version') appVersionHeader?: string | string[],
     @Headers('x-robot-device-model') deviceModelHeader?: string | string[],
+    @Headers('x-robot-app-version-code') appVersionCodeHeader?: string | string[],
     @Headers('if-none-match') ifNoneMatchHeader?: string | string[],
     @Headers('x-robot-cache-version') cacheVersionHeader?: string | string[],
     @Headers('x-robot-tenant-version') tenantVersionHeader?: string | string[],
@@ -127,6 +138,7 @@ export class RobotSyncController {
     const heartbeat: RobotSyncHeartbeat = buildHeartbeat(
       appVersionHeader,
       deviceModelHeader,
+      appVersionCodeHeader,
     );
     const clientVersions: RobotSyncChangesInput = {
       manifestHash: normalizeEtag(optionalHeader(ifNoneMatchHeader)),

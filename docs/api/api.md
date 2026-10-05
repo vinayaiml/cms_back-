@@ -617,11 +617,12 @@ Headers:
 ```text
 Authorization: Bearer <robot-access-token>
 X-Robot-App-Version: 0.1.0
+X-Robot-App-Version-Code: 2
 X-Robot-Device-Model: Mini ELF
 If-None-Match: "<previous-manifest-hash>"
 ```
 
-`X-Robot-App-Version` and `X-Robot-Device-Model` are optional heartbeat headers. When supplied, CMS stores them on the authenticated robot record and updates `lastSeenAt`. The values are never used to identify another robot or organization.
+`X-Robot-App-Version`, `X-Robot-App-Version-Code` and `X-Robot-Device-Model` are optional heartbeat headers. When supplied, CMS stores safe heartbeat fields on the authenticated robot record, updates `lastSeenAt`, and uses the version code to evaluate the manifest app-update policy. The values are never used to identify another robot or organization.
 
 `If-None-Match` is optional. Send the `ETag` value from the previous successful sync. If the authenticated robot tenant manifest has not changed, CMS returns `304 Not Modified` with no body and the same `ETag`.
 
@@ -662,6 +663,15 @@ Success response:
     "sync": {
       "fullSyncRequired": false,
       "retryAfterSeconds": 30
+    },
+    "appUpdate": {
+      "minimumSupportedVersionName": "0.1.0",
+      "minimumSupportedVersionCode": 1,
+      "recommendedVersionName": "0.1.0",
+      "recommendedVersionCode": 1,
+      "currentVersionCode": 2,
+      "updateRequired": false,
+      "updateRecommended": false
     }
   },
   "contentVersions": {
@@ -704,6 +714,7 @@ Headers:
 ```text
 Authorization: Bearer <robot-access-token>
 If-None-Match: "<previous-manifest-hash>"
+X-Robot-App-Version-Code: 2
 X-Robot-Cache-Version: org-1-v1
 X-Robot-Tenant-Version: 1
 X-Robot-My-Courses-Version: my-courses-org-1-v1-0

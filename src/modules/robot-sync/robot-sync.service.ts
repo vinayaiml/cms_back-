@@ -28,6 +28,7 @@ type AssignmentRow = {
 export type RobotSyncHeartbeat = {
   appVersion?: string;
   deviceModel?: string;
+  appVersionCode?: number;
 };
 
 export type RobotSyncChangesInput = {
@@ -327,12 +328,16 @@ export class RobotSyncService {
       },
     });
 
+    const appVersionCode =
+      heartbeat.appVersionCode ?? this.getStoredAppVersionCode(robot.deviceMetadata);
+
     if (locked) {
       return this.manifestResolver.resolve({
         robot,
         licenseStatus: status,
         locked: true,
         reason: status,
+        appVersionCode,
       });
     }
 
@@ -457,6 +462,7 @@ export class RobotSyncService {
       robot,
       licenseStatus: status,
       locked: false,
+      appVersionCode,
       myCourses,
       publicCatalog,
     });
@@ -527,6 +533,9 @@ export class RobotSyncService {
 
     if (client.manifestHash !== manifest.sync.manifestHash) {
       changed.license = manifest.license;
+      if (!changed.policies) {
+        changed.policies = manifest.policies;
+      }
     }
 
     return {

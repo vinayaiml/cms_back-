@@ -209,6 +209,7 @@ describe("RobotSyncService heartbeat updates", () => {
     );
     expect((result as any).changed.publicCatalog).toEqual([publicCourse]);
     expect((result as any).changed.license).toEqual(full.license);
+    expect((result as any).changed.policies).toEqual(full.policies);
     expect((result as any).changed).not.toHaveProperty("tenant");
     expect((result as any).changed).not.toHaveProperty("myCourses");
     expect(JSON.stringify(result)).not.toMatch(
@@ -255,6 +256,15 @@ describe("RobotSyncService heartbeat updates", () => {
             fullSyncRequired: false,
             retryAfterSeconds: 30,
           },
+          appUpdate: {
+            minimumSupportedVersionName: "0.1.0",
+            minimumSupportedVersionCode: 1,
+            recommendedVersionName: "0.1.0",
+            recommendedVersionCode: 1,
+            currentVersionCode: null,
+            updateRequired: false,
+            updateRecommended: false,
+          },
         },
         contentVersions: {
           cacheVersion: "org-1-v1",
@@ -279,6 +289,48 @@ describe("RobotSyncService heartbeat updates", () => {
     );
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("marks app update as required when robot app version code is below minimum", async () => {
+    const result = await service.sync(10, {
+      appVersion: "0.0.1",
+      appVersionCode: 0,
+    });
+
+    expect((result as any).policies.appUpdate).toEqual({
+      minimumSupportedVersionName: "0.1.0",
+      minimumSupportedVersionCode: 1,
+      recommendedVersionName: "0.1.0",
+      recommendedVersionCode: 1,
+      currentVersionCode: 0,
+      updateRequired: true,
+      updateRecommended: true,
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("uses stored approved device profile app version code when heartbeat omits it", async () => {
+    prisma.robot.findUnique.mockResolvedValue(
+      buildRobot({
+        deviceMetadata: {
+          schemaVersion: 2,
+          storage: "approved-device-profile",
+          appVersionCode: 2,
+        },
+      }),
+    );
+
+    const result = await service.sync(10);
+
+    expect((result as any).policies.appUpdate).toEqual(
+      expect.objectContaining({
+        currentVersionCode: 2,
+        updateRequired: false,
+        updateRecommended: false,
+      }),
     );
   });
 
@@ -593,6 +645,13 @@ describe("RobotSyncService heartbeat updates", () => {
       publicCatalogCount: 1,
     });
     expect((result as any).policies.offlineCache.cacheVersion).toBe("org-1-v1");
+    expect((result as any).policies.appUpdate).toEqual(
+      expect.objectContaining({
+        minimumSupportedVersionName: "0.1.0",
+        minimumSupportedVersionCode: 1,
+        updateRequired: false,
+      }),
+    );
     expect((result as any).sync.idempotencyKey).toBe("robot-10-org-1-org-1-v1");
     expect((result as any).sync.configVersion).toMatch(/^manifest-[0-9a-f]{16}$/);
     expect((result as any).sync.manifestHash).toMatch(/^[0-9a-f]{64}$/);

@@ -37,11 +37,13 @@ describe("RobotSyncController heartbeat headers", () => {
       { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
       "0.1.0",
       "Mini ELF",
+      "2",
     );
 
     expect(syncService.sync).toHaveBeenCalledWith(10, {
       appVersion: "0.1.0",
       deviceModel: "Mini ELF",
+      appVersionCode: 2,
     });
   });
 
@@ -56,6 +58,7 @@ describe("RobotSyncController heartbeat headers", () => {
 
     const result = await controller.sync(
       { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
+      undefined,
       undefined,
       undefined,
       `"${"a".repeat(64)}"`,
@@ -84,6 +87,7 @@ describe("RobotSyncController heartbeat headers", () => {
       { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
       "0.1.0",
       "Mini ELF",
+      "2",
       `"${"c".repeat(64)}"`,
       "org-1-v1",
       "1",
@@ -101,7 +105,7 @@ describe("RobotSyncController heartbeat headers", () => {
         myCoursesVersion: "my-courses-org-1-v1-0",
         publicCatalogVersion: "public-catalog-v1-0",
       },
-      { appVersion: "0.1.0", deviceModel: "Mini ELF" },
+      { appVersion: "0.1.0", deviceModel: "Mini ELF", appVersionCode: 2 },
     );
     expect(response.setHeader).toHaveBeenCalledWith(
       "ETag",
@@ -122,6 +126,7 @@ describe("RobotSyncController heartbeat headers", () => {
 
     const result = await controller.changes(
       { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
+      undefined,
       undefined,
       undefined,
       `"${"d".repeat(64)}"`,
@@ -162,6 +167,23 @@ describe("RobotSyncController heartbeat headers", () => {
         { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
         "0.1.0<secret>",
         "Mini ELF",
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(syncService.sync).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid app version code heartbeat headers", async () => {
+    const controller = new RobotSyncController(
+      syncService as unknown as RobotSyncService,
+    );
+
+    await expect(
+      controller.sync(
+        { type: "robot", tokenUse: "access", sub: 10, orgId: 1 },
+        "0.1.0",
+        "Mini ELF",
+        "2.5",
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 

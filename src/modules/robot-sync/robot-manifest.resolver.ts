@@ -17,6 +17,8 @@ type RobotContext = {
   orgId: number;
   validFrom: Date;
   validUntil: Date;
+  appVersion: string | null;
+  deviceMetadata: Prisma.JsonValue | null;
   hardwareCapabilities: Prisma.JsonValue | null;
   org: OrgContext;
 };
@@ -26,9 +28,17 @@ type ManifestInput = {
   licenseStatus: LicenseStatus;
   locked: boolean;
   reason?: string;
+  appVersionCode?: number | null;
   myCourses?: unknown[];
   publicCatalog?: unknown[];
   syncedAt?: string;
+};
+
+const APP_UPDATE_POLICY = {
+  minimumSupportedVersionName: "0.1.0",
+  minimumSupportedVersionCode: 1,
+  recommendedVersionName: "0.1.0",
+  recommendedVersionCode: 1,
 };
 
 @Injectable()
@@ -72,6 +82,36 @@ export class RobotManifestResolver {
     };
   }
 
+  private getStoredAppVersionCode(deviceMetadata: Prisma.JsonValue | null) {
+    if (
+      !deviceMetadata ||
+      typeof deviceMetadata !== "object" ||
+      Array.isArray(deviceMetadata)
+    ) {
+      return null;
+    }
+
+    const value = (deviceMetadata as Record<string, unknown>).appVersionCode;
+    return typeof value === "number" && Number.isInteger(value) ? value : null;
+  }
+
+  private buildAppUpdatePolicy(appVersionCode: number | null | undefined) {
+    const currentVersionCode = appVersionCode ?? null;
+    const updateRequired =
+      currentVersionCode !== null &&
+      currentVersionCode < APP_UPDATE_POLICY.minimumSupportedVersionCode;
+    const updateRecommended =
+      currentVersionCode !== null &&
+      currentVersionCode < APP_UPDATE_POLICY.recommendedVersionCode;
+
+    return {
+      ...APP_UPDATE_POLICY,
+      currentVersionCode,
+      updateRequired,
+      updateRecommended,
+    };
+  }
+
   private buildManifest(input: {
     robotId: number;
     tenant: ReturnType<RobotManifestResolver["toTenant"]>;
@@ -86,6 +126,7 @@ export class RobotManifestResolver {
     myCourses?: unknown[];
     publicCatalog?: unknown[];
     syncedAt?: string;
+    appVersionCode?: number | null;
   }) {
     const myCourses = input.myCourses ?? [];
     const publicCatalog = input.publicCatalog ?? [];
@@ -109,6 +150,7 @@ export class RobotManifestResolver {
         fullSyncRequired: false,
         retryAfterSeconds: 30,
       },
+      appUpdate: this.buildAppUpdatePolicy(input.appVersionCode),
     };
     const capabilities = {
       schemaVersion: 1,
@@ -190,6 +232,8 @@ export class RobotManifestResolver {
       myCourses: input.myCourses,
       publicCatalog: input.publicCatalog,
       syncedAt: input.syncedAt,
+      appVersionCode:
+        input.appVersionCode ?? this.getStoredAppVersionCode(input.robot.deviceMetadata),
     });
   }
 }
