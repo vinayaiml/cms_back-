@@ -75,6 +75,15 @@ export class RobotsController {
     return parsed;
   }
 
+  private parseOptionalNonNegativeInt(value?: string, message = "Invalid robot manifest preview input") {
+    if (!value) return undefined;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new BadRequestException(message);
+    }
+    return parsed;
+  }
+
   @Get()
   @RequirePermissions("robot.read")
   async list(
@@ -136,6 +145,22 @@ export class RobotsController {
         isSuperAdmin: actor.isSuperAdmin,
       },
       correlationId,
+    );
+  }
+
+  @Get(":id/manifest-preview")
+  @RequirePermissions("robot.read")
+  async manifestPreview(
+    @CurrentUser() actor: JwtPayload,
+    @Param("id", ParseIntPipe) id: number,
+    @Query("appVersionCode") appVersionCode?: string,
+  ) {
+    if (actor.type !== "user")
+      throw new ForbiddenException("User token required");
+    return this.robots.getManifestPreview(
+      id,
+      { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      this.parseOptionalNonNegativeInt(appVersionCode),
     );
   }
 

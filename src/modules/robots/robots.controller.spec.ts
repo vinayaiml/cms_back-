@@ -8,6 +8,7 @@ describe("RobotsController fleet filters", () => {
     listAll: jest.fn(),
     listByOrg: jest.fn(),
     getDetail: jest.fn(),
+    getManifestPreview: jest.fn(),
     getEffectiveCapabilities: jest.fn(),
     listCapabilityAssignments: jest.fn(),
     upsertCapabilityAssignment: jest.fn(),
@@ -20,6 +21,7 @@ describe("RobotsController fleet filters", () => {
     robots.listAll.mockResolvedValue([]);
     robots.listByOrg.mockResolvedValue([]);
     robots.getDetail.mockResolvedValue({});
+    robots.getManifestPreview.mockResolvedValue({ schemaVersion: 1 });
     robots.getEffectiveCapabilities.mockResolvedValue({
       robotId: 10,
       capabilities: [],
@@ -83,6 +85,20 @@ describe("RobotsController fleet filters", () => {
       limit: undefined,
     });
     expect(robots.listAll).not.toHaveBeenCalled();
+  });
+
+  it("passes scoped actor context and app version code to robot manifest preview", async () => {
+    await controller.manifestPreview(
+      { type: "user", sub: 2, orgId: 1, isSuperAdmin: false },
+      10,
+      "0",
+    );
+
+    expect(robots.getManifestPreview).toHaveBeenCalledWith(
+      10,
+      { orgId: 1, isSuperAdmin: false },
+      0,
+    );
   });
 
   it("passes scoped actor context to robot detail", async () => {

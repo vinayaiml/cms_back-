@@ -2932,6 +2932,114 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /robots/{id}/manifest-preview:
+    get:
+      tags: [Robot]
+      operationId: previewRobotManifest
+      summary: Preview effective robot bootstrap manifest
+      description: Returns the sanitized effective bootstrap manifest for an authorized CMS admin without using a robot token. The response reuses the robot sync manifest schema and does not include license keys, JWTs, credential ciphertext or fingerprints.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: appVersionCode
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 0
+          description: Optional Android app version code used to preview warn/block update policy behavior.
+      responses:
+        "200":
+          description: Effective robot manifest preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotSyncResponse"
+              examples:
+                oldAppWarnOrBlock:
+                  value:
+                    schemaVersion: 1
+                    manifestVersion: "1.0.0"
+                    locked: false
+                    tenant:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
+                    license:
+                      status: ACTIVE
+                      validFrom: "2026-01-01T00:00:00.000Z"
+                      validUntil: "2027-01-01T00:00:00.000Z"
+                    capabilities:
+                      schemaVersion: 1
+                      resolver: cms-entitlements-v1
+                      effective: []
+                    policies:
+                      schemaVersion: 1
+                      offlineCache:
+                        enabled: true
+                        scope: tenant
+                        cacheVersion: org-1-v1
+                      sync:
+                        fullSyncRequired: false
+                        retryAfterSeconds: 30
+                      appUpdate:
+                        minimumSupportedVersionName: 0.1.0
+                        minimumSupportedVersionCode: 1
+                        recommendedVersionName: 0.1.0
+                        recommendedVersionCode: 1
+                        currentVersionCode: 0
+                        updateRequired: true
+                        updateRecommended: true
+                    contentVersions:
+                      cacheVersion: org-1-v1
+                      tenantVersion: 1
+                      myCoursesVersion: my-courses-org-1-v1-0
+                      publicCatalogVersion: public-catalog-v1-0
+                      myCoursesCount: 0
+                      publicCatalogCount: 0
+                    sync:
+                      serverTime: "2026-08-27T00:00:00.000Z"
+                      syncedAt: "2026-08-27T00:00:00.000Z"
+                      idempotencyKey: robot-10-org-1-org-1-v1
+                      configVersion: manifest-2a6a21d85d7d0b7c
+                      manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+                    organization:
+                      orgId: 1
+                      orgName: Demo School
+                      displayName: Demo School
+                      logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                      primaryColor: "#1D4ED8"
+                      secondaryColor: "#F97316"
+                      tenantVersion: 1
+                      cacheVersion: org-1-v1
+                    entitlements:
+                      subscription:
+                        status: ACTIVE
+                        planStableKey: null
+                        validFrom: null
+                        validUntil: null
+                      paidCapabilities: []
+                    myCourses: []
+                    publicCatalog: []
+                    syncedAt: "2026-08-27T00:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /robots/{id}/license/renew:
     put:
       tags: [Robot]

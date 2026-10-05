@@ -18,6 +18,7 @@ import {
 import { normalizeRobotHardwareProfile } from "./robot-hardware-profile";
 import { UpsertRobotCapabilityAssignmentDto } from "./robots.dto";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
 
 @Injectable()
 export class RobotsService {
@@ -25,6 +26,7 @@ export class RobotsService {
     private prisma: PrismaService,
     private audit: AuditService,
     private entitlements: EntitlementsService,
+    private manifestResolver: RobotManifestResolver,
   ) {}
 
   private readonly robotSelect = {
@@ -434,6 +436,48 @@ export class RobotsService {
         this.toRobotAuditHistoryItem(event),
       ),
     };
+  }
+
+  async getManifestPreview(
+    robotId: number,
+    actor: { orgId: number | null; isSuperAdmin: boolean },
+    appVersionCode?: number,
+  ) {
+    const robot = await this.prisma.robot.findUnique({
+      where: { id: robotId },
+      include: {
+        org: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            logoUrl: true,
+            primaryColor: true,
+            secondaryColor: true,
+            tenantVersion: true,
+          },
+        },
+      },
+    });
+    if (!robot) throw new NotFoundException("Robot not found");
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const status = this.computeLicenseStatus(robot.validUntil, robot.revokedAt);
+    const locked =
+      !robot.org.isActive ||
+      status === LicenseStatus.EXPIRED ||
+      status === LicenseStatus.REVOKED;
+    const reason = !robot.org.isActive ? "ORG_INACTIVE" : locked ? status : undefined;
+
+    return this.manifestResolver.resolve({
+      robot,
+      licenseStatus: status,
+      locked,
+      ...(reason ? { reason } : {}),
+      appVersionCode,
+      myCourses: [],
+      publicCatalog: [],
+    });
   }
 
   async createRobot(

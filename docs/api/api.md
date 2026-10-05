@@ -701,6 +701,29 @@ Expected status:
 304 Not Modified when If-None-Match matches the current manifest hash
 ```
 
+### CMS Robot Manifest Preview
+
+Authorized CMS users with `robot.read` can preview the same effective manifest shape used by robot sync without exposing robot credentials or license keys.
+
+```text
+GET http://localhost:3001/api/robots/10/manifest-preview?appVersionCode=0
+Authorization: Bearer <cms-user-token>
+```
+
+The optional `appVersionCode` query parameter lets admins preview the app-update policy an older robot app would receive. Tenant scope is enforced before resolving the manifest, so organization admins cannot preview another tenant's robot by direct ID.
+
+Expected status:
+
+```text
+200 OK
+400 Bad Request for invalid appVersionCode
+401 Unauthorized without a valid CMS user token
+403 Forbidden for unauthorized or cross-tenant access
+404 Not Found for an unknown robot
+```
+
+The preview response reuses the `RobotSyncResponse` contract and never includes robot license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
+
 ### Robot Sync Changes
 
 Use this route when the robot has a cached manifest and supports partial configuration updates. It reuses the same bootstrap manifest contract and returns only sections whose cached version is stale. If the robot does not send a usable baseline, CMS returns `requiresFullSync: true` and the robot should call the full sync route.

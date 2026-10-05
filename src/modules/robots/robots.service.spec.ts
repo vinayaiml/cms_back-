@@ -6,6 +6,7 @@ import {
 import { Prisma, LicenseStatus } from "@prisma/client";
 import { RobotsService } from "./robots.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
 
 process.env.LICENSE_SECRET_KEY =
   "unit-test-license-secret-minimum-32-characters";
@@ -117,10 +118,12 @@ describe("RobotsService device metadata", () => {
       }
       return clean;
     });
+    const entitlements = new EntitlementsService(prisma as any);
     service = new RobotsService(
       prisma as any,
       audit as any,
-      new EntitlementsService(prisma as any),
+      entitlements,
+      new RobotManifestResolver(entitlements),
     );
   });
 
@@ -1062,6 +1065,73 @@ describe("RobotsService device metadata", () => {
       serialNumber: "WR-001",
       licenseStatus: LicenseStatus.ACTIVE,
     });
+  });
+
+  it("returns a tenant-scoped effective manifest preview without license secrets", async () => {
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      org: {
+        id: 1,
+        name: "Demo Org",
+        isActive: true,
+        logoUrl: "https://assets.whizrobo.test/orgs/demo-logo.png",
+        primaryColor: "#1D4ED8",
+        secondaryColor: "#F97316",
+        tenantVersion: 4,
+      },
+    });
+    prisma.organizationSubscription.findFirst.mockResolvedValue(null);
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.userCapabilityAssignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getManifestPreview(
+      10,
+      { orgId: 1, isSuperAdmin: false },
+      0,
+    );
+
+    expect((result as any).schemaVersion).toBe(1);
+    expect((result as any).manifestVersion).toBe("1.0.0");
+    expect((result as any).tenant).toEqual(
+      expect.objectContaining({
+        orgId: 1,
+        orgName: "Demo Org",
+        cacheVersion: "org-1-v4",
+      }),
+    );
+    expect((result as any).policies.appUpdate).toEqual(
+      expect.objectContaining({
+        currentVersionCode: 0,
+        updateRequired: true,
+        updateRecommended: true,
+      }),
+    );
+    expect((result as any).sync.manifestHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("blocks manifest preview across organizations before resolving manifest", async () => {
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      org: {
+        id: 1,
+        name: "Demo Org",
+        isActive: true,
+        logoUrl: null,
+        primaryColor: null,
+        secondaryColor: null,
+        tenantVersion: 4,
+      },
+    });
+
+    await expect(
+      service.getManifestPreview(10, { orgId: 2, isSuperAdmin: false }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.organizationSubscription.findFirst).not.toHaveBeenCalled();
   });
 
   it("blocks robot detail across organizations before reading audit events", async () => {
