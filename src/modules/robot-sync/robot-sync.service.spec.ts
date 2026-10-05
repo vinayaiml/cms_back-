@@ -136,11 +136,92 @@ describe("RobotSyncService heartbeat updates", () => {
     expect(prisma.event.create).not.toHaveBeenCalled();
   });
 
+  it("returns a stable manifest hash for unchanged configuration", async () => {
+    const first = await service.sync(10);
+    const second = await service.sync(10);
+
+    expect((first as any).sync.manifestHash).toMatch(/^[0-9a-f]{64}$/);
+    expect((second as any).sync.manifestHash).toBe(
+      (first as any).sync.manifestHash,
+    );
+    expect((second as any).sync.configVersion).toBe(
+      (first as any).sync.configVersion,
+    );
+  });
+
+  it("asks for a full sync when incremental client versions are missing", async () => {
+    const result = await service.syncChanges(10, {});
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        manifestVersion: "1.0.0",
+        requiresFullSync: true,
+        fullSyncReason: "MISSING_OR_UNSUPPORTED_CLIENT_VERSIONS",
+        changed: {},
+        currentManifestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        currentConfigVersion: expect.stringMatching(/^manifest-[0-9a-f]{16}$/),
+      }),
+    );
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("returns only changed manifest sections when incremental versions are stale", async () => {
+    const publicCourse = {
+      id: 201,
+      courseCode: "PUBLIC-INTRO",
+      courseName: "Public Intro",
+      description: "Intro preview",
+      courseImageUrl: null,
+      logoUrl: null,
+      introLevel: { id: 301, name: "Intro", chapters: [], lessons: [] },
+    };
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([publicCourse]);
+
+    const full = (await service.sync(10)) as any;
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([publicCourse]);
+
+    const result = await service.syncChanges(10, {
+      manifestHash: "0".repeat(64),
+      cacheVersion: full.contentVersions.cacheVersion,
+      tenantVersion: full.contentVersions.tenantVersion,
+      myCoursesVersion: full.contentVersions.myCoursesVersion,
+      publicCatalogVersion: "public-catalog-v1-stale",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        manifestVersion: "1.0.0",
+        requiresFullSync: false,
+        currentManifestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        currentConfigVersion: expect.stringMatching(/^manifest-[0-9a-f]{16}$/),
+        contentVersions: expect.objectContaining({
+          publicCatalogVersion: "public-catalog-v1-1",
+        }),
+      }),
+    );
+    expect((result as any).changed.publicCatalog).toEqual([publicCourse]);
+    expect((result as any).changed.license).toEqual(full.license);
+    expect((result as any).changed).not.toHaveProperty("tenant");
+    expect((result as any).changed).not.toHaveProperty("myCourses");
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
   it("returns the versioned bootstrap manifest contract", async () => {
     const result = await service.sync(10);
 
     expect(result).toEqual(
       expect.objectContaining({
+        schemaVersion: 1,
         manifestVersion: "1.0.0",
         locked: false,
         tenant: {
@@ -183,11 +264,13 @@ describe("RobotSyncService heartbeat updates", () => {
           myCoursesCount: 0,
           publicCatalogCount: 0,
         },
-        sync: {
+        sync: expect.objectContaining({
           serverTime: expect.any(String),
           syncedAt: expect.any(String),
           idempotencyKey: "robot-10-org-1-org-1-v1",
-        },
+          configVersion: expect.stringMatching(/^manifest-[0-9a-f]{16}$/),
+          manifestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        }),
       }),
     );
     expect((result as any).organization).toEqual((result as any).tenant);
@@ -225,6 +308,7 @@ describe("RobotSyncService heartbeat updates", () => {
 
       expect(result).toEqual(
         expect.objectContaining({
+          schemaVersion: 1,
           manifestVersion: "1.0.0",
           locked: true,
           reason: expectedStatus,
@@ -255,6 +339,8 @@ describe("RobotSyncService heartbeat updates", () => {
           sync: expect.objectContaining({
             serverTime: expect.any(String),
             syncedAt: expect.any(String),
+            configVersion: expect.stringMatching(/^manifest-[0-9a-f]{16}$/),
+            manifestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
           }),
         }),
       );
@@ -473,6 +559,7 @@ describe("RobotSyncService heartbeat updates", () => {
 
     const result = await service.sync(10);
 
+    expect((result as any).schemaVersion).toBe(1);
     expect((result as any).manifestVersion).toBe("1.0.0");
     expect((result as any).tenant).toEqual({
       orgId: 1,
@@ -507,6 +594,8 @@ describe("RobotSyncService heartbeat updates", () => {
     });
     expect((result as any).policies.offlineCache.cacheVersion).toBe("org-1-v1");
     expect((result as any).sync.idempotencyKey).toBe("robot-10-org-1-org-1-v1");
+    expect((result as any).sync.configVersion).toMatch(/^manifest-[0-9a-f]{16}$/);
+    expect((result as any).sync.manifestHash).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
     );

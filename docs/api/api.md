@@ -618,14 +618,18 @@ Headers:
 Authorization: Bearer <robot-access-token>
 X-Robot-App-Version: 0.1.0
 X-Robot-Device-Model: Mini ELF
+If-None-Match: "<previous-manifest-hash>"
 ```
 
 `X-Robot-App-Version` and `X-Robot-Device-Model` are optional heartbeat headers. When supplied, CMS stores them on the authenticated robot record and updates `lastSeenAt`. The values are never used to identify another robot or organization.
+
+`If-None-Match` is optional. Send the `ETag` value from the previous successful sync. If the authenticated robot tenant manifest has not changed, CMS returns `304 Not Modified` with no body and the same `ETag`.
 
 Success response:
 
 ```json
 {
+  "schemaVersion": 1,
   "manifestVersion": "1.0.0",
   "locked": false,
   "tenant": {
@@ -671,7 +675,9 @@ Success response:
   "sync": {
     "serverTime": "2026-08-31T06:41:24.929Z",
     "syncedAt": "2026-08-31T06:41:24.929Z",
-    "idempotencyKey": "robot-10-org-1-org-1-v1"
+    "idempotencyKey": "robot-10-org-1-org-1-v1",
+    "configVersion": "manifest-2a6a21d85d7d0b7c",
+    "manifestHash": "2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34"
   },
   "myCourses": [],
   "publicCatalog": []
@@ -682,7 +688,72 @@ Expected status:
 
 ```text
 200 OK
+304 Not Modified when If-None-Match matches the current manifest hash
 ```
+
+### Robot Sync Changes
+
+Use this route when the robot has a cached manifest and supports partial configuration updates. It reuses the same bootstrap manifest contract and returns only sections whose cached version is stale. If the robot does not send a usable baseline, CMS returns `requiresFullSync: true` and the robot should call the full sync route.
+
+```text
+GET http://localhost:3001/api/v1/robot/sync/changes
+```
+
+Headers:
+
+```text
+Authorization: Bearer <robot-access-token>
+If-None-Match: "<previous-manifest-hash>"
+X-Robot-Cache-Version: org-1-v1
+X-Robot-Tenant-Version: 1
+X-Robot-My-Courses-Version: my-courses-org-1-v1-0
+X-Robot-Public-Catalog-Version: public-catalog-v1-0
+```
+
+Partial change response:
+
+```json
+{
+  "schemaVersion": 1,
+  "manifestVersion": "1.0.0",
+  "locked": false,
+  "currentManifestHash": "2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34",
+  "currentConfigVersion": "manifest-2a6a21d85d7d0b7c",
+  "requiresFullSync": false,
+  "contentVersions": {
+    "cacheVersion": "org-1-v1",
+    "tenantVersion": 1,
+    "myCoursesVersion": "my-courses-org-1-v1-0",
+    "publicCatalogVersion": "public-catalog-v1-1",
+    "myCoursesCount": 0,
+    "publicCatalogCount": 1
+  },
+  "changed": {
+    "publicCatalog": [],
+    "license": {
+      "status": "ACTIVE",
+      "validFrom": "2026-01-01T00:00:00.000Z",
+      "validUntil": "2027-01-01T00:00:00.000Z"
+    }
+  },
+  "sync": {
+    "serverTime": "2026-08-31T06:41:24.929Z",
+    "syncedAt": "2026-08-31T06:41:24.929Z",
+    "idempotencyKey": "robot-10-org-1-org-1-v1",
+    "configVersion": "manifest-2a6a21d85d7d0b7c",
+    "manifestHash": "2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34"
+  }
+}
+```
+
+Expected status:
+
+```text
+200 OK
+304 Not Modified when If-None-Match matches the current manifest hash
+```
+
+The response never includes robot license keys, JWTs, credential ciphertext, fingerprints, passwords or private secret fields.
 
 ## Robot Logs Batch
 

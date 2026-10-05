@@ -291,9 +291,22 @@ paths:
             pattern: "^[0-9A-Za-z._+() -]+$"
           example: Mini ELF
           description: Optional robot model heartbeat. Stored on the authenticated robot record only.
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+          example: '"d7f8c2c4e2c0a4fef0d8f6c6a0a8d8d28e4ad8be1f5f4e8c5a9c9a89d4b9b7b2"'
+          description: Optional manifest ETag from the previous successful sync. Matching values return 304 Not Modified.
       responses:
         "200":
           description: Sync payload
+          headers:
+            ETag:
+              description: Stable manifest hash for conditional sync requests.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -301,7 +314,8 @@ paths:
               examples:
                 success:
                   value:
-                    manifestVersion: 1.0.0
+                    schemaVersion: 1
+                    manifestVersion: "1.0.0"
                     locked: false
                     tenant:
                       orgId: 1
@@ -347,6 +361,8 @@ paths:
                       serverTime: "2026-08-27T00:00:00.000Z"
                       syncedAt: "2026-08-27T00:00:00.000Z"
                       idempotencyKey: robot-10-org-1-org-1-v1
+                      configVersion: manifest-2a6a21d85d7d0b7c
+                      manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
                     organization:
                       orgId: 1
                       orgName: Demo School
@@ -375,6 +391,13 @@ paths:
                     myCourses: []
                     publicCatalog: []
                     syncedAt: "2026-08-27T00:00:00.000Z"
+        "304":
+          description: Manifest not modified. Response body is empty; keep the cached manifest for the authenticated robot tenant.
+          headers:
+            ETag:
+              description: Current stable manifest hash.
+              schema:
+                type: string
         "400":
           description: Invalid robot heartbeat header
           content:
@@ -387,6 +410,161 @@ paths:
                     statusCode: 400
                     message: x-robot-app-version is invalid
                     error: Bad Request
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/sync/changes:
+    get:
+      tags: [Robot]
+      operationId: getRobotSyncChangesV1
+      summary: Get incremental robot sync changes
+      description: Returns only changed bootstrap manifest sections when the robot provides a previous manifest ETag and section versions. Returns 304 when the manifest is unchanged, or requiresFullSync when the client baseline is missing or unsupported.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: X-Robot-App-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+            pattern: "^[0-9A-Za-z._+-]+$"
+          example: 0.1.0
+          description: Optional Android app version heartbeat. Stored on the authenticated robot record only.
+        - name: X-Robot-Device-Model
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+            pattern: "^[0-9A-Za-z._+() -]+$"
+          example: Mini ELF
+          description: Optional robot model heartbeat. Stored on the authenticated robot record only.
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+          example: '"2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34"'
+          description: Previous manifest ETag/hash. Matching values return 304 Not Modified.
+        - name: X-Robot-Cache-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          example: org-1-v1
+          description: Cached tenant/cache version from the previous manifest.
+        - name: X-Robot-Tenant-Version
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 1
+          description: Cached tenantVersion from the previous manifest.
+        - name: X-Robot-My-Courses-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          example: my-courses-org-1-v1-0
+          description: Cached myCoursesVersion from the previous manifest.
+        - name: X-Robot-Public-Catalog-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          example: public-catalog-v1-0
+          description: Cached publicCatalogVersion from the previous manifest.
+      responses:
+        "200":
+          description: Incremental manifest changes or full-sync fallback instruction
+          headers:
+            ETag:
+              description: Stable current manifest hash.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotSyncChangesResponse"
+              examples:
+                partialPublicCatalogChange:
+                  value:
+                    schemaVersion: 1
+                    manifestVersion: "1.0.0"
+                    locked: false
+                    currentManifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+                    currentConfigVersion: manifest-2a6a21d85d7d0b7c
+                    requiresFullSync: false
+                    contentVersions:
+                      cacheVersion: org-1-v1
+                      tenantVersion: 1
+                      myCoursesVersion: my-courses-org-1-v1-0
+                      publicCatalogVersion: public-catalog-v1-1
+                      myCoursesCount: 0
+                      publicCatalogCount: 1
+                    changed:
+                      publicCatalog:
+                        - id: 201
+                          courseCode: PUBLIC-INTRO
+                          courseName: Public Intro
+                      license:
+                        status: ACTIVE
+                        validFrom: "2026-01-01T00:00:00.000Z"
+                        validUntil: "2027-01-01T00:00:00.000Z"
+                    sync:
+                      serverTime: "2026-08-27T00:00:00.000Z"
+                      syncedAt: "2026-08-27T00:00:00.000Z"
+                      idempotencyKey: robot-10-org-1-org-1-v1
+                      configVersion: manifest-2a6a21d85d7d0b7c
+                      manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+                fullSyncRequired:
+                  value:
+                    schemaVersion: 1
+                    manifestVersion: "1.0.0"
+                    locked: false
+                    currentManifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+                    currentConfigVersion: manifest-2a6a21d85d7d0b7c
+                    requiresFullSync: true
+                    fullSyncReason: MISSING_OR_UNSUPPORTED_CLIENT_VERSIONS
+                    contentVersions:
+                      cacheVersion: org-1-v1
+                      tenantVersion: 1
+                      myCoursesVersion: my-courses-org-1-v1-0
+                      publicCatalogVersion: public-catalog-v1-0
+                      myCoursesCount: 0
+                      publicCatalogCount: 0
+                    changed: {}
+                    sync:
+                      serverTime: "2026-08-27T00:00:00.000Z"
+                      syncedAt: "2026-08-27T00:00:00.000Z"
+                      idempotencyKey: robot-10-org-1-org-1-v1
+                      configVersion: manifest-2a6a21d85d7d0b7c
+                      manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+        "304":
+          description: Manifest not modified. Response body is empty; keep the cached manifest for the authenticated robot tenant.
+          headers:
+            ETag:
+              description: Current stable manifest hash.
+              schema:
+                type: string
+        "400":
+          description: Invalid incremental sync header
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -809,9 +987,22 @@ paths:
             pattern: "^[0-9A-Za-z._+() -]+$"
           example: Mini ELF
           description: Optional robot model heartbeat. Stored on the authenticated robot record only.
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+          example: '"d7f8c2c4e2c0a4fef0d8f6c6a0a8d8d28e4ad8be1f5f4e8c5a9c9a89d4b9b7b2"'
+          description: Optional manifest ETag from the previous successful sync. Matching values return 304 Not Modified.
       responses:
         "200":
           description: Sync payload
+          headers:
+            ETag:
+              description: Stable manifest hash for conditional sync requests.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -819,7 +1010,8 @@ paths:
               examples:
                 success:
                   value:
-                    manifestVersion: 1.0.0
+                    schemaVersion: 1
+                    manifestVersion: "1.0.0"
                     locked: false
                     tenant:
                       orgId: 1
@@ -865,6 +1057,8 @@ paths:
                       serverTime: "2026-08-27T00:00:00.000Z"
                       syncedAt: "2026-08-27T00:00:00.000Z"
                       idempotencyKey: robot-10-org-1-org-1-v1
+                      configVersion: manifest-2a6a21d85d7d0b7c
+                      manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
                     organization:
                       orgId: 1
                       orgName: Demo School
@@ -893,6 +1087,13 @@ paths:
                     myCourses: []
                     publicCatalog: []
                     syncedAt: "2026-08-27T00:00:00.000Z"
+        "304":
+          description: Manifest not modified. Response body is empty; keep the cached manifest for the authenticated robot tenant.
+          headers:
+            ETag:
+              description: Current stable manifest hash.
+              schema:
+                type: string
         "400":
           description: Invalid robot heartbeat header
           content:
@@ -5410,7 +5611,7 @@ components:
           minimum: 0
     RobotBootstrapSyncMetadata:
       type: object
-      required: [serverTime, syncedAt, idempotencyKey]
+      required: [serverTime, syncedAt, idempotencyKey, configVersion, manifestHash]
       additionalProperties: false
       properties:
         serverTime:
@@ -5421,11 +5622,23 @@ components:
           format: date-time
         idempotencyKey:
           type: string
+        configVersion:
+          type: string
+          description: Short stable manifest configuration version derived from the manifest hash.
+          example: manifest-2a6a21d85d7d0b7c
+        manifestHash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: SHA-256 hash over stable manifest configuration fields.
     RobotSyncResponse:
       type: object
       required:
-        [manifestVersion, locked, tenant, license, capabilities, policies, contentVersions, sync]
+        [schemaVersion, manifestVersion, locked, tenant, license, capabilities, policies, contentVersions, sync]
       properties:
+        schemaVersion:
+          type: integer
+          description: Bootstrap manifest schema version.
+          example: 1
         manifestVersion:
           type: string
           description: Bootstrap manifest contract version. Android should branch on this value for offline cache parsing.
@@ -5470,6 +5683,62 @@ components:
           format: date-time
           deprecated: true
           description: Backward-compatible alias of sync.syncedAt.
+    RobotSyncChangesResponse:
+      type: object
+      required:
+        [schemaVersion, manifestVersion, locked, currentManifestHash, currentConfigVersion, requiresFullSync, changed, sync]
+      additionalProperties: false
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        manifestVersion:
+          type: string
+          example: 1.0.0
+        locked:
+          type: boolean
+        reason:
+          type: string
+        currentManifestHash:
+          type: string
+          nullable: true
+          pattern: "^[0-9a-f]{64}$"
+        currentConfigVersion:
+          type: string
+          nullable: true
+        requiresFullSync:
+          type: boolean
+        fullSyncReason:
+          type: string
+          enum: [MISSING_OR_UNSUPPORTED_CLIENT_VERSIONS]
+        contentVersions:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/RobotBootstrapContentVersions"
+          nullable: true
+        changed:
+          type: object
+          additionalProperties: false
+          properties:
+            tenant:
+              $ref: "#/components/schemas/OrganizationContext"
+            license:
+              type: object
+              additionalProperties: true
+            capabilities:
+              $ref: "#/components/schemas/RobotBootstrapCapabilities"
+            policies:
+              $ref: "#/components/schemas/RobotBootstrapPolicies"
+            myCourses:
+              type: array
+              items:
+                $ref: "#/components/schemas/Course"
+            publicCatalog:
+              type: array
+              items:
+                $ref: "#/components/schemas/Course"
+        sync:
+          $ref: "#/components/schemas/RobotBootstrapSyncMetadata"
     UploadUsageLogsRequest:
       type: object
       required: [logs]

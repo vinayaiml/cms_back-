@@ -30,6 +30,14 @@ export type RobotSyncHeartbeat = {
   deviceModel?: string;
 };
 
+export type RobotSyncChangesInput = {
+  manifestHash?: string;
+  cacheVersion?: string;
+  tenantVersion?: number;
+  myCoursesVersion?: string;
+  publicCatalogVersion?: string;
+};
+
 export type RobotDeviceProfileUpdate = {
   manufacturer: string;
   deviceModel: string;
@@ -452,6 +460,80 @@ export class RobotSyncService {
       myCourses,
       publicCatalog,
     });
+  }
+
+  async syncChanges(
+    robotId: number,
+    client: RobotSyncChangesInput,
+    heartbeat: RobotSyncHeartbeat = {},
+  ) {
+    const manifest = (await this.sync(robotId, heartbeat)) as any;
+    const syncedAt = manifest?.sync?.syncedAt ?? new Date().toISOString();
+    const baseResponse = {
+      schemaVersion: 1,
+      manifestVersion: manifest?.manifestVersion ?? "1.0.0",
+      locked: Boolean(manifest?.locked),
+      ...(manifest?.reason ? { reason: manifest.reason } : {}),
+      currentManifestHash: manifest?.sync?.manifestHash ?? null,
+      currentConfigVersion: manifest?.sync?.configVersion ?? null,
+      contentVersions: manifest?.contentVersions ?? null,
+      sync: {
+        serverTime: syncedAt,
+        syncedAt,
+        idempotencyKey: manifest?.sync?.idempotencyKey ?? `robot-${robotId}-changes`,
+        configVersion: manifest?.sync?.configVersion ?? null,
+        manifestHash: manifest?.sync?.manifestHash ?? null,
+      },
+    };
+
+    const hasIncrementalBaseline = Boolean(
+      client.manifestHash &&
+        client.cacheVersion &&
+        client.tenantVersion !== undefined &&
+        client.myCoursesVersion &&
+        client.publicCatalogVersion,
+    );
+
+    if (!hasIncrementalBaseline || !manifest?.contentVersions || !manifest?.sync) {
+      return {
+        ...baseResponse,
+        requiresFullSync: true,
+        fullSyncReason: "MISSING_OR_UNSUPPORTED_CLIENT_VERSIONS",
+        changed: {},
+      };
+    }
+
+    const changed: Record<string, unknown> = {};
+    const cacheChanged =
+      client.cacheVersion !== manifest.contentVersions.cacheVersion ||
+      client.tenantVersion !== manifest.contentVersions.tenantVersion;
+
+    if (cacheChanged) {
+      changed.tenant = manifest.tenant;
+      changed.capabilities = manifest.capabilities;
+      changed.policies = manifest.policies;
+    }
+
+    if (client.myCoursesVersion !== manifest.contentVersions.myCoursesVersion) {
+      changed.myCourses = manifest.myCourses ?? [];
+    }
+
+    if (
+      client.publicCatalogVersion !==
+      manifest.contentVersions.publicCatalogVersion
+    ) {
+      changed.publicCatalog = manifest.publicCatalog ?? [];
+    }
+
+    if (client.manifestHash !== manifest.sync.manifestHash) {
+      changed.license = manifest.license;
+    }
+
+    return {
+      ...baseResponse,
+      requiresFullSync: false,
+      changed,
+    };
   }
 
   async updateDeviceProfile(robotId: number, input: RobotDeviceProfileUpdate) {
