@@ -1067,7 +1067,9 @@ async function main() {
               description: `${courseConfig.lessons[i]} lesson`,
               durationMins: Math.floor(Math.random() * 120) + 10,
               contentType: "VIDEO",
-              contentUrl: `https://example.com/video/${course.courseCode}/${i + 1}`,
+              contentUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+              contentSizeBytes: 1630774,
+              contentChecksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             },
           });
         }

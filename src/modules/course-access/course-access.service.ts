@@ -54,7 +54,7 @@ const probeHttpAsset = (url: string, method: 'HEAD' | 'GET') =>
 
 const defaultAssetProbe: AssetAvailabilityProbe = async (url: string) => {
   const head = await probeHttpAsset(url, 'HEAD');
-  if (head.status !== 405) return head;
+  if (head.ok) return head;
   return probeHttpAsset(url, 'GET');
 };
 
