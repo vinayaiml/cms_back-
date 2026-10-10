@@ -1,10 +1,75 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { CourseAccessType, CourseSource } from '@prisma/client';
+import * as http from 'http';
+import * as https from 'https';
 import { PrismaService } from '../../prisma/prisma.service';
+
+type AssignableLessonAsset = {
+  id: number;
+  contentUrl: string | null;
+  contentSizeBytes: number | null;
+  contentChecksum: string | null;
+};
+
+type AssignableCourse = {
+  id: number;
+  levels: Array<{
+    id: number;
+    lessons: AssignableLessonAsset[];
+    chapters: Array<{
+      id: number;
+      lessons: AssignableLessonAsset[];
+    }>;
+  }>;
+};
+
+export const ASSET_AVAILABILITY_PROBE = Symbol('ASSET_AVAILABILITY_PROBE');
+export type AssetAvailabilityProbe = (url: string) => Promise<{ ok: boolean; status?: number }>;
+
+const probeHttpAsset = (url: string, method: 'HEAD' | 'GET') =>
+  new Promise<{ ok: boolean; status?: number }>((resolve) => {
+    const parsed = new URL(url);
+    const client = parsed.protocol === 'https:' ? https : http;
+    const req = client.request(
+      parsed,
+      {
+        method,
+        timeout: 5000,
+        headers: method === 'GET' ? { Range: 'bytes=0-0' } : undefined,
+      },
+      (res) => {
+        res.resume();
+        const status = res.statusCode ?? 0;
+        resolve({ ok: status >= 200 && status < 400, status });
+      },
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false });
+    });
+    req.on('error', () => resolve({ ok: false }));
+    req.end();
+  });
+
+const defaultAssetProbe: AssetAvailabilityProbe = async (url: string) => {
+  const head = await probeHttpAsset(url, 'HEAD');
+  if (head.status !== 405) return head;
+  return probeHttpAsset(url, 'GET');
+};
 
 @Injectable()
 export class CourseAccessService {
-  constructor(private prisma: PrismaService) {}
+  private readonly assetProbe: AssetAvailabilityProbe;
+
+  constructor(
+    private prisma: PrismaService,
+    @Optional()
+    @Inject(ASSET_AVAILABILITY_PROBE)
+    assetProbe?: AssetAvailabilityProbe,
+  ) {
+    this.assetProbe = assetProbe ?? defaultAssetProbe;
+  }
 
   async list(orgId: number) {
     const assignments: Array<{
@@ -60,6 +125,137 @@ export class CourseAccessService {
     return course;
   }
 
+  private isPrivateIpAddress(hostname: string) {
+    if (/^127\./.test(hostname) || hostname === '0.0.0.0') return true;
+    if (/^10\./.test(hostname)) return true;
+    if (/^192\.168\./.test(hostname)) return true;
+
+    const match = hostname.match(/^172\.(\d{1,3})\./);
+    if (match) {
+      const secondOctet = Number(match[1]);
+      if (secondOctet >= 16 && secondOctet <= 31) return true;
+    }
+
+    return false;
+  }
+
+  private async validateLessonAsset(lesson: AssignableLessonAsset) {
+    if (!lesson.contentUrl || !lesson.contentUrl.trim()) {
+      throw new BadRequestException('Course contains a lesson with missing content asset URL');
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(lesson.contentUrl);
+    } catch {
+      throw new BadRequestException('Course contains a lesson with invalid content asset URL');
+    }
+
+    if (!['https:', 'http:'].includes(parsed.protocol)) {
+      throw new BadRequestException('Course contains a lesson with unsupported content asset URL');
+    }
+
+    if (parsed.username || parsed.password) {
+      throw new BadRequestException('Course content asset URLs must not include credentials');
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      this.isPrivateIpAddress(hostname)
+    ) {
+      throw new BadRequestException('Course content asset URL must use an approved public host');
+    }
+
+    if (lesson.contentSizeBytes !== null && lesson.contentSizeBytes < 0) {
+      throw new BadRequestException('Course contains a lesson with invalid content size');
+    }
+
+    if (lesson.contentChecksum !== null && !/^[a-fA-F0-9]{64}$/.test(lesson.contentChecksum)) {
+      throw new BadRequestException('Course contains a lesson with invalid content checksum');
+    }
+
+    const availability = await this.assetProbe(parsed.toString());
+    if (!availability.ok) {
+      throw new BadRequestException('Course contains a lesson with unavailable content asset');
+    }
+  }
+
+  private lessonsForAssignment(course: AssignableCourse, data: { accessType: CourseAccessType; levelId?: number; chapterId?: number }) {
+    if (data.accessType === CourseAccessType.FULL_COURSE) {
+      return course.levels.flatMap((level) => [
+        ...level.lessons,
+        ...level.chapters.flatMap((chapter) => chapter.lessons),
+      ]);
+    }
+
+    if (data.accessType === CourseAccessType.LEVEL_ONLY) {
+      const level = course.levels.find((item) => item.id === data.levelId);
+      if (!level) throw new BadRequestException('Level does not belong to the selected course');
+      return [
+        ...level.lessons,
+        ...level.chapters.flatMap((chapter) => chapter.lessons),
+      ];
+    }
+
+    const chapter = course.levels
+      .flatMap((level) => level.chapters)
+      .find((item) => item.id === data.chapterId);
+    if (!chapter) throw new BadRequestException('Chapter does not belong to the selected course');
+    return chapter.lessons;
+  }
+
+  private async validateAssignableContentAssets(
+    courseId: number,
+    data: { accessType: CourseAccessType; levelId?: number; chapterId?: number },
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        levels: {
+          select: {
+            id: true,
+            lessons: {
+              select: {
+                id: true,
+                contentUrl: true,
+                contentSizeBytes: true,
+                contentChecksum: true,
+              },
+            },
+            chapters: {
+              select: {
+                id: true,
+                lessons: {
+                  select: {
+                    id: true,
+                    contentUrl: true,
+                    contentSizeBytes: true,
+                    contentChecksum: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as any) as AssignableCourse | null;
+
+    if (!course) throw new NotFoundException('Course not found');
+
+    const lessons = this.lessonsForAssignment(course, data);
+    if (!lessons.length) {
+      throw new BadRequestException('Course access assignment contains no lessons');
+    }
+
+    for (const lesson of lessons) {
+      await this.validateLessonAsset(lesson);
+    }
+  }
+
   async create(
     orgId: number,
     actor: { isSuperAdmin: boolean },
@@ -87,6 +283,8 @@ export class CourseAccessService {
       if (!ch) throw new BadRequestException('Chapter not found');
       if (ch.level.courseId !== data.courseId) throw new BadRequestException('Chapter does not belong to the selected course');
     }
+
+    await this.validateAssignableContentAssets(data.courseId, data);
 
     const dup = await this.prisma.orgCourseAccess.findFirst({
       where: {

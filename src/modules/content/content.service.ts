@@ -3,7 +3,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { parse as parseCsv } from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
 import { z } from 'zod';
-import { CourseSource, CourseVisibility, LessonVisibility, ContentType, Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
+import {
+  CourseAccessType,
+  CourseSource,
+  CourseVisibility,
+  LessonVisibility,
+  ContentType,
+  Prisma,
+} from '@prisma/client';
 import { JwtPayload, JwtUserPayload } from '../../common/auth/jwt.types';
 import { UpdateChapterDto, UpdateCourseDto, UpdateLessonDto, UpdateLevelDto } from './content.dto';
 
@@ -24,6 +32,27 @@ type CourseDetailsLevel = CourseDetails['levels'][number];
 type CourseDetailsChapter = CourseDetailsLevel['chapters'][number];
 type CourseDetailsLesson = CourseDetailsChapter['lessons'][number];
 type CourseDetailsDirectLesson = CourseDetailsLevel['lessons'][number];
+
+type CourseAccessScope = {
+  full: boolean;
+  levelIds: Set<number>;
+  chapterIds: Set<number>;
+};
+
+type CourseReadAccess = {
+  course: {
+    id: number;
+    source: CourseSource;
+    ownerOrgId: number | null;
+  };
+  scope: 'full' | CourseAccessScope;
+};
+
+type CourseAccessRow = {
+  accessType: CourseAccessType;
+  levelId: number | null;
+  chapterId: number | null;
+};
 
 type CourseCard = {
   id: number;
@@ -64,6 +93,8 @@ const RowSchema = z.object({
   lessonDescription: z.string().optional(),
   durationMins: z.coerce.number().int().positive().optional(),
   contentUrl: z.string().min(1),
+  contentSizeBytes: z.coerce.number().int().min(0).optional(),
+  contentChecksum: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
   logoUrl: z.string().optional(),
 
   // Optional visibility controls
@@ -106,6 +137,8 @@ type LessonRow = {
   durationMins?: number;
   contentType?: ContentType;
   contentUrl: string;
+  contentSizeBytes?: number;
+  contentChecksum?: string;
   thumbnailUrl?: string;
   logoUrl?: string;
   visibility?: LessonVisibility;
@@ -163,6 +196,70 @@ export class ContentService {
       .toUpperCase();
   }
 
+  private normalizeChecksum(value: string | null | undefined) {
+    if (value === undefined || value === null) return undefined;
+    const trimmed = String(value).trim().toLowerCase();
+    if (!trimmed) return undefined;
+    if (!/^[a-f0-9]{64}$/.test(trimmed)) {
+      throw new BadRequestException('contentChecksum must be a SHA-256 hex string');
+    }
+    return trimmed;
+  }
+
+  private normalizeContentSize(value: number | null | undefined) {
+    if (value === undefined || value === null) return undefined;
+    if (!Number.isInteger(value) || value < 0) {
+      throw new BadRequestException('contentSizeBytes must be a non-negative integer');
+    }
+    return value;
+  }
+
+  private computedChecksum(input: { contentUrl: string; contentType: ContentType; contentSizeBytes?: number | null }) {
+    return createHash('sha256')
+      .update(`${input.contentType}:${input.contentUrl}:${input.contentSizeBytes ?? ''}`)
+      .digest('hex');
+  }
+
+  private nextContentMetadata(
+    input: { contentUrl: string; contentType: ContentType; contentSizeBytes?: number | null; contentChecksum?: string | null },
+    existing?: {
+      contentUrl: string;
+      contentType: ContentType;
+      contentSizeBytes: number | null;
+      contentChecksum: string | null;
+      contentVersion: number;
+    } | null,
+  ) {
+    const contentSizeBytes = this.normalizeContentSize(input.contentSizeBytes);
+    const explicitChecksum = this.normalizeChecksum(input.contentChecksum);
+    const effectiveSize = contentSizeBytes ?? existing?.contentSizeBytes ?? null;
+    const contentChecksum = explicitChecksum ?? this.computedChecksum({
+      contentUrl: input.contentUrl,
+      contentType: input.contentType,
+      contentSizeBytes: effectiveSize,
+    });
+
+    if (!existing) {
+      return {
+        contentVersion: 1,
+        contentSizeBytes: effectiveSize,
+        contentChecksum,
+      };
+    }
+
+    const changed =
+      existing.contentUrl !== input.contentUrl ||
+      existing.contentType !== input.contentType ||
+      existing.contentSizeBytes !== effectiveSize ||
+      existing.contentChecksum !== contentChecksum;
+
+    return {
+      contentVersion: changed ? existing.contentVersion + 1 : existing.contentVersion,
+      contentSizeBytes: effectiveSize,
+      contentChecksum,
+    };
+  }
+
   private async findExistingCourseByName(
     tx: Prisma.TransactionClient,
     courseName: string,
@@ -198,24 +295,76 @@ export class ContentService {
     return actor;
   }
 
-  private async canReadCourse(actor: JwtPayload, courseId: number) {
+  private buildCourseAccessScope(assignments: CourseAccessRow[]): CourseAccessScope {
+    const scope: CourseAccessScope = {
+      full: false,
+      levelIds: new Set<number>(),
+      chapterIds: new Set<number>(),
+    };
+
+    for (const assignment of assignments) {
+      if (assignment.accessType === CourseAccessType.FULL_COURSE) {
+        scope.full = true;
+      } else if (assignment.accessType === CourseAccessType.LEVEL_ONLY && assignment.levelId) {
+        scope.levelIds.add(assignment.levelId);
+      } else if (assignment.accessType === CourseAccessType.CHAPTER_ONLY && assignment.chapterId) {
+        scope.chapterIds.add(assignment.chapterId);
+      }
+    }
+
+    return scope;
+  }
+
+  private filterCourseDetailsByAccess(course: CourseDetails, access: CourseReadAccess): CourseDetails {
+    if (access.scope === 'full' || access.scope.full) return course;
+
+    const scope = access.scope;
+    const levels = course.levels.flatMap((level: CourseDetailsLevel) => {
+      if (scope.levelIds.has(level.id)) {
+        return [level];
+      }
+
+      const chapters = level.chapters.filter((chapter: CourseDetailsChapter) =>
+        scope.chapterIds.has(chapter.id),
+      );
+
+      if (!chapters.length) return [];
+
+      return [{
+        ...level,
+        chapters,
+        lessons: [],
+      }];
+    });
+
+    if (!levels.length) {
+      throw new ForbiddenException('Assigned course access is invalid');
+    }
+
+    return { ...course, levels };
+  }
+
+  private async canReadCourse(actor: JwtPayload, courseId: number): Promise<CourseReadAccess> {
     const user = this.ensureUser(actor);
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
     if (!course) throw new NotFoundException('Course not found');
 
     if (user.isSuperAdmin) {
       if (course.source !== CourseSource.PLATFORM) throw new ForbiddenException('Super Admin can only access platform courses');
-      return course;
+      return { course, scope: 'full' };
     }
 
     if (!user.orgId) throw new ForbiddenException('Org scope required');
-    if (course.ownerOrgId === user.orgId) return course;
+    if (course.ownerOrgId === user.orgId) return { course, scope: 'full' };
 
     if (course.source === CourseSource.PLATFORM) {
-      const assigned = await this.prisma.orgCourseAccess.findFirst({
+      const assignments = await this.prisma.orgCourseAccess.findMany({
         where: { orgId: user.orgId, courseId: course.id },
+        select: { accessType: true, levelId: true, chapterId: true },
       });
-      if (assigned) return course;
+      if (assignments.length) {
+        return { course, scope: this.buildCourseAccessScope(assignments) };
+      }
     }
 
     throw new ForbiddenException('Not allowed to access this course');
@@ -237,7 +386,7 @@ export class ContentService {
   }
 
   async getCourseDetails(actor: JwtPayload, courseId: number) {
-    await this.canReadCourse(actor, courseId);
+    const access = await this.canReadCourse(actor, courseId);
 
     const course = (await this.prisma.course.findUnique({
       where: { id: courseId },
@@ -259,7 +408,9 @@ export class ContentService {
 
     if (!course) throw new NotFoundException('Course not found');
 
-    const levels = course.levels.map((lvl: CourseDetailsLevel) => ({
+    const filteredCourse = this.filterCourseDetailsByAccess(course, access);
+
+    const levels = filteredCourse.levels.map((lvl: CourseDetailsLevel) => ({
       id: lvl.id,
       name: lvl.name,
       sequence: lvl.sequence,
@@ -277,6 +428,9 @@ export class ContentService {
           durationMins: lsn.durationMins,
           contentType: lsn.contentType,
           contentUrl: lsn.contentUrl,
+          contentVersion: (lsn as any).contentVersion,
+          contentSizeBytes: (lsn as any).contentSizeBytes,
+          contentChecksum: (lsn as any).contentChecksum,
           thumbnailUrl: lsn.thumbnailUrl,
           logoUrl: lsn.logoUrl,
           visibility: lsn.visibility,
@@ -294,6 +448,9 @@ export class ContentService {
           durationMins: lsn.durationMins,
           contentType: lsn.contentType,
           contentUrl: lsn.contentUrl,
+          contentVersion: (lsn as any).contentVersion,
+          contentSizeBytes: (lsn as any).contentSizeBytes,
+          contentChecksum: (lsn as any).contentChecksum,
           thumbnailUrl: lsn.thumbnailUrl,
           logoUrl: lsn.logoUrl,
           visibility: lsn.visibility,
@@ -303,16 +460,16 @@ export class ContentService {
     }));
 
     return {
-      id: course.id,
-      courseCode: course.courseCode,
-      courseName: course.courseName,
-      description: course.description,
-      courseImageUrl: course.courseImageUrl,
-      logoUrl: course.logoUrl,
-      visibility: course.visibility,
-      source: course.source,
-      ownerOrgId: course.ownerOrgId,
-      introLevelId: course.introLevelId,
+      id: filteredCourse.id,
+      courseCode: filteredCourse.courseCode,
+      courseName: filteredCourse.courseName,
+      description: filteredCourse.description,
+      courseImageUrl: filteredCourse.courseImageUrl,
+      logoUrl: filteredCourse.logoUrl,
+      visibility: filteredCourse.visibility,
+      source: filteredCourse.source,
+      ownerOrgId: filteredCourse.ownerOrgId,
+      introLevelId: filteredCourse.introLevelId,
       levels,
     };
   }
@@ -387,6 +544,29 @@ export class ContentService {
       }
     }
 
+    const lessonWithMetadata = lesson as typeof lesson & {
+      contentSizeBytes: number | null;
+      contentChecksum: string | null;
+      contentVersion: number;
+    };
+    const nextContentUrl = Object.prototype.hasOwnProperty.call(dto, 'contentUrl') && dto.contentUrl !== undefined ? dto.contentUrl : lesson.contentUrl;
+    const nextContentType = Object.prototype.hasOwnProperty.call(dto, 'contentType') && dto.contentType !== undefined ? dto.contentType : lesson.contentType;
+    const metadata = this.nextContentMetadata(
+      {
+        contentUrl: nextContentUrl,
+        contentType: nextContentType,
+        contentSizeBytes: Object.prototype.hasOwnProperty.call(dto, 'contentSizeBytes') ? dto.contentSizeBytes : lessonWithMetadata.contentSizeBytes,
+        contentChecksum: Object.prototype.hasOwnProperty.call(dto, 'contentChecksum') ? dto.contentChecksum : lessonWithMetadata.contentChecksum,
+      },
+      {
+        contentUrl: lesson.contentUrl,
+        contentType: lesson.contentType,
+        contentSizeBytes: lessonWithMetadata.contentSizeBytes,
+        contentChecksum: lessonWithMetadata.contentChecksum,
+        contentVersion: lessonWithMetadata.contentVersion,
+      },
+    );
+
     const data: any = {};
     const keys: Array<keyof UpdateLessonDto> = [
       'name',
@@ -395,6 +575,8 @@ export class ContentService {
       'durationMins',
       'contentType',
       'contentUrl',
+      'contentSizeBytes',
+      'contentChecksum',
       'thumbnailUrl',
       'logoUrl',
       'visibility',
@@ -403,8 +585,11 @@ export class ContentService {
     for (const k of keys) {
       if (Object.prototype.hasOwnProperty.call(dto, k)) data[k] = (dto as any)[k];
     }
+    data.contentVersion = metadata.contentVersion;
+    data.contentSizeBytes = metadata.contentSizeBytes;
+    data.contentChecksum = metadata.contentChecksum;
 
-    return this.prisma.lesson.update({ where: { id: lessonId }, data });
+    return this.prisma.lesson.update({ where: { id: lessonId }, data: data as any });
   }
 
   async deleteCourse(actor: JwtPayload, courseId: number) {
@@ -511,6 +696,8 @@ export class ContentService {
 
     const durationMins = get('Duration', 'duration_mins', 'duration');
     const contentUrl = get('Video url', 'content_url', 'video_url', 'url');
+    const contentSizeBytes = get('contentSizeBytes', 'content size bytes', 'content_size_bytes', 'file size', 'file_size');
+    const contentChecksum = get('contentChecksum', 'content checksum', 'content_checksum', 'checksum', 'sha256');
     const logoUrl = get('Logo url', 'logo_url');
 
     const courseVisibility = get('Course visibility', 'course_visibility');
@@ -529,6 +716,8 @@ export class ContentService {
       lessonDescription,
       durationMins,
       contentUrl,
+      contentSizeBytes,
+      contentChecksum,
       logoUrl,
       courseVisibility,
       isIntroLevel,
@@ -661,6 +850,8 @@ export class ContentService {
     const durationMins = get('durationMins', 'duration');
     const contentType = get('contentType', 'content type');
     const contentUrl = get('contentUrl', 'video url', 'url');
+    const contentSizeBytes = get('contentSizeBytes', 'content size bytes', 'content_size_bytes', 'file size', 'file_size');
+    const contentChecksum = get('contentChecksum', 'content checksum', 'content_checksum', 'checksum', 'sha256');
     const thumbnailUrl = get('thumbnailUrl', 'thumbnail url');
     const logoUrl = get('logoUrl', 'logo url');
     const visibility = get('visibility', 'lesson visibility');
@@ -679,6 +870,8 @@ export class ContentService {
         return upper;
       }, z.enum(['VIDEO', 'IMAGE', 'TEXT']).optional()),
       contentUrl: z.string().min(1),
+      contentSizeBytes: z.coerce.number().int().min(0).optional(),
+      contentChecksum: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
       thumbnailUrl: z.string().optional(),
       logoUrl: z.string().optional(),
       visibility: z.preprocess(toUpperOrUndef, z.enum(['PUBLIC_PREVIEW', 'PRIVATE', 'PUBLIC']).optional()),
@@ -694,6 +887,8 @@ export class ContentService {
       durationMins,
       contentType,
       contentUrl,
+      contentSizeBytes,
+      contentChecksum,
       thumbnailUrl,
       logoUrl,
       visibility,
@@ -1045,23 +1240,49 @@ export class ContentService {
         });
 
         if (existing) {
+          const contentType = row.contentType ?? existing.contentType;
+          const metadata = this.nextContentMetadata(
+            {
+              contentUrl: row.contentUrl,
+              contentType,
+              contentSizeBytes: row.contentSizeBytes ?? (existing as any).contentSizeBytes,
+              contentChecksum: row.contentChecksum ?? (existing as any).contentChecksum,
+            },
+            {
+              contentUrl: existing.contentUrl,
+              contentType: existing.contentType,
+              contentSizeBytes: (existing as any).contentSizeBytes,
+              contentChecksum: (existing as any).contentChecksum,
+              contentVersion: (existing as any).contentVersion,
+            },
+          );
           await tx.lesson.update({
             where: { id: existing.id },
             data: {
               name: row.lessonName,
               description: row.description ?? existing.description,
               durationMins: row.durationMins ?? existing.durationMins,
-              contentType: row.contentType ?? existing.contentType,
+              contentType,
               contentUrl: row.contentUrl,
+              contentVersion: metadata.contentVersion,
+              contentSizeBytes: metadata.contentSizeBytes,
+              contentChecksum: metadata.contentChecksum,
               thumbnailUrl: row.thumbnailUrl ?? existing.thumbnailUrl,
               logoUrl: row.logoUrl ?? existing.logoUrl,
               visibility: row.visibility ?? existing.visibility,
               levelId: resolvedLevelId,
               chapterId,
               sequence: seq,
-            },
+            } as any,
           });
         } else {
+          const contentType = row.contentType ?? ContentType.VIDEO;
+          const metadata = this.nextContentMetadata({
+            contentUrl: row.contentUrl,
+            contentType,
+            contentSizeBytes: row.contentSizeBytes,
+            contentChecksum: row.contentChecksum,
+          });
           await tx.lesson.create({
             data: {
               courseId: course.id,
@@ -1070,13 +1291,16 @@ export class ContentService {
               name: row.lessonName,
               description: row.description ?? null,
               durationMins: row.durationMins ?? null,
-              contentType: row.contentType ?? ContentType.VIDEO,
+              contentType,
               contentUrl: row.contentUrl,
+              contentVersion: metadata.contentVersion,
+              contentSizeBytes: metadata.contentSizeBytes,
+              contentChecksum: metadata.contentChecksum,
               thumbnailUrl: row.thumbnailUrl ?? null,
               logoUrl: row.logoUrl ?? null,
               visibility: row.visibility ?? LessonVisibility.PRIVATE,
               sequence: seq,
-            },
+            } as any,
           });
         }
       }
@@ -1253,6 +1477,13 @@ export class ContentService {
           const containerKey = `${levelId}::${chapterId ?? 0}`;
           const nextSeq = (lessonSeqByContainer.get(containerKey) || 0) + 1;
           lessonSeqByContainer.set(containerKey, nextSeq);
+          const contentType = (r.contentType ? (ContentType as any)[r.contentType] : ContentType.VIDEO) as ContentType;
+          const metadata = this.nextContentMetadata({
+            contentUrl: r.contentUrl,
+            contentType,
+            contentSizeBytes: r.contentSizeBytes,
+            contentChecksum: r.contentChecksum,
+          });
 
           await tx.lesson.create({
             data: {
@@ -1263,13 +1494,16 @@ export class ContentService {
               sequence: nextSeq,
               description: r.lessonDescription || null,
               durationMins: r.durationMins ?? null,
-              contentType: (r.contentType ? (ContentType as any)[r.contentType] : ContentType.VIDEO) as ContentType,
+              contentType,
               contentUrl: r.contentUrl,
+              contentVersion: metadata.contentVersion,
+              contentSizeBytes: metadata.contentSizeBytes,
+              contentChecksum: metadata.contentChecksum,
               logoUrl: r.logoUrl || null,
               visibility: (r.lessonVisibility
                 ? (LessonVisibility as any)[r.lessonVisibility]
                 : LessonVisibility.PRIVATE) as LessonVisibility,
-            },
+            } as any,
           });
         }
       }

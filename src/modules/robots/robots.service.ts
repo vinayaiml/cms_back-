@@ -6,7 +6,15 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { AuditEvent, LicenseStatus, Prisma } from "@prisma/client";
+import {
+  AuditEvent,
+  CourseAccessType,
+  CourseSource,
+  CourseVisibility,
+  LessonVisibility,
+  LicenseStatus,
+  Prisma,
+} from "@prisma/client";
 import { randomBytes } from "crypto";
 import { AuditService } from "../audit/audit.service";
 import {
@@ -19,6 +27,41 @@ import { normalizeRobotHardwareProfile } from "./robot-hardware-profile";
 import { UpsertRobotCapabilityAssignmentDto } from "./robots.dto";
 import { EntitlementsService } from "../entitlements/entitlements.service";
 import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
+
+type Allowed = {
+  full: boolean;
+  levelIds: Set<number>;
+  chapterIds: Set<number>;
+};
+
+type AssignmentRow = {
+  courseId: number;
+  accessType: CourseAccessType;
+  levelId: number | null;
+  chapterId: number | null;
+};
+
+type CourseWithLevels = Prisma.CourseGetPayload<{
+  include: {
+    levels: {
+      include: {
+        chapters: { include: { lessons: true } };
+        lessons: true;
+      };
+    };
+  };
+}>;
+
+type PublicCourse = Prisma.CourseGetPayload<{
+  include: {
+    introLevel: {
+      include: {
+        chapters: { include: { lessons: true } };
+        lessons: true;
+      };
+    };
+  };
+}>;
 
 @Injectable()
 export class RobotsService {
@@ -231,6 +274,170 @@ export class RobotsService {
     throw new BadRequestException(
       "Capability limits contain unsupported value",
     );
+  }
+
+  private buildAllowedMap(assignments: AssignmentRow[]) {
+    const map = new Map<number, Allowed>();
+
+    for (const a of assignments) {
+      const entry = map.get(a.courseId) || {
+        full: false,
+        levelIds: new Set<number>(),
+        chapterIds: new Set<number>(),
+      };
+
+      if (a.accessType === CourseAccessType.FULL_COURSE) {
+        entry.full = true;
+      } else if (a.accessType === CourseAccessType.LEVEL_ONLY && a.levelId) {
+        entry.levelIds.add(a.levelId);
+      } else if (
+        a.accessType === CourseAccessType.CHAPTER_ONLY &&
+        a.chapterId
+      ) {
+        entry.chapterIds.add(a.chapterId);
+      }
+
+      map.set(a.courseId, entry);
+    }
+
+    return map;
+  }
+
+  private filterCourseByAllowed(course: any, allowed: Allowed) {
+    if (allowed.full) return course;
+
+    const filteredLevels: any[] = [];
+    for (const level of course.levels || []) {
+      if (allowed.levelIds.has(level.id)) {
+        filteredLevels.push(level);
+        continue;
+      }
+
+      const keptChapters = (level.chapters || []).filter((ch: any) =>
+        allowed.chapterIds.has(ch.id),
+      );
+      if (keptChapters.length > 0) {
+        filteredLevels.push({
+          ...level,
+          chapters: keptChapters,
+          lessons: [],
+        });
+      }
+    }
+
+    if (!filteredLevels.length) return null;
+    return { ...course, levels: filteredLevels };
+  }
+
+  private async buildManifestContent(orgId: number) {
+    const orgOwnedCourses: CourseWithLevels[] = await this.prisma.course.findMany({
+      where: { ownerOrgId: orgId },
+      orderBy: { id: "asc" },
+      include: {
+        levels: {
+          orderBy: { sequence: "asc" },
+          include: {
+            chapters: {
+              orderBy: { sequence: "asc" },
+              include: { lessons: { orderBy: { sequence: "asc" } } },
+            },
+            lessons: {
+              where: { chapterId: null },
+              orderBy: { sequence: "asc" },
+            },
+          },
+        },
+      },
+    });
+
+    const assignments: AssignmentRow[] = await this.prisma.orgCourseAccess.findMany({
+      where: { orgId },
+      select: {
+        courseId: true,
+        accessType: true,
+        levelId: true,
+        chapterId: true,
+      },
+    });
+    const allowedMap = this.buildAllowedMap(assignments);
+    const assignedCourseIds = Array.from(
+      new Set(assignments.map((a) => a.courseId)),
+    );
+    const assignedPlatformCourses: CourseWithLevels[] = assignedCourseIds.length
+      ? await this.prisma.course.findMany({
+          where: {
+            id: { in: assignedCourseIds },
+            source: CourseSource.PLATFORM,
+          },
+          orderBy: { id: "asc" },
+          include: {
+            levels: {
+              orderBy: { sequence: "asc" },
+              include: {
+                chapters: {
+                  orderBy: { sequence: "asc" },
+                  include: { lessons: { orderBy: { sequence: "asc" } } },
+                },
+                lessons: {
+                  where: { chapterId: null },
+                  orderBy: { sequence: "asc" },
+                },
+              },
+            },
+          },
+        })
+      : [];
+
+    const filteredAssigned = assignedPlatformCourses
+      .map((course) => {
+        const allow = allowedMap.get(course.id);
+        if (!allow) return null;
+        return this.filterCourseByAllowed(course, allow);
+      })
+      .filter((course): course is CourseWithLevels => Boolean(course));
+
+    const publicCourses: PublicCourse[] = await this.prisma.course.findMany({
+      where: {
+        visibility: CourseVisibility.PUBLIC,
+        introLevelId: { not: null },
+      },
+      orderBy: { id: "asc" },
+      include: {
+        introLevel: {
+          include: {
+            chapters: {
+              orderBy: { sequence: "asc" },
+              include: {
+                lessons: {
+                  where: { visibility: LessonVisibility.PUBLIC_PREVIEW },
+                  orderBy: { sequence: "asc" },
+                },
+              },
+            },
+            lessons: {
+              where: {
+                chapterId: null,
+                visibility: LessonVisibility.PUBLIC_PREVIEW,
+              },
+              orderBy: { sequence: "asc" },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      myCourses: [...orgOwnedCourses, ...filteredAssigned],
+      publicCatalog: publicCourses.map((course) => ({
+        id: course.id,
+        courseCode: course.courseCode,
+        courseName: course.courseName,
+        description: course.description,
+        courseImageUrl: course.courseImageUrl,
+        logoUrl: course.logoUrl,
+        introLevel: course.introLevel,
+      })),
+    };
   }
 
   private sanitizeCapabilityLimits(
@@ -469,14 +676,18 @@ export class RobotsService {
       status === LicenseStatus.REVOKED;
     const reason = !robot.org.isActive ? "ORG_INACTIVE" : locked ? status : undefined;
 
+    const content = locked
+      ? { myCourses: [], publicCatalog: [] }
+      : await this.buildManifestContent(robot.orgId);
+
     return this.manifestResolver.resolve({
       robot,
       licenseStatus: status,
       locked,
       ...(reason ? { reason } : {}),
       appVersionCode,
-      myCourses: [],
-      publicCatalog: [],
+      myCourses: content.myCourses,
+      publicCatalog: content.publicCatalog,
     });
   }
 

@@ -7,6 +7,7 @@ import { Prisma, LicenseStatus } from "@prisma/client";
 import { RobotsService } from "./robots.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
 import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
+import { RobotSyncService } from "../robot-sync/robot-sync.service";
 
 process.env.LICENSE_SECRET_KEY =
   "unit-test-license-secret-minimum-32-characters";
@@ -47,6 +48,21 @@ describe("RobotsService device metadata", () => {
     },
     auditEvent: {
       findMany: jest.fn(),
+    },
+    course: {
+      findMany: jest.fn(),
+    },
+    orgCourseAccess: {
+      findMany: jest.fn(),
+    },
+    robotCourseAccess: {
+      findMany: jest.fn(),
+    },
+    userCourseAccess: {
+      findMany: jest.fn(),
+    },
+    event: {
+      create: jest.fn(),
     },
     organization: {
       findUnique: jest.fn(),
@@ -118,6 +134,10 @@ describe("RobotsService device metadata", () => {
       }
       return clean;
     });
+    prisma.course.findMany.mockResolvedValue([]);
+    prisma.orgCourseAccess.findMany.mockResolvedValue([]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([]);
+    prisma.userCourseAccess.findMany.mockResolvedValue([]);
     const entitlements = new EntitlementsService(prisma as any);
     service = new RobotsService(
       prisma as any,
@@ -1113,6 +1133,87 @@ describe("RobotsService device metadata", () => {
     );
   });
 
+  it("matches the robot sync manifest contract with secrets removed", async () => {
+    const orgOwnedCourse = {
+      id: 101,
+      courseCode: "ORG-MATH-1",
+      courseName: "Org Math",
+      source: "ORGANIZATION",
+      visibility: "PRIVATE",
+      levels: [],
+    };
+    const publicCourse = {
+      id: 201,
+      courseCode: "PUBLIC-INTRO",
+      courseName: "Public Intro",
+      description: "Intro preview",
+      courseImageUrl: null,
+      logoUrl: null,
+      introLevel: { id: 301, name: "Intro", chapters: [], lessons: [] },
+    };
+    const robotWithOrg = {
+      ...robot,
+      org: {
+        id: 1,
+        name: "Demo Org",
+        isActive: true,
+        logoUrl: "https://assets.whizrobo.test/orgs/demo-logo.png",
+        primaryColor: "#1D4ED8",
+        secondaryColor: "#F97316",
+        tenantVersion: 4,
+      },
+    };
+    prisma.robot.findUnique.mockResolvedValue(robotWithOrg);
+    prisma.course.findMany
+      .mockResolvedValueOnce([orgOwnedCourse])
+      .mockResolvedValueOnce([publicCourse])
+      .mockResolvedValueOnce([orgOwnedCourse])
+      .mockResolvedValueOnce([publicCourse]);
+    prisma.orgCourseAccess.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prisma.robot.update.mockResolvedValue({});
+    prisma.organizationSubscription.findFirst.mockResolvedValue(null);
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([]);
+    prisma.userCourseAccess.findMany.mockResolvedValue([]);
+    prisma.userCapabilityAssignment.findMany.mockResolvedValue([]);
+
+    const entitlements = new EntitlementsService(prisma as any);
+    const syncService = new RobotSyncService(
+      prisma as any,
+      new RobotManifestResolver(entitlements),
+    );
+
+    const preview = (await service.getManifestPreview(
+      10,
+      { orgId: 1, isSuperAdmin: false },
+      2,
+    )) as any;
+    const sync = (await syncService.sync(10, { appVersionCode: 2 })) as any;
+
+    for (const key of [
+      "schemaVersion",
+      "manifestVersion",
+      "locked",
+      "tenant",
+      "license",
+      "capabilities",
+      "policies",
+      "contentVersions",
+      "myCourses",
+      "publicCatalog",
+    ]) {
+      expect(preview[key]).toEqual(sync[key]);
+    }
+    expect(preview.sync.configVersion).toBe(sync.sync.configVersion);
+    expect(preview.sync.manifestHash).toBe(sync.sync.manifestHash);
+    expect(JSON.stringify(preview)).not.toMatch(
+      /licenseKey|licenseKeyCiphertext|licenseKeyFingerprint|token|password|secret/i,
+    );
+  });
+
   it("blocks manifest preview across organizations before resolving manifest", async () => {
     prisma.robot.findUnique.mockResolvedValue({
       ...robot,
@@ -1131,6 +1232,8 @@ describe("RobotsService device metadata", () => {
       service.getManifestPreview(10, { orgId: 2, isSuperAdmin: false }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
+    expect(prisma.course.findMany).not.toHaveBeenCalled();
+    expect(prisma.orgCourseAccess.findMany).not.toHaveBeenCalled();
     expect(prisma.organizationSubscription.findFirst).not.toHaveBeenCalled();
   });
 

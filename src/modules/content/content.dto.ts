@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { ContentType, CourseVisibility, LessonVisibility } from '@prisma/client';
 
 export class UpdateCourseDto {
@@ -83,6 +83,15 @@ export class UpdateLessonDto {
   @IsOptional()
   @IsString()
   contentUrl?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  contentSizeBytes?: number | null;
+
+  @IsOptional()
+  @IsString()
+  contentChecksum?: string | null;
 
   @IsOptional()
   @IsString()

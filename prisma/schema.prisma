@@ -329,17 +329,20 @@ model Lesson {
   description  String?
   durationMins Int?
   contentType  ContentType      @default(VIDEO)
-  contentUrl   String
-  thumbnailUrl String?
-  logoUrl      String?
-  visibility   LessonVisibility @default(PRIVATE)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  events       Event[]
-  chapter      Chapter?         @relation(fields: [chapterId], references: [id])
-  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  level        Level            @relation("LevelLessons", fields: [levelId], references: [id], onDelete: Cascade)
-  usageLogs    RobotUsageLog[]
+  contentUrl       String
+  contentVersion   Int              @default(1)
+  contentSizeBytes Int?
+  contentChecksum  String?
+  thumbnailUrl     String?
+  logoUrl          String?
+  visibility       LessonVisibility @default(PRIVATE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  events           Event[]
+  chapter          Chapter?         @relation(fields: [chapterId], references: [id])
+  course           Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  level            Level            @relation("LevelLessons", fields: [levelId], references: [id], onDelete: Cascade)
+  usageLogs        RobotUsageLog[]
 
   @@unique([courseId, levelId, sequence])
   @@index([courseId, levelId])
