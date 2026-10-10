@@ -42,6 +42,17 @@ type ManifestApprovedContext = {
   }>;
 };
 
+type ManifestConversationPolicy = {
+  defaultLanguage: string;
+  supportedLanguages: string[];
+  speechSpeed: number;
+  sessionMaxSeconds: number;
+  sessionIdleTimeoutSeconds: number;
+  cooldownSeconds: number;
+  dailySessionLimit: number;
+  version: number;
+};
+
 type ManifestInput = {
   robot: RobotContext;
   licenseStatus: LicenseStatus;
@@ -52,6 +63,7 @@ type ManifestInput = {
   publicCatalog?: unknown[];
   syncedAt?: string;
   approvedContext?: ManifestApprovedContext;
+  policy?: ManifestConversationPolicy;
 };
 
 const APP_UPDATE_POLICY = {
@@ -148,6 +160,7 @@ export class RobotManifestResolver {
     syncedAt?: string;
     appVersionCode?: number | null;
     approvedContext?: ManifestApprovedContext;
+    policy?: ManifestConversationPolicy;
   }) {
     const myCourses = input.myCourses ?? [];
     const publicCatalog = input.publicCatalog ?? [];
@@ -179,6 +192,16 @@ export class RobotManifestResolver {
       resolver: "cms-entitlements-v1",
     };
     const conversation = {
+      policy: input.policy ?? {
+        defaultLanguage: "en-US",
+        supportedLanguages: ["en-US"],
+        speechSpeed: 1.0,
+        sessionMaxSeconds: 300,
+        sessionIdleTimeoutSeconds: 60,
+        cooldownSeconds: 5,
+        dailySessionLimit: 1000,
+        version: 1,
+      },
       approvedContext: {
         context: input.approvedContext?.context ?? null,
         approvedQa: input.approvedContext?.approvedQa ?? [],
@@ -264,6 +287,7 @@ export class RobotManifestResolver {
       appVersionCode:
         input.appVersionCode ?? this.getStoredAppVersionCode(input.robot.deviceMetadata),
       approvedContext: input.approvedContext,
+      policy: input.policy,
     });
   }
 }

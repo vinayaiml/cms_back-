@@ -938,6 +938,12 @@ Request Body:
   "voiceStyle": "standard",
   "language": "en-US",
   "tone": "friendly",
+  "speechSpeed": 1.0,
+  "sessionMaxSeconds": 300,
+  "sessionIdleTimeoutSeconds": 60,
+  "cooldownSeconds": 5,
+  "dailySessionLimit": 1000,
+  "supportedLanguages": ["en-US", "es-ES"],
   "isPublished": true
 }
 ```
@@ -956,7 +962,10 @@ Request Body:
 {
   "personaName": "Reception Alpha",
   "greetingText": "Welcome to the front desk!",
-  "tone": "formal"
+  "tone": "formal",
+  "speechSpeed": 1.2,
+  "sessionMaxSeconds": 600,
+  "cooldownSeconds": 10
 }
 ```
 
@@ -989,6 +998,12 @@ Response:
   "voiceStyle": "standard",
   "language": "en-US",
   "tone": "formal",
+  "speechSpeed": 1.2,
+  "sessionMaxSeconds": 600,
+  "sessionIdleTimeoutSeconds": 60,
+  "cooldownSeconds": 10,
+  "dailySessionLimit": 1000,
+  "supportedLanguages": ["en-US", "es-ES"],
   "version": 2,
   "isOverridden": true,
   "publishedAt": "2026-10-10T07:30:00.000Z"

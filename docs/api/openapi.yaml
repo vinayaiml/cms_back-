@@ -6652,7 +6652,7 @@ components:
           description: Indicates if safe fallback was used due to model provider error or timeout
     EffectivePersonaResponse:
       type: object
-      required: [schemaVersion, configVersion, orgId, robotId, personaName, greetingText, speechGreeting, voiceStyle, language, tone, version, isOverridden, publishedAt]
+      required: [schemaVersion, configVersion, orgId, robotId, personaName, greetingText, speechGreeting, voiceStyle, language, tone, speechSpeed, sessionMaxSeconds, sessionIdleTimeoutSeconds, cooldownSeconds, dailySessionLimit, supportedLanguages, version, isOverridden, publishedAt]
       properties:
         schemaVersion:
           type: integer
@@ -6688,6 +6688,37 @@ components:
         tone:
           type: string
           example: "friendly"
+        speechSpeed:
+          type: number
+          format: float
+          example: 1.0
+          minimum: 0.5
+          maximum: 2.0
+        sessionMaxSeconds:
+          type: integer
+          example: 300
+          minimum: 30
+          maximum: 3600
+        sessionIdleTimeoutSeconds:
+          type: integer
+          example: 60
+          minimum: 10
+          maximum: 600
+        cooldownSeconds:
+          type: integer
+          example: 5
+          minimum: 0
+          maximum: 300
+        dailySessionLimit:
+          type: integer
+          example: 1000
+          minimum: 1
+          maximum: 100000
+        supportedLanguages:
+          type: array
+          items:
+            type: string
+          example: ["en-US"]
         version:
           type: integer
           example: 2
@@ -6721,6 +6752,32 @@ components:
         tone:
           type: string
           maxLength: 50
+        speechSpeed:
+          type: number
+          minimum: 0.5
+          maximum: 2.0
+        sessionMaxSeconds:
+          type: integer
+          minimum: 30
+          maximum: 3600
+        sessionIdleTimeoutSeconds:
+          type: integer
+          minimum: 10
+          maximum: 600
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          maximum: 300
+        dailySessionLimit:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        supportedLanguages:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
         isPublished:
           type: boolean
     UpsertRobotPersonaOverrideRequest:
@@ -6747,6 +6804,32 @@ components:
         tone:
           type: string
           maxLength: 50
+        speechSpeed:
+          type: number
+          minimum: 0.5
+          maximum: 2.0
+        sessionMaxSeconds:
+          type: integer
+          minimum: 30
+          maximum: 3600
+        sessionIdleTimeoutSeconds:
+          type: integer
+          minimum: 10
+          maximum: 600
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          maximum: 300
+        dailySessionLimit:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        supportedLanguages:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
         isPublished:
           type: boolean
     OrganizationConversationContext:

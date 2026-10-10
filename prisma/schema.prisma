@@ -547,36 +547,48 @@ model OrganizationPersonaConfig {
   id             Int          @id @default(autoincrement())
   orgId          Int          @unique
   personaName    String       @default("WhizRobot Assistant")
-  personaPrompt  String?
-  greetingText   String       @default("Hello! Welcome to our organization.")
-  speechGreeting String       @default("Hello! Welcome to our organization.")
-  voiceStyle     String       @default("standard")
-  language       String       @default("en-US")
-  tone           String       @default("friendly")
-  version        Int          @default(1)
-  isPublished    Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  personaPrompt             String?
+  greetingText              String       @default("Hello! Welcome to our organization.")
+  speechGreeting            String       @default("Hello! Welcome to our organization.")
+  voiceStyle                String       @default("standard")
+  language                  String       @default("en-US")
+  tone                      String       @default("friendly")
+  speechSpeed               Float        @default(1.0)
+  sessionMaxSeconds         Int          @default(300)
+  sessionIdleTimeoutSeconds Int          @default(60)
+  cooldownSeconds           Int          @default(5)
+  dailySessionLimit         Int          @default(1000)
+  supportedLanguages        String       @default("en-US")
+  version                   Int          @default(1)
+  isPublished               Boolean      @default(true)
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  org                       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model RobotPersonaConfig {
-  id             Int          @id @default(autoincrement())
-  orgId          Int
-  robotId        Int          @unique
-  personaName    String?
-  personaPrompt  String?
-  greetingText   String?
-  speechGreeting String?
-  voiceStyle     String?
-  language       String?
-  tone           String?
-  version        Int          @default(1)
-  isPublished    Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  robot          Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
+  id                        Int          @id @default(autoincrement())
+  orgId                     Int
+  robotId                   Int          @unique
+  personaName               String?
+  personaPrompt             String?
+  greetingText              String?
+  speechGreeting            String?
+  voiceStyle                String?
+  language                  String?
+  tone                      String?
+  speechSpeed               Float?
+  sessionMaxSeconds         Int?
+  sessionIdleTimeoutSeconds Int?
+  cooldownSeconds           Int?
+  dailySessionLimit         Int?
+  supportedLanguages        String?
+  version                   Int          @default(1)
+  isPublished               Boolean      @default(true)
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  org                       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  robot                     Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }

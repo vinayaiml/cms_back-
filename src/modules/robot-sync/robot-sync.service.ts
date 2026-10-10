@@ -547,6 +547,63 @@ export class RobotSyncService {
       })),
     };
 
+    const rawOrgPersona = await (this.prisma as any).organizationPersonaConfig?.findUnique?.({
+      where: { orgId: robot.orgId },
+    });
+    const rawRobotPersona = await (this.prisma as any).robotPersonaConfig?.findUnique?.({
+      where: { robotId: robot.id },
+    });
+
+    const isPersonaOverridden = Boolean(rawRobotPersona && rawRobotPersona.isPublished);
+    const defaultLanguage =
+      (isPersonaOverridden && rawRobotPersona?.language) ||
+      rawOrgPersona?.language ||
+      "en-US";
+    const rawSupported =
+      (isPersonaOverridden && rawRobotPersona?.supportedLanguages) ||
+      rawOrgPersona?.supportedLanguages ||
+      "en-US";
+    const supportedLanguages =
+      typeof rawSupported === "string"
+        ? rawSupported.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : ["en-US"];
+    if (!supportedLanguages.includes(defaultLanguage)) {
+      supportedLanguages.unshift(defaultLanguage);
+    }
+    const speechSpeed =
+      isPersonaOverridden && rawRobotPersona?.speechSpeed != null
+        ? rawRobotPersona.speechSpeed
+        : (rawOrgPersona?.speechSpeed ?? 1.0);
+    const sessionMaxSeconds =
+      isPersonaOverridden && rawRobotPersona?.sessionMaxSeconds != null
+        ? rawRobotPersona.sessionMaxSeconds
+        : (rawOrgPersona?.sessionMaxSeconds ?? 300);
+    const sessionIdleTimeoutSeconds =
+      isPersonaOverridden && rawRobotPersona?.sessionIdleTimeoutSeconds != null
+        ? rawRobotPersona.sessionIdleTimeoutSeconds
+        : (rawOrgPersona?.sessionIdleTimeoutSeconds ?? 60);
+    const cooldownSeconds =
+      isPersonaOverridden && rawRobotPersona?.cooldownSeconds != null
+        ? rawRobotPersona.cooldownSeconds
+        : (rawOrgPersona?.cooldownSeconds ?? 5);
+    const dailySessionLimit =
+      isPersonaOverridden && rawRobotPersona?.dailySessionLimit != null
+        ? rawRobotPersona.dailySessionLimit
+        : (rawOrgPersona?.dailySessionLimit ?? 1000);
+    const policyVersion =
+      (rawOrgPersona?.version || 1) + (isPersonaOverridden ? (rawRobotPersona?.version || 0) : 0);
+
+    const policy = {
+      defaultLanguage,
+      supportedLanguages,
+      speechSpeed,
+      sessionMaxSeconds,
+      sessionIdleTimeoutSeconds,
+      cooldownSeconds,
+      dailySessionLimit,
+      version: policyVersion,
+    };
+
     const manifest = await this.manifestResolver.resolve({
       robot,
       licenseStatus: status,
@@ -555,6 +612,7 @@ export class RobotSyncService {
       myCourses,
       publicCatalog,
       approvedContext,
+      policy,
     });
     return this.decorateManifestContent(manifest, robot.id, robot.orgId);
   }

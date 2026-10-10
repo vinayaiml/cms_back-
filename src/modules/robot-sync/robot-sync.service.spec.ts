@@ -299,6 +299,27 @@ describe("RobotSyncService heartbeat updates", () => {
     );
   });
 
+  it("includes effective conversation policy in manifest without secrets (CMS-72)", async () => {
+    const result = (await service.sync(10)) as any;
+
+    expect(result.conversation).toBeDefined();
+    expect(result.conversation.policy).toEqual(
+      expect.objectContaining({
+        defaultLanguage: "en-US",
+        supportedLanguages: expect.arrayContaining(["en-US"]),
+        speechSpeed: 1.0,
+        sessionMaxSeconds: 300,
+        sessionIdleTimeoutSeconds: 60,
+        cooldownSeconds: 5,
+        dailySessionLimit: 1000,
+        version: 1,
+      }),
+    );
+    expect(JSON.stringify(result.conversation)).not.toMatch(
+      /licenseKey|token|password|secret|apiKey/i,
+    );
+  });
+
   it("marks app update as required when robot app version code is below minimum", async () => {
     const result = await service.sync(10, {
       appVersion: "0.0.1",

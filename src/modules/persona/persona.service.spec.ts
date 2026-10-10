@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { LicenseStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -349,5 +349,195 @@ describe('PersonaService (CMS-70)', () => {
     expect(serialized).not.toContain('apiKey');
     expect(serialized).not.toContain('token');
     expect(serialized).not.toContain('licenseKey');
+  });
+
+  // Test 12: Validate speechSpeed safe range
+  it('should validate speechSpeed safe range and reject out-of-range values', async () => {
+    await expect(
+      service.upsertOrganizationPersona(10, { speechSpeed: 0.2 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { speechSpeed: 2.5 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertRobotPersonaOverride(10, 101, { speechSpeed: 3.0 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // Test 13: Validate sessionMaxSeconds and sessionIdleTimeoutSeconds safe ranges
+  it('should validate sessionMaxSeconds and sessionIdleTimeoutSeconds safe ranges', async () => {
+    await expect(
+      service.upsertOrganizationPersona(10, { sessionMaxSeconds: 15 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { sessionMaxSeconds: 5000 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { sessionIdleTimeoutSeconds: 5 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { sessionIdleTimeoutSeconds: 1000 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // Test 14: Validate cooldownSeconds and dailySessionLimit safe ranges
+  it('should validate cooldownSeconds and dailySessionLimit safe ranges', async () => {
+    await expect(
+      service.upsertOrganizationPersona(10, { cooldownSeconds: -1 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { cooldownSeconds: 400 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { dailySessionLimit: 0 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(10, { dailySessionLimit: 200000 }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // Test 15: Reject invalid language codes and secrets in policy fields
+  it('should reject invalid language codes and credentials in policy fields', async () => {
+    await expect(
+      service.upsertOrganizationPersona(10, { language: 'invalid_code_123' }, adminActor),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertOrganizationPersona(
+        10,
+        { language: 'Bearer secret_access_token_123456789' },
+        adminActor,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      service.upsertRobotPersonaOverride(
+        10,
+        101,
+        { personaPrompt: 'Use sk-proj-1234567890abcdef' },
+        adminActor,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // Test 16: Effective policy resolution with robot override precedence
+  it('should resolve effective policy with robot override winning over organization defaults', async () => {
+    mockPrisma.organizationPersonaConfig.findUnique.mockResolvedValue({
+      orgId: 10,
+      personaName: 'Default Org Bot',
+      speechSpeed: 1.0,
+      sessionMaxSeconds: 300,
+      sessionIdleTimeoutSeconds: 60,
+      cooldownSeconds: 5,
+      dailySessionLimit: 1000,
+      language: 'en-US',
+      supportedLanguages: 'en-US,es-ES',
+      version: 1,
+    });
+
+    mockPrisma.robot.findUnique.mockResolvedValue({
+      ...testRobot,
+      personaConfig: {
+        id: 5,
+        orgId: 10,
+        robotId: 101,
+        speechSpeed: 1.25,
+        sessionMaxSeconds: 600,
+        cooldownSeconds: 10,
+        language: 'es-ES',
+        supportedLanguages: 'es-ES',
+        version: 2,
+        isPublished: true,
+        updatedAt: new Date('2026-02-01T00:00:00.000Z'),
+      },
+    });
+
+    const res = await service.resolveEffectivePersona(10, 101);
+
+    expect(res.speechSpeed).toBe(1.25);
+    expect(res.sessionMaxSeconds).toBe(600);
+    expect(res.cooldownSeconds).toBe(10);
+    expect(res.sessionIdleTimeoutSeconds).toBe(60); // fell back to org
+    expect(res.dailySessionLimit).toBe(1000); // fell back to org
+    expect(res.language).toBe('es-ES');
+    expect(res.supportedLanguages).toEqual(['es-ES']);
+    expect(res.version).toBe(3);
+  });
+
+  // Test 17: Effective policy falls back to organization defaults
+  it('should fall back to organization policy defaults when robot override has no policy fields', async () => {
+    mockPrisma.organizationPersonaConfig.findUnique.mockResolvedValue({
+      orgId: 10,
+      personaName: 'Default Org Bot',
+      speechSpeed: 0.9,
+      sessionMaxSeconds: 450,
+      sessionIdleTimeoutSeconds: 45,
+      cooldownSeconds: 8,
+      dailySessionLimit: 500,
+      language: 'en-GB',
+      supportedLanguages: 'en-GB,fr-FR',
+      version: 2,
+      updatedAt: new Date('2026-02-01T00:00:00.000Z'),
+    });
+
+    mockPrisma.robot.findUnique.mockResolvedValue({
+      ...testRobot,
+      personaConfig: null,
+    });
+
+    const res = await service.resolveEffectivePersona(10, 101);
+
+    expect(res.speechSpeed).toBe(0.9);
+    expect(res.sessionMaxSeconds).toBe(450);
+    expect(res.sessionIdleTimeoutSeconds).toBe(45);
+    expect(res.cooldownSeconds).toBe(8);
+    expect(res.dailySessionLimit).toBe(500);
+    expect(res.language).toBe('en-GB');
+    expect(res.supportedLanguages).toEqual(['en-GB', 'fr-FR']);
+  });
+
+  // Test 18: Sanitized audit metadata on policy updates
+  it('should record sanitized audit event without raw prompts or secrets when policy fields are updated', async () => {
+    mockPrisma.organizationPersonaConfig.findUnique.mockResolvedValue({
+      id: 1,
+      orgId: 10,
+      version: 1,
+    });
+    mockPrisma.organizationPersonaConfig.upsert.mockResolvedValue({
+      id: 1,
+      orgId: 10,
+      speechSpeed: 1.5,
+      version: 2,
+      isPublished: true,
+      supportedLanguages: 'en-US',
+      language: 'en-US',
+    });
+
+    await service.upsertOrganizationPersona(
+      10,
+      { speechSpeed: 1.5, sessionMaxSeconds: 500 },
+      adminActor,
+    );
+
+    expect(mockAudit.recordBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'ORGANIZATION_PERSONA_CONFIG_UPDATED',
+        targetId: '10',
+        targetOrgId: 10,
+        metadata: {
+          version: 2,
+          isPublished: true,
+          changedFields: ['speechSpeed', 'sessionMaxSeconds'],
+        },
+      }),
+    );
   });
 });
