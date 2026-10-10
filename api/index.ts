@@ -6,25 +6,44 @@ import { configureApp } from '../src/app.setup';
 
 const server = express();
 let bootstrapPromise: Promise<express.Express> | null = null;
+let bootstrapError: string | null = null;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
-    logger: ['error', 'warn', 'log'],
-  });
+  try {
+    const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
+      logger: ['error', 'warn', 'log'],
+    });
 
-  configureApp(app);
-  await app.init();
+    configureApp(app);
+    await app.init();
 
-  // eslint-disable-next-line no-console
-  console.log('[vercel] NestJS bootstrap complete');
-  return server;
+    bootstrapError = null;
+    // eslint-disable-next-line no-console
+    console.log('[vercel] NestJS bootstrap complete');
+    return server;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    bootstrapError = message;
+    // eslint-disable-next-line no-console
+    console.error('[vercel] Bootstrap failed:', message);
+    if (error instanceof Error && error.stack) {
+      // eslint-disable-next-line no-console
+      console.error('[vercel] Stack:', error.stack);
+    }
+    throw error;
+  }
 }
 
 export default async function handler(req: express.Request, res: express.Response) {
-  // Health/readiness probe — respond immediately without bootstrapping NestJS
   const path = req.url?.split('?')[0] ?? '/';
+
+  // Health/readiness probe — respond immediately without bootstrapping NestJS
   if (req.method === 'GET' && (path === '/' || path === '/api/health')) {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({
+      status: bootstrapError ? 'error' : 'ok',
+      timestamp: new Date().toISOString(),
+      bootstrapError: bootstrapError || undefined,
+    });
     return;
   }
 
@@ -52,12 +71,14 @@ export default async function handler(req: express.Request, res: express.Respons
     return app(req, res);
   } catch (error) {
     bootstrapPromise = null;
+    const message = error instanceof Error ? error.message : String(error);
     // eslint-disable-next-line no-console
-    console.error('[vercel] API bootstrap failed:', error instanceof Error ? error.message : error);
+    console.error('[vercel] API handler error:', message);
     res.status(500).json({
       error: {
         code: 'API_BOOTSTRAP_FAILED',
-        message: 'The API failed to start. Check environment configuration.',
+        message: 'The API failed to start.',
+        detail: process.env.NODE_ENV !== 'production' ? message : undefined,
       },
     });
   }
