@@ -22,6 +22,7 @@ import { SubscriptionPlansModule } from "./modules/subscription-plans/subscripti
 import { EntitlementsModule } from "./modules/entitlements/entitlements.module";
 import { ContentDeliveryModule } from "./modules/content-delivery/content-delivery.module";
 import { AiGatewayModule } from "./modules/ai-gateway/ai-gateway.module";
+import { PersonaModule } from "./modules/persona/persona.module";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RobotOnlyGuard } from "./common/guards/robot-only.guard";
 import { validateEnv } from "./config/env.validation";
@@ -50,6 +51,7 @@ import { validateEnv } from "./config/env.validation";
     EntitlementsModule,
     ContentDeliveryModule,
     AiGatewayModule,
+    PersonaModule,
     JobsModule,
   ],
   providers: [PermissionsGuard, RobotOnlyGuard],

@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LicenseStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { DomainLockedException } from '../../common/errors/domain-locked.exception';
+import { PersonaService } from '../persona/persona.service';
 import { AiToolRegistryService } from './tools/ai-tool-registry.service';
 import { RobotConversationDto, RobotConversationResponse, ToolExecutionResult } from './ai-gateway.dto';
 import { redactSensitiveData } from './ai-redaction.util';
@@ -20,6 +21,7 @@ export class AiGatewayService {
     private readonly config: ConfigService,
     private readonly toolRegistry: AiToolRegistryService,
     private readonly auditService: AuditService,
+    @Optional() private readonly personaService?: PersonaService,
   ) {}
 
   private getProviderConfig() {
@@ -250,6 +252,20 @@ export class AiGatewayService {
       },
     }));
 
+    let systemContent =
+      'You are an authorized school/office humanoid robot assistant. Be courteous, helpful and concise. Never leak API keys, tokens or private data. Only call approved tools when needed.';
+
+    if (this.personaService) {
+      try {
+        const effective = await this.personaService.resolveEffectivePersona(robot.orgId, robot.id);
+        if (effective.personaPrompt) {
+          systemContent = `${effective.personaPrompt} Be courteous, helpful and concise. Never leak API keys, tokens or private data. Only call approved tools when needed.`;
+        }
+      } catch {
+        // Fall back to default system instruction
+      }
+    }
+
     try {
       const response = await fetch(`${config.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -262,8 +278,7 @@ export class AiGatewayService {
           messages: [
             {
               role: 'system',
-              content:
-                'You are an authorized school/office humanoid robot assistant. Be courteous, helpful and concise. Never leak API keys, tokens or private data. Only call approved tools when needed.',
+              content: systemContent,
             },
             {
               role: 'user',

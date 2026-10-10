@@ -32,6 +32,8 @@ model Organization {
   usageLogs            RobotUsageLog[]
   roles                Role[]
   users                User[]
+  personaConfig        OrganizationPersonaConfig?
+  robotPersonaConfigs  RobotPersonaConfig[]
 }
 
 model User {
@@ -148,6 +150,7 @@ model Robot {
   courseAssignments     RobotCourseAccess[]
   usageLogs             RobotUsageLog[]
   capabilityAssignments RobotCapabilityAssignment[]
+  personaConfig         RobotPersonaConfig?
 
   @@index([orgId])
 }
@@ -536,4 +539,42 @@ enum DashboardTemplateType {
   WIDGETS
   KPI_OVERVIEW
   MARKDOWN
+}
+
+model OrganizationPersonaConfig {
+  id             Int          @id @default(autoincrement())
+  orgId          Int          @unique
+  personaName    String       @default("WhizRobot Assistant")
+  personaPrompt  String?
+  greetingText   String       @default("Hello! Welcome to our organization.")
+  speechGreeting String       @default("Hello! Welcome to our organization.")
+  voiceStyle     String       @default("standard")
+  language       String       @default("en-US")
+  tone           String       @default("friendly")
+  version        Int          @default(1)
+  isPublished    Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model RobotPersonaConfig {
+  id             Int          @id @default(autoincrement())
+  orgId          Int
+  robotId        Int          @unique
+  personaName    String?
+  personaPrompt  String?
+  greetingText   String?
+  speechGreeting String?
+  voiceStyle     String?
+  language       String?
+  tone           String?
+  version        Int          @default(1)
+  isPublished    Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  robot          Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
