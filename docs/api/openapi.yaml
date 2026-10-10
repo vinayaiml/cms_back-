@@ -3578,6 +3578,58 @@ paths:
                 type: object
                 additionalProperties: true
 
+  /content/course/{id}/publish:
+    patch:
+      tags: [Content]
+      summary: Publish course
+      description: Publishes a course for future manifest resolution and records a sanitized audit event.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: x-correlation-id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Course published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /content/course/{id}/unpublish:
+    patch:
+      tags: [Content]
+      summary: Unpublish course
+      description: Unpublishes a course so it disappears from new robot manifests and records a sanitized audit event. Existing signed content links are rejected after unpublish.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: x-correlation-id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Course unpublished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Course"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /content/level/{id}:
     patch:
       tags: [Content]
@@ -3637,6 +3689,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Lesson"
+
+  /content/lesson/{id}/publish:
+    patch:
+      tags: [Content]
+      summary: Publish lesson
+      description: Publishes a lesson for future manifest resolution and records a sanitized audit event.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: x-correlation-id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lesson published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lesson"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /content/lesson/{id}/unpublish:
+    patch:
+      tags: [Content]
+      summary: Unpublish lesson
+      description: Unpublishes a lesson so it disappears from new robot manifests and records a sanitized audit event. Existing signed content links are rejected after unpublish.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: x-correlation-id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lesson unpublished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lesson"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /content/import:
     post:
@@ -5972,6 +6076,8 @@ components:
         visibility:
           type: string
           enum: [PRIVATE, PUBLIC]
+        isPublished:
+          type: boolean
         levels:
           type: array
           items:
@@ -6055,6 +6161,8 @@ components:
         visibility:
           type: string
           enum: [PRIVATE, PUBLIC_PREVIEW]
+        isPublished:
+          type: boolean
     UpdateCourseRequest:
       type: object
       properties:
@@ -6124,6 +6232,8 @@ components:
         visibility:
           type: string
           enum: [PRIVATE, PUBLIC_PREVIEW]
+        isPublished:
+          type: boolean
         chapterId:
           type: integer
           nullable: true

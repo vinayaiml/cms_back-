@@ -277,6 +277,7 @@ model Course {
   source         CourseSource      @default(PLATFORM)
   ownerOrgId     Int?
   visibility     CourseVisibility  @default(PRIVATE)
+  isPublished    Boolean           @default(true)
   introLevelId   Int?              @unique
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -340,6 +341,7 @@ model Lesson {
   thumbnailUrl     String?
   logoUrl          String?
   visibility       LessonVisibility @default(PRIVATE)
+  isPublished      Boolean          @default(true)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   events           Event[]

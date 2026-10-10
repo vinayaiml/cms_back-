@@ -339,7 +339,7 @@ export class RobotsService {
     scope?: { robotId?: number; userId?: number },
   ) {
     const orgOwnedCourses: CourseWithLevels[] = await this.prisma.course.findMany({
-      where: { ownerOrgId: orgId },
+      where: { ownerOrgId: orgId, isPublished: true } as any,
       orderBy: { id: "asc" },
       include: {
         levels: {
@@ -347,10 +347,15 @@ export class RobotsService {
           include: {
             chapters: {
               orderBy: { sequence: "asc" },
-              include: { lessons: { orderBy: { sequence: "asc" } } },
+              include: {
+                lessons: {
+                  where: { isPublished: true } as any,
+                  orderBy: { sequence: "asc" },
+                },
+              },
             },
             lessons: {
-              where: { chapterId: null },
+              where: { chapterId: null, isPublished: true } as any,
               orderBy: { sequence: "asc" },
             },
           },
@@ -412,7 +417,8 @@ export class RobotsService {
           where: {
             id: { in: assignedCourseIds },
             source: CourseSource.PLATFORM,
-          },
+            isPublished: true,
+          } as any,
           orderBy: { id: "asc" },
           include: {
             levels: {
@@ -420,10 +426,15 @@ export class RobotsService {
               include: {
                 chapters: {
                   orderBy: { sequence: "asc" },
-                  include: { lessons: { orderBy: { sequence: "asc" } } },
+                  include: {
+                    lessons: {
+                      where: { isPublished: true } as any,
+                      orderBy: { sequence: "asc" },
+                    },
+                  },
                 },
                 lessons: {
-                  where: { chapterId: null },
+                  where: { chapterId: null, isPublished: true } as any,
                   orderBy: { sequence: "asc" },
                 },
               },
@@ -473,8 +484,9 @@ export class RobotsService {
     const publicCourses: PublicCourse[] = await this.prisma.course.findMany({
       where: {
         visibility: CourseVisibility.PUBLIC,
+        isPublished: true,
         introLevelId: { not: null },
-      },
+      } as any,
       orderBy: { id: "asc" },
       include: {
         introLevel: {
@@ -483,7 +495,7 @@ export class RobotsService {
               orderBy: { sequence: "asc" },
               include: {
                 lessons: {
-                  where: { visibility: LessonVisibility.PUBLIC_PREVIEW },
+                  where: { visibility: LessonVisibility.PUBLIC_PREVIEW, isPublished: true } as any,
                   orderBy: { sequence: "asc" },
                 },
               },
@@ -492,7 +504,8 @@ export class RobotsService {
               where: {
                 chapterId: null,
                 visibility: LessonVisibility.PUBLIC_PREVIEW,
-              },
+                isPublished: true,
+              } as any,
               orderBy: { sequence: "asc" },
             },
           },

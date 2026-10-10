@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Headers, Param, ParseIntPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -54,6 +54,26 @@ export class ContentController {
     return this.content.updateCourse(actor, id, dto);
   }
 
+  @Patch('course/:id/publish')
+  @RequirePermissions('content.write')
+  async publishCourse(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.content.setCoursePublished(actor, id, true, correlationId);
+  }
+
+  @Patch('course/:id/unpublish')
+  @RequirePermissions('content.write')
+  async unpublishCourse(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.content.setCoursePublished(actor, id, false, correlationId);
+  }
+
   // Update level
   @Patch('level/:id')
   @RequirePermissions('content.write')
@@ -73,6 +93,26 @@ export class ContentController {
   @RequirePermissions('content.write')
   async updateLesson(@CurrentUser() actor: JwtPayload, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateLessonDto) {
     return this.content.updateLesson(actor, id, dto);
+  }
+
+  @Patch('lesson/:id/publish')
+  @RequirePermissions('content.write')
+  async publishLesson(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.content.setLessonPublished(actor, id, true, correlationId);
+  }
+
+  @Patch('lesson/:id/unpublish')
+  @RequirePermissions('content.write')
+  async unpublishLesson(
+    @CurrentUser() actor: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-correlation-id') correlationId?: string,
+  ) {
+    return this.content.setLessonPublished(actor, id, false, correlationId);
   }
 
   // Delete course

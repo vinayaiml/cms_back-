@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parse as parseCsv } from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
@@ -13,6 +13,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { JwtPayload, JwtUserPayload } from '../../common/auth/jwt.types';
+import { AuditService } from '../audit/audit.service';
 import { UpdateChapterDto, UpdateCourseDto, UpdateLessonDto, UpdateLevelDto } from './content.dto';
 
 type RawRow = Record<string, any>;
@@ -146,7 +147,11 @@ type LessonRow = {
 
 @Injectable()
 export class ContentService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional()
+    private audit?: AuditService,
+  ) {}
   private static readonly IMPORT_TX_OPTS = { maxWait: 10000, timeout: 60000 } as const;
 
   private applyCarryForward(
@@ -493,6 +498,49 @@ export class ContentService {
     return this.prisma.course.update({ where: { id: course.id }, data });
   }
 
+  private auditActor(actor: JwtPayload) {
+    const user = this.ensureUser(actor);
+    return {
+      userId: user.sub,
+      orgId: user.orgId ?? null,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+    };
+  }
+
+  async setCoursePublished(
+    actor: JwtPayload,
+    courseId: number,
+    isPublished: boolean,
+    correlationId?: string | null,
+  ) {
+    const course = await this.canWriteCourse(actor, courseId);
+    if ((course as any).isPublished === isPublished) {
+      return course;
+    }
+
+    const updated = await (this.prisma.course.update as any)({
+      where: { id: course.id },
+      data: { isPublished },
+    });
+
+    await this.audit?.recordCritical({
+      actor: this.auditActor(actor),
+      action: isPublished ? 'content.course.published' : 'content.course.unpublished',
+      targetType: 'course',
+      targetId: course.id,
+      targetOrgId: course.ownerOrgId,
+      correlationId,
+      metadata: {
+        courseId: course.id,
+        source: course.source,
+        oldIsPublished: (course as any).isPublished,
+        newIsPublished: isPublished,
+      },
+    });
+
+    return updated;
+  }
+
   async updateLevel(actor: JwtPayload, levelId: number, dto: UpdateLevelDto) {
     this.ensureUser(actor);
     const level = await this.prisma.level.findUnique({ where: { id: levelId }, include: { course: true } });
@@ -590,6 +638,46 @@ export class ContentService {
     data.contentChecksum = metadata.contentChecksum;
 
     return this.prisma.lesson.update({ where: { id: lessonId }, data: data as any });
+  }
+
+  async setLessonPublished(
+    actor: JwtPayload,
+    lessonId: number,
+    isPublished: boolean,
+    correlationId?: string | null,
+  ) {
+    this.ensureUser(actor);
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { level: { include: { course: true } } },
+    });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    await this.canWriteCourse(actor, lesson.level.courseId);
+    if ((lesson as any).isPublished === isPublished) {
+      return lesson;
+    }
+
+    const updated = await (this.prisma.lesson.update as any)({
+      where: { id: lesson.id },
+      data: { isPublished },
+    });
+
+    await this.audit?.recordCritical({
+      actor: this.auditActor(actor),
+      action: isPublished ? 'content.lesson.published' : 'content.lesson.unpublished',
+      targetType: 'lesson',
+      targetId: lesson.id,
+      targetOrgId: lesson.level.course.ownerOrgId,
+      correlationId,
+      metadata: {
+        lessonId: lesson.id,
+        courseId: lesson.courseId,
+        oldIsPublished: (lesson as any).isPublished,
+        newIsPublished: isPublished,
+      },
+    });
+
+    return updated;
   }
 
   async deleteCourse(actor: JwtPayload, courseId: number) {

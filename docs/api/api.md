@@ -67,6 +67,12 @@ Authorization: Bearer <robot-access-token>
 
 Do not use the user token or robot refresh token for robot sync or robot log upload. Those routes require a robot access token.
 
+## LMS Content Publish Workflow
+
+Courses and lessons have an `isPublished` delivery flag controlled by explicit publish/unpublish endpoints. `PATCH /api/content/course/{id}/unpublish` and `PATCH /api/content/lesson/{id}/unpublish` remove content from new robot manifests and invalidate existing signed delivery links during the next authorization check.
+
+The publish/unpublish workflow is tenant-scoped, requires `content.write`, and records sanitized audit events without tokens, license keys or raw credentials.
+
 ## User Login
 
 Use this route for CMS users and administrators.

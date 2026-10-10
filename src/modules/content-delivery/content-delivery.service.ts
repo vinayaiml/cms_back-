@@ -231,7 +231,7 @@ export class ContentDeliveryService {
 
     const lesson = await this.prisma.lesson.findUnique({
       where: { id: payload.lessonId },
-      include: { course: { select: { id: true, source: true, ownerOrgId: true, visibility: true } } },
+      include: { course: true },
     });
     if (!lesson) throw new NotFoundException("Content asset not found");
 
