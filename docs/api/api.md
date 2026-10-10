@@ -864,6 +864,50 @@ If the same `eventId` is sent again, the API may return:
 
 That means the request was accepted, but the log already existed.
 
+## Robot AI Conversation (CMS-69)
+
+Robot AI conversation and approved tool registry endpoint. Android sends conversational messages to CMS; CMS handles model-provider secret management, safety policies, tool execution, and safe fallback responses.
+
+```text
+POST /api/v1/robot/ai/conversation
+Authorization: Bearer <robot-access-token>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "message": "Hello, who is the principal of this school?",
+  "sessionId": "optional-session-id",
+  "contextReferences": {
+    "location": "Front Desk",
+    "screen": "HOME"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "conversationId": "3b29c017-5757-463e-b816-7d1cbb0f91ef",
+  "reply": "Welcome to Whiz Academy! How can I assist you today?",
+  "speechText": "Welcome to Whiz Academy! How can I help you today?",
+  "action": null,
+  "toolExecutions": [
+    {
+      "toolName": "getApprovedOrganisationInformation",
+      "status": "EXECUTED",
+      "output": {
+        "organizationName": "Whiz Academy"
+      }
+    }
+  ],
+  "fallbackUsed": false
+}
+```
+
 ## Thunder Client Verification
 
 1. Login as a CMS user:

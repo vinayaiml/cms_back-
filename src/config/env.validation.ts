@@ -149,6 +149,12 @@ export function validateEnv(config: Env) {
     }
   }
 
+  const aiGatewayProvider = clean(config.AI_GATEWAY_PROVIDER) || 'mock';
+  const aiGatewayBaseUrl = clean(config.AI_GATEWAY_BASE_URL);
+  if (aiGatewayBaseUrl) {
+    requireUrl('AI_GATEWAY_BASE_URL', aiGatewayBaseUrl, errors);
+  }
+
   if (errors.length) {
     throw new Error(`Invalid environment configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -162,5 +168,6 @@ export function validateEnv(config: Env) {
     ROBOT_REFRESH_TOKEN_EXPIRES_IN: robotRefreshTokenExpiresIn,
     REDIS_ENABLED: String(redisEnabled),
     CORS_ALLOWED_ORIGINS: allowedOrigins.join(','),
+    AI_GATEWAY_PROVIDER: aiGatewayProvider,
   };
 }

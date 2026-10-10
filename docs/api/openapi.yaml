@@ -765,6 +765,61 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /v1/robot/ai/conversation:
+    post:
+      tags: [Robot]
+      operationId: converseRobotAiV1
+      summary: Robot AI conversation gateway
+      description: |
+        Processes speech or text conversation for an authenticated robot via backend AI gateway.
+        Provider credentials remain strictly on the backend. Approved AI tools (organization info,
+        staff directory, appointment booking, safety-checked movement) are executed subject to
+        tenant isolation, active license checks, and safety limits.
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotConversationRequest"
+            examples:
+              askOrgInfo:
+                value:
+                  message: "Hello! Who is the principal here?"
+                  sessionId: "sess-8a9b0c"
+                  contextReferences:
+                    location: "Reception"
+                    screen: "HOME"
+      responses:
+        "200":
+          description: AI conversation response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotConversationResponse"
+              examples:
+                successWithTool:
+                  value:
+                    conversationId: "c7e12720-3c5e-4bb5-8fa9-43c2fa4b840e"
+                    reply: "Welcome to Whiz Academy! Our principal is Dr. Sharma. How may I assist you?"
+                    speechText: "Welcome to Whiz Academy! How may I assist you?"
+                    action: null
+                    toolExecutions:
+                      - toolName: "getApprovedOrganisationInformation"
+                        status: "EXECUTED"
+                    fallbackUsed: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /auth/login:
     post:
       tags: [Auth]
@@ -6357,3 +6412,65 @@ components:
           type: string
           format: date-time
           nullable: true
+    RobotConversationRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 2000
+          description: User speech or text message
+        sessionId:
+          type: string
+          maxLength: 100
+          nullable: true
+          description: Optional client conversation session identifier
+        contextReferences:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Contextual references such as current screen, location or anonymized visitor ref
+    RobotConversationResponse:
+      type: object
+      required: [conversationId, reply, speechText, toolExecutions, fallbackUsed]
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+        reply:
+          type: string
+          description: Conversational text response for display
+        speechText:
+          type: string
+          description: Sanitized text suitable for robot text-to-speech engine
+        action:
+          type: object
+          nullable: true
+          description: Optional approved physical or UI action dispatch
+          properties:
+            type:
+              type: string
+            payload:
+              type: object
+              additionalProperties: true
+        toolExecutions:
+          type: array
+          items:
+            type: object
+            required: [toolName, status]
+            properties:
+              toolName:
+                type: string
+              status:
+                type: string
+                enum: [EXECUTED, REJECTED]
+              reason:
+                type: string
+                nullable: true
+              output:
+                type: object
+                nullable: true
+                additionalProperties: true
+        fallbackUsed:
+          type: boolean
+          description: Indicates if safe fallback was used due to model provider error or timeout
