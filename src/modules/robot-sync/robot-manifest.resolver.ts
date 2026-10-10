@@ -23,6 +23,25 @@ type RobotContext = {
   org: OrgContext;
 };
 
+type ManifestApprovedContext = {
+  context: {
+    companyOverview: string | null;
+    operatingHours: string | null;
+    locationDetails: string | null;
+    visitorGuidelines: string | null;
+    eventsSummary: string | null;
+    version: number;
+  } | null;
+  approvedQa: Array<{
+    id: number;
+    question: string;
+    answer: string;
+    category: string | null;
+    version: number;
+    sortOrder: number;
+  }>;
+};
+
 type ManifestInput = {
   robot: RobotContext;
   licenseStatus: LicenseStatus;
@@ -32,6 +51,7 @@ type ManifestInput = {
   myCourses?: unknown[];
   publicCatalog?: unknown[];
   syncedAt?: string;
+  approvedContext?: ManifestApprovedContext;
 };
 
 const APP_UPDATE_POLICY = {
@@ -127,6 +147,7 @@ export class RobotManifestResolver {
     publicCatalog?: unknown[];
     syncedAt?: string;
     appVersionCode?: number | null;
+    approvedContext?: ManifestApprovedContext;
   }) {
     const myCourses = input.myCourses ?? [];
     const publicCatalog = input.publicCatalog ?? [];
@@ -157,6 +178,12 @@ export class RobotManifestResolver {
       effective: input.entitlements.paidCapabilities,
       resolver: "cms-entitlements-v1",
     };
+    const conversation = {
+      approvedContext: {
+        context: input.approvedContext?.context ?? null,
+        approvedQa: input.approvedContext?.approvedQa ?? [],
+      },
+    };
 
     const hashSource = {
       schemaVersion: 1,
@@ -170,6 +197,7 @@ export class RobotManifestResolver {
       contentVersions,
       myCourses,
       publicCatalog,
+      conversation,
     };
     const manifestHash = this.manifestHash(hashSource);
     const configVersion = `manifest-${manifestHash.slice(0, 16)}`;
@@ -184,6 +212,7 @@ export class RobotManifestResolver {
       capabilities,
       policies,
       contentVersions,
+      conversation,
       sync: {
         serverTime: syncedAt,
         syncedAt,
@@ -234,6 +263,7 @@ export class RobotManifestResolver {
       syncedAt: input.syncedAt,
       appVersionCode:
         input.appVersionCode ?? this.getStoredAppVersionCode(input.robot.deviceMetadata),
+      approvedContext: input.approvedContext,
     });
   }
 }

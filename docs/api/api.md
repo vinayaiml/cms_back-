@@ -995,6 +995,110 @@ Response:
 }
 ```
 
+### Organization Conversation Context and Approved Q&A (CMS-71)
+
+Enables organization event/company context and approved Q&A management for AI conversation. Published context and approved Q&A entries appear in the robot manifest under `conversation.approvedContext` and invalidate manifest caches by bumping `tenantVersion`.
+
+Prohibited credentials, secrets, tokens, API keys, private keys, SSNs, and credit cards are rejected with `400 Bad Request` prior to persistence. Audit metadata is strictly sanitized.
+
+#### Get Organization Conversation Context
+
+```text
+GET /api/v1/orgs/{orgId}/conversation-context
+Authorization: Bearer <user-token>
+```
+
+Response:
+```json
+{
+  "id": 1,
+  "orgId": 10,
+  "companyOverview": "Whiz STEM Academy provides innovative robotics education.",
+  "operatingHours": "Mon-Fri 08:00 - 17:00",
+  "locationDetails": "Main Campus, Building A",
+  "visitorGuidelines": "Visitors must check in at reception.",
+  "eventsSummary": "Robotics Open Day on Friday.",
+  "version": 1,
+  "isPublished": true
+}
+```
+
+#### Upsert Organization Conversation Context
+
+```text
+PUT /api/v1/orgs/{orgId}/conversation-context
+Authorization: Bearer <user-token>
+Content-Type: application/json
+```
+
+Body:
+```json
+{
+  "companyOverview": "Whiz STEM Academy provides innovative robotics education.",
+  "operatingHours": "Mon-Fri 08:00 - 17:00",
+  "locationDetails": "Main Campus, Building A",
+  "visitorGuidelines": "Visitors must check in at reception.",
+  "eventsSummary": "Robotics Open Day on Friday.",
+  "isPublished": true
+}
+```
+
+#### List Approved Q&A
+
+```text
+GET /api/v1/orgs/{orgId}/approved-qa?category=facilities
+Authorization: Bearer <user-token>
+```
+
+Response:
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "orgId": 10,
+      "question": "Where is the library?",
+      "answer": "The library is on the 2nd floor of Building B.",
+      "category": "facilities",
+      "version": 1,
+      "isPublished": true,
+      "sortOrder": 0
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Bulk Upsert Approved Q&A
+
+```text
+PUT /api/v1/orgs/{orgId}/approved-qa
+Authorization: Bearer <user-token>
+Content-Type: application/json
+```
+
+Body:
+```json
+{
+  "items": [
+    {
+      "question": "Where is the library?",
+      "answer": "The library is on the 2nd floor of Building B.",
+      "category": "facilities",
+      "isPublished": true,
+      "sortOrder": 0
+    }
+  ]
+}
+```
+
+#### Delete Approved Q&A
+
+```text
+DELETE /api/v1/orgs/{orgId}/approved-qa/{id}
+Authorization: Bearer <user-token>
+```
+
 ## Thunder Client Verification
 
 1. Login as a CMS user:

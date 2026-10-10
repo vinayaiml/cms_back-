@@ -3987,8 +3987,157 @@ paths:
           content:
             application/json:
               schema:
+  /orgs/{orgId}/conversation-context:
+    get:
+      tags: [Organizations]
+      operationId: getConversationContext
+      summary: Get organization conversation and event context
+      description: Returns organization background, operating hours, location details, visitor guidelines, and events summary.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Organization conversation context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationConversationContext"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Organizations]
+      operationId: upsertConversationContext
+      summary: Upsert organization conversation and event context
+      description: Updates published context and increments tenantVersion to trigger robot cache refresh. Rejects prohibited secrets and personal credentials.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertConversationContextRequest"
+      responses:
+        "200":
+          description: Updated conversation context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationConversationContext"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/approved-qa:
+    get:
+      tags: [Organizations]
+      operationId: listApprovedQa
+      summary: List organization approved Q&A entries
+      description: Lists approved question and answer entries for AI conversation reference.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: includeUnpublished
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of approved Q&A entries
+          content:
+            application/json:
+              schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganizationApprovedQa"
+                  total:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Organizations]
+      operationId: upsertApprovedQa
+      summary: Bulk upsert approved Q&A entries
+      description: Creates or updates approved Q&A entries. Rejects prohibited credentials and personal data before persistence.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertApprovedQaRequest"
+      responses:
+        "200":
+          description: Saved approved Q&A entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrganizationApprovedQa"
+                  total:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/approved-qa/{id}:
+    delete:
+      tags: [Organizations]
+      operationId: deleteApprovedQa
+      summary: Delete an approved Q&A entry
+      description: Deletes an approved Q&A entry and increments tenantVersion.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Item deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /dashboard/sections:
     get:
@@ -6600,3 +6749,112 @@ components:
           maxLength: 50
         isPublished:
           type: boolean
+    OrganizationConversationContext:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+          example: 1
+        orgId:
+          type: integer
+          example: 10
+        companyOverview:
+          type: string
+          nullable: true
+          example: "Whiz STEM Academy provides innovative robotics education."
+        operatingHours:
+          type: string
+          nullable: true
+          example: "Mon-Fri 08:00 - 17:00"
+        locationDetails:
+          type: string
+          nullable: true
+          example: "Main Building, Floor 2"
+        visitorGuidelines:
+          type: string
+          nullable: true
+          example: "Visitors must check in at reception."
+        eventsSummary:
+          type: string
+          nullable: true
+          example: "Robotics Open Day on Oct 24."
+        version:
+          type: integer
+          example: 2
+        isPublished:
+          type: boolean
+          example: true
+    UpsertConversationContextRequest:
+      type: object
+      properties:
+        companyOverview:
+          type: string
+          maxLength: 10000
+        operatingHours:
+          type: string
+          maxLength: 5000
+        locationDetails:
+          type: string
+          maxLength: 5000
+        visitorGuidelines:
+          type: string
+          maxLength: 5000
+        eventsSummary:
+          type: string
+          maxLength: 10000
+        isPublished:
+          type: boolean
+    OrganizationApprovedQa:
+      type: object
+      required: [id, orgId, question, answer, version, isPublished, sortOrder]
+      properties:
+        id:
+          type: integer
+          example: 1
+        orgId:
+          type: integer
+          example: 10
+        question:
+          type: string
+          example: "Where is the main auditorium?"
+        answer:
+          type: string
+          example: "The auditorium is located on the ground floor next to the cafeteria."
+        category:
+          type: string
+          nullable: true
+          example: "facilities"
+        version:
+          type: integer
+          example: 1
+        isPublished:
+          type: boolean
+          example: true
+        sortOrder:
+          type: integer
+          example: 0
+    UpsertApprovedQaRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [question, answer]
+            properties:
+              id:
+                type: integer
+              question:
+                type: string
+                maxLength: 1000
+              answer:
+                type: string
+                maxLength: 5000
+              category:
+                type: string
+                maxLength: 100
+              isPublished:
+                type: boolean
+              sortOrder:
+                type: integer

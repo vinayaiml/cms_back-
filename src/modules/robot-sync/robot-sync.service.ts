@@ -347,6 +347,10 @@ export class RobotSyncService {
         locked: true,
         reason: status,
         appVersionCode,
+        approvedContext: {
+          context: null,
+          approvedQa: [],
+        },
       });
     }
 
@@ -513,6 +517,36 @@ export class RobotSyncService {
       logoUrl: c.logoUrl,
       introLevel: c.introLevel,
     }));
+    const rawContext = await (this.prisma as any).organizationConversationContext?.findUnique?.({
+      where: { orgId: robot.orgId },
+    });
+    const rawApprovedQa = (await (this.prisma as any).organizationApprovedQa?.findMany?.({
+      where: { orgId: robot.orgId, isPublished: true },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    })) ?? [];
+
+    const approvedContext = {
+      context:
+        rawContext && rawContext.isPublished
+          ? {
+              companyOverview: rawContext.companyOverview,
+              operatingHours: rawContext.operatingHours,
+              locationDetails: rawContext.locationDetails,
+              visitorGuidelines: rawContext.visitorGuidelines,
+              eventsSummary: rawContext.eventsSummary,
+              version: rawContext.version,
+            }
+          : null,
+      approvedQa: rawApprovedQa.map((item: any) => ({
+        id: item.id,
+        question: item.question,
+        answer: item.answer,
+        category: item.category,
+        version: item.version,
+        sortOrder: item.sortOrder,
+      })),
+    };
+
     const manifest = await this.manifestResolver.resolve({
       robot,
       licenseStatus: status,
@@ -520,6 +554,7 @@ export class RobotSyncService {
       appVersionCode,
       myCourses,
       publicCatalog,
+      approvedContext,
     });
     return this.decorateManifestContent(manifest, robot.id, robot.orgId);
   }
@@ -590,6 +625,7 @@ export class RobotSyncService {
       changed.tenant = manifest.tenant;
       changed.capabilities = manifest.capabilities;
       changed.policies = manifest.policies;
+      changed.conversation = manifest.conversation;
     }
 
     if (client.myCoursesVersion !== manifest.contentVersions.myCoursesVersion) {

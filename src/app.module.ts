@@ -23,6 +23,7 @@ import { EntitlementsModule } from "./modules/entitlements/entitlements.module";
 import { ContentDeliveryModule } from "./modules/content-delivery/content-delivery.module";
 import { AiGatewayModule } from "./modules/ai-gateway/ai-gateway.module";
 import { PersonaModule } from "./modules/persona/persona.module";
+import { ConversationContextModule } from "./modules/conversation-context/conversation-context.module";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RobotOnlyGuard } from "./common/guards/robot-only.guard";
 import { validateEnv } from "./config/env.validation";
@@ -52,6 +53,7 @@ import { validateEnv } from "./config/env.validation";
     ContentDeliveryModule,
     AiGatewayModule,
     PersonaModule,
+    ConversationContextModule,
     JobsModule,
   ],
   providers: [PermissionsGuard, RobotOnlyGuard],

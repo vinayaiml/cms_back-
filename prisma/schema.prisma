@@ -34,6 +34,8 @@ model Organization {
   users                User[]
   personaConfig        OrganizationPersonaConfig?
   robotPersonaConfigs  RobotPersonaConfig[]
+  conversationContext  OrganizationConversationContext?
+  approvedQAs          OrganizationApprovedQa[]
 }
 
 model User {
@@ -575,6 +577,37 @@ model RobotPersonaConfig {
   updatedAt      DateTime     @updatedAt
   org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   robot          Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model OrganizationConversationContext {
+  id                 Int          @id @default(autoincrement())
+  orgId              Int          @unique
+  companyOverview    String?
+  operatingHours     String?
+  locationDetails    String?
+  visitorGuidelines  String?
+  eventsSummary      String?
+  version            Int          @default(1)
+  isPublished        Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model OrganizationApprovedQa {
+  id                 Int          @id @default(autoincrement())
+  orgId              Int
+  question           String
+  answer             String
+  category           String?
+  version            Int          @default(1)
+  isPublished        Boolean      @default(true)
+  sortOrder          Int          @default(0)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }
