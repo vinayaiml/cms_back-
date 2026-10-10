@@ -820,6 +820,33 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /v1/robot/persona:
+    get:
+      tags: [Robot]
+      operationId: getRobotEffectivePersonaV1
+      summary: Get robot resolved effective persona and greetings
+      description: |
+        Resolves effective persona, tone, voice, and greetings for the authenticated robot.
+        Combines organization baseline with published robot override.
+        Guarantees zero model provider secrets, URLs, or internal tokens are returned.
+      security:
+        - robotBearerAuth: []
+      responses:
+        "200":
+          description: Resolved effective persona response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectivePersonaResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /auth/login:
     post:
       tags: [Auth]
@@ -6474,3 +6501,102 @@ components:
         fallbackUsed:
           type: boolean
           description: Indicates if safe fallback was used due to model provider error or timeout
+    EffectivePersonaResponse:
+      type: object
+      required: [schemaVersion, configVersion, orgId, robotId, personaName, greetingText, speechGreeting, voiceStyle, language, tone, version, isOverridden, publishedAt]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        configVersion:
+          type: string
+          example: "persona-org-10-r-101-v2"
+        orgId:
+          type: integer
+          example: 10
+        robotId:
+          type: integer
+          example: 101
+        personaName:
+          type: string
+          example: "Whizzy Guide"
+        personaPrompt:
+          type: string
+          nullable: true
+          example: "You are a courteous educational guide."
+        greetingText:
+          type: string
+          example: "Welcome to Whiz Academy!"
+        speechGreeting:
+          type: string
+          example: "Welcome to Whiz Academy!"
+        voiceStyle:
+          type: string
+          example: "standard"
+        language:
+          type: string
+          example: "en-US"
+        tone:
+          type: string
+          example: "friendly"
+        version:
+          type: integer
+          example: 2
+        isOverridden:
+          type: boolean
+          example: true
+        publishedAt:
+          type: string
+          format: date-time
+    UpsertOrganizationPersonaRequest:
+      type: object
+      properties:
+        personaName:
+          type: string
+          maxLength: 100
+        personaPrompt:
+          type: string
+          maxLength: 2000
+        greetingText:
+          type: string
+          maxLength: 500
+        speechGreeting:
+          type: string
+          maxLength: 500
+        voiceStyle:
+          type: string
+          maxLength: 50
+        language:
+          type: string
+          maxLength: 20
+        tone:
+          type: string
+          maxLength: 50
+        isPublished:
+          type: boolean
+    UpsertRobotPersonaOverrideRequest:
+      type: object
+      properties:
+        personaName:
+          type: string
+          maxLength: 100
+        personaPrompt:
+          type: string
+          maxLength: 2000
+        greetingText:
+          type: string
+          maxLength: 500
+        speechGreeting:
+          type: string
+          maxLength: 500
+        voiceStyle:
+          type: string
+          maxLength: 50
+        language:
+          type: string
+          maxLength: 20
+        tone:
+          type: string
+          maxLength: 50
+        isPublished:
+          type: boolean

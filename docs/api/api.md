@@ -908,6 +908,93 @@ Response:
 }
 ```
 
+## Organization and Robot Persona Configuration (CMS-70)
+
+Organization baseline and robot-specific override endpoints for conversational AI persona, tone, voice and greetings. Robot override fields take precedence over organization defaults; un-overridden fields fall back to organization defaults. All responses are stripped of backend provider secrets.
+
+### 1. Get Organization Persona Configuration
+
+```text
+GET /api/v1/orgs/{orgId}/persona
+Authorization: Bearer <user-token>
+```
+
+### 2. Update Organization Persona Configuration
+
+```text
+PUT /api/v1/orgs/{orgId}/persona
+Authorization: Bearer <user-token>
+Content-Type: application/json
+```
+
+Request Body:
+
+```json
+{
+  "personaName": "Whizzy Assistant",
+  "personaPrompt": "You are a courteous educational guide.",
+  "greetingText": "Welcome to Whiz Academy!",
+  "speechGreeting": "Welcome to Whiz Academy!",
+  "voiceStyle": "standard",
+  "language": "en-US",
+  "tone": "friendly",
+  "isPublished": true
+}
+```
+
+### 3. Update Robot Persona Override
+
+```text
+PUT /api/v1/orgs/{orgId}/robots/{robotId}/persona
+Authorization: Bearer <user-token>
+Content-Type: application/json
+```
+
+Request Body:
+
+```json
+{
+  "personaName": "Reception Alpha",
+  "greetingText": "Welcome to the front desk!",
+  "tone": "formal"
+}
+```
+
+### 4. Delete Robot Persona Override
+
+```text
+DELETE /api/v1/orgs/{orgId}/robots/{robotId}/persona
+Authorization: Bearer <user-token>
+```
+
+### 5. Effective Persona Resolution (Robot Runtime)
+
+```text
+GET /api/v1/robot/persona
+Authorization: Bearer <robot-access-token>
+```
+
+Response:
+
+```json
+{
+  "schemaVersion": 1,
+  "configVersion": "persona-org-10-r-101-v2",
+  "orgId": 10,
+  "robotId": 101,
+  "personaName": "Reception Alpha",
+  "personaPrompt": "You are a courteous educational guide.",
+  "greetingText": "Welcome to the front desk!",
+  "speechGreeting": "Welcome to Whiz Academy!",
+  "voiceStyle": "standard",
+  "language": "en-US",
+  "tone": "formal",
+  "version": 2,
+  "isOverridden": true,
+  "publishedAt": "2026-10-10T07:30:00.000Z"
+}
+```
+
 ## Thunder Client Verification
 
 1. Login as a CMS user:
