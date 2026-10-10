@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import {
   CapabilityOverrideEffect,
+  CourseAccessType,
   LicenseStatus,
   SubscriptionStatus,
 } from "@prisma/client";
@@ -57,6 +58,9 @@ describe("RobotSyncService heartbeat updates", () => {
     orgCourseAccess: {
       findMany: jest.fn(),
     },
+    robotCourseAccess: {
+      findMany: jest.fn(),
+    },
     organizationSubscription: {
       findFirst: jest.fn(),
     },
@@ -86,6 +90,7 @@ describe("RobotSyncService heartbeat updates", () => {
     prisma.robot.update.mockResolvedValue({});
     prisma.course.findMany.mockResolvedValue([]);
     prisma.orgCourseAccess.findMany.mockResolvedValue([]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([]);
     prisma.organizationSubscription.findFirst.mockResolvedValue(null);
     prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
     prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
@@ -269,7 +274,7 @@ describe("RobotSyncService heartbeat updates", () => {
         contentVersions: {
           cacheVersion: "org-1-v1",
           tenantVersion: 1,
-          myCoursesVersion: "my-courses-org-1-v1-0",
+          myCoursesVersion: expect.stringMatching(/^my-courses-org-1-v1-[0-9a-f]{12}$/),
           publicCatalogVersion: "public-catalog-v1-0",
           myCoursesCount: 0,
           publicCatalogCount: 0,
@@ -639,7 +644,7 @@ describe("RobotSyncService heartbeat updates", () => {
     expect((result as any).contentVersions).toEqual({
       cacheVersion: "org-1-v1",
       tenantVersion: 1,
-      myCoursesVersion: "my-courses-org-1-v1-1",
+      myCoursesVersion: expect.stringMatching(/^my-courses-org-1-v1-[0-9a-f]{12}$/),
       publicCatalogVersion: "public-catalog-v1-1",
       myCoursesCount: 1,
       publicCatalogCount: 1,
@@ -655,6 +660,71 @@ describe("RobotSyncService heartbeat updates", () => {
     expect((result as any).sync.idempotencyKey).toBe("robot-10-org-1-org-1-v1");
     expect((result as any).sync.configVersion).toMatch(/^manifest-[0-9a-f]{16}$/);
     expect((result as any).sync.manifestHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("returns courses only for the authenticated robot when robot-aware LMS access is configured", async () => {
+    const allowedCourse = {
+      id: 301,
+      courseCode: "ROBOT-A",
+      courseName: "Robot A Course",
+      source: "PLATFORM",
+      visibility: "PRIVATE",
+      levels: [],
+    };
+    const otherRobotCourse = {
+      id: 302,
+      courseCode: "ROBOT-B",
+      courseName: "Robot B Course",
+      source: "PLATFORM",
+      visibility: "PRIVATE",
+      levels: [],
+    };
+
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 301,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+      {
+        courseId: 302,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([
+      {
+        robotId: 10,
+        courseId: 301,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+      {
+        robotId: 11,
+        courseId: 302,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([allowedCourse, otherRobotCourse])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.sync(10);
+
+    expect((result as any).myCourses.map((course: any) => course.id)).toEqual([301]);
+    expect((result as any).contentVersions.myCoursesCount).toBe(1);
+    expect((result as any).contentVersions.myCoursesVersion).toMatch(
+      /^my-courses-org-1-v1-[0-9a-f]{12}$/,
+    );
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
     );

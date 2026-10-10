@@ -41,6 +41,11 @@ type AssignmentRow = {
   chapterId: number | null;
 };
 
+type ScopedAssignmentRow = AssignmentRow & {
+  robotId?: number;
+  userId?: number;
+};
+
 type CourseWithLevels = Prisma.CourseGetPayload<{
   include: {
     levels: {
@@ -329,7 +334,10 @@ export class RobotsService {
     return { ...course, levels: filteredLevels };
   }
 
-  private async buildManifestContent(orgId: number) {
+  private async buildManifestContent(
+    orgId: number,
+    scope?: { robotId?: number; userId?: number },
+  ) {
     const orgOwnedCourses: CourseWithLevels[] = await this.prisma.course.findMany({
       where: { ownerOrgId: orgId },
       orderBy: { id: "asc" },
@@ -360,6 +368,42 @@ export class RobotsService {
       },
     });
     const allowedMap = this.buildAllowedMap(assignments);
+    const robotAssignments: ScopedAssignmentRow[] = scope?.robotId
+      ? await (this.prisma as any).robotCourseAccess.findMany({
+          where: { isEnabled: true, robot: { orgId } },
+          select: {
+            robotId: true,
+            courseId: true,
+            accessType: true,
+            levelId: true,
+            chapterId: true,
+          },
+        })
+      : [];
+    const userAssignments: ScopedAssignmentRow[] = scope?.userId
+      ? await (this.prisma as any).userCourseAccess.findMany({
+          where: { isEnabled: true, user: { orgId } },
+          select: {
+            userId: true,
+            courseId: true,
+            accessType: true,
+            levelId: true,
+            chapterId: true,
+          },
+        })
+      : [];
+    const robotScopedCourseIds = new Set(
+      robotAssignments.map((assignment) => assignment.courseId),
+    );
+    const userScopedCourseIds = new Set(
+      userAssignments.map((assignment) => assignment.courseId),
+    );
+    const robotAllowedMap = this.buildAllowedMap(
+      robotAssignments.filter((assignment) => assignment.robotId === scope?.robotId),
+    );
+    const userAllowedMap = this.buildAllowedMap(
+      userAssignments.filter((assignment) => assignment.userId === scope?.userId),
+    );
     const assignedCourseIds = Array.from(
       new Set(assignments.map((a) => a.courseId)),
     );
@@ -392,9 +436,39 @@ export class RobotsService {
       .map((course) => {
         const allow = allowedMap.get(course.id);
         if (!allow) return null;
-        return this.filterCourseByAllowed(course, allow);
+        const orgFiltered = this.filterCourseByAllowed(course, allow);
+        if (!orgFiltered) return null;
+        const robotAllow = robotAllowedMap.get(course.id);
+        const robotFiltered = robotScopedCourseIds.has(course.id)
+          ? robotAllow
+            ? this.filterCourseByAllowed(orgFiltered, robotAllow)
+            : null
+          : orgFiltered;
+        if (!robotFiltered) return null;
+        if (!userScopedCourseIds.has(course.id)) return robotFiltered;
+        const userAllow = userAllowedMap.get(course.id);
+        if (!userAllow) return null;
+        return this.filterCourseByAllowed(robotFiltered, userAllow);
       })
       .filter((course): course is CourseWithLevels => Boolean(course));
+
+    const scopedOrgOwnedCourses = robotScopedCourseIds.size || userScopedCourseIds.size
+      ? orgOwnedCourses
+          .map((course) => {
+            const robotAllow = robotAllowedMap.get(course.id);
+            const robotFiltered = robotScopedCourseIds.has(course.id)
+              ? robotAllow
+                ? this.filterCourseByAllowed(course, robotAllow)
+                : null
+              : course;
+            if (!robotFiltered) return null;
+            if (!userScopedCourseIds.has(course.id)) return robotFiltered;
+            const userAllow = userAllowedMap.get(course.id);
+            if (!userAllow) return null;
+            return this.filterCourseByAllowed(robotFiltered, userAllow);
+          })
+          .filter((course): course is CourseWithLevels => Boolean(course))
+      : orgOwnedCourses;
 
     const publicCourses: PublicCourse[] = await this.prisma.course.findMany({
       where: {
@@ -427,7 +501,7 @@ export class RobotsService {
     });
 
     return {
-      myCourses: [...orgOwnedCourses, ...filteredAssigned],
+      myCourses: [...scopedOrgOwnedCourses, ...filteredAssigned],
       publicCatalog: publicCourses.map((course) => ({
         id: course.id,
         courseCode: course.courseCode,
@@ -678,7 +752,72 @@ export class RobotsService {
 
     const content = locked
       ? { myCourses: [], publicCatalog: [] }
-      : await this.buildManifestContent(robot.orgId);
+      : await this.buildManifestContent(robot.orgId, { robotId: robot.id });
+
+    return this.manifestResolver.resolve({
+      robot,
+      licenseStatus: status,
+      locked,
+      ...(reason ? { reason } : {}),
+      appVersionCode,
+      myCourses: content.myCourses,
+      publicCatalog: content.publicCatalog,
+    });
+  }
+
+  async getUserManifestPreview(
+    robotId: number,
+    userId: number,
+    actor: { orgId: number | null; isSuperAdmin: boolean },
+    appVersionCode?: number,
+  ) {
+    const robot = await this.prisma.robot.findUnique({
+      where: { id: robotId },
+      include: {
+        org: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            logoUrl: true,
+            primaryColor: true,
+            secondaryColor: true,
+            tenantVersion: true,
+          },
+        },
+      },
+    });
+    if (!robot) throw new NotFoundException("Robot not found");
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, orgId: true, isLocked: true },
+    });
+    if (!user || user.orgId !== robot.orgId) {
+      throw new ForbiddenException("User is not in the robot organization");
+    }
+
+    const status = this.computeLicenseStatus(robot.validUntil, robot.revokedAt);
+    const locked =
+      !robot.org.isActive ||
+      user.isLocked ||
+      status === LicenseStatus.EXPIRED ||
+      status === LicenseStatus.REVOKED;
+    const reason = !robot.org.isActive
+      ? "ORG_INACTIVE"
+      : user.isLocked
+        ? "USER_LOCKED"
+        : locked
+          ? status
+          : undefined;
+
+    const content = locked
+      ? { myCourses: [], publicCatalog: [] }
+      : await this.buildManifestContent(robot.orgId, {
+          robotId: robot.id,
+          userId: user.id,
+        });
 
     return this.manifestResolver.resolve({
       robot,

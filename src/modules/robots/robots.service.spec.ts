@@ -3,7 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from "@nestjs/common";
-import { Prisma, LicenseStatus } from "@prisma/client";
+import { CourseAccessType, Prisma, LicenseStatus } from "@prisma/client";
 import { RobotsService } from "./robots.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
 import { RobotManifestResolver } from "../robot-sync/robot-manifest.resolver";
@@ -1235,6 +1235,182 @@ describe("RobotsService device metadata", () => {
     expect(prisma.course.findMany).not.toHaveBeenCalled();
     expect(prisma.orgCourseAccess.findMany).not.toHaveBeenCalled();
     expect(prisma.organizationSubscription.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("applies user-aware LMS access to user manifest preview", async () => {
+    const userAllowedCourse = {
+      id: 501,
+      courseCode: "USER-COURSE",
+      courseName: "User Course",
+      source: "PLATFORM",
+      visibility: "PRIVATE",
+      levels: [
+        {
+          id: 5010,
+          name: "Level",
+          sequence: 1,
+          chapters: [
+            {
+              id: 50100,
+              name: "Chapter",
+              sequence: 1,
+              lessons: [],
+            },
+          ],
+          lessons: [],
+        },
+      ],
+    };
+    const otherUserCourse = {
+      ...userAllowedCourse,
+      id: 502,
+      courseCode: "OTHER-USER-COURSE",
+      courseName: "Other User Course",
+      levels: [{ ...userAllowedCourse.levels[0], id: 5020, chapters: [] }],
+    };
+
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      org: {
+        id: 1,
+        name: "Demo Org",
+        isActive: true,
+        logoUrl: null,
+        primaryColor: null,
+        secondaryColor: null,
+        tenantVersion: 4,
+      },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 20,
+      orgId: 1,
+      isLocked: false,
+    });
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 501,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+      {
+        courseId: 502,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.userCourseAccess.findMany.mockResolvedValue([
+      {
+        userId: 20,
+        courseId: 501,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+      {
+        userId: 21,
+        courseId: 502,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([userAllowedCourse, otherUserCourse])
+      .mockResolvedValueOnce([]);
+    prisma.organizationSubscription.findFirst.mockResolvedValue(null);
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.userCapabilityAssignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getUserManifestPreview(
+      10,
+      20,
+      { orgId: 1, isSuperAdmin: false },
+      2,
+    );
+
+    expect((result as any).myCourses.map((course: any) => course.id)).toEqual([501]);
+    expect((result as any).locked).toBe(false);
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("intersects user-aware LMS access with the selected robot access", async () => {
+    const robotBOnlyCourse = {
+      id: 601,
+      courseCode: "ROBOT-B-ONLY",
+      courseName: "Robot B Only",
+      source: "PLATFORM",
+      visibility: "PRIVATE",
+      levels: [],
+    };
+
+    prisma.robot.findUnique.mockResolvedValue({
+      ...robot,
+      id: 10,
+      org: {
+        id: 1,
+        name: "Demo Org",
+        isActive: true,
+        logoUrl: null,
+        primaryColor: null,
+        secondaryColor: null,
+        tenantVersion: 4,
+      },
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 20,
+      orgId: 1,
+      isLocked: false,
+    });
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 601,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([
+      {
+        robotId: 11,
+        courseId: 601,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.userCourseAccess.findMany.mockResolvedValue([
+      {
+        userId: 20,
+        courseId: 601,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([robotBOnlyCourse])
+      .mockResolvedValueOnce([]);
+    prisma.organizationSubscription.findFirst.mockResolvedValue(null);
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+    prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.userCapabilityAssignment.findMany.mockResolvedValue([]);
+
+    const result = await service.getUserManifestPreview(
+      10,
+      20,
+      { orgId: 1, isSuperAdmin: false },
+      2,
+    );
+
+    expect((result as any).myCourses).toEqual([]);
+    expect((result as any).contentVersions.myCoursesCount).toBe(0);
   });
 
   it("blocks robot detail across organizations before reading audit events", async () => {

@@ -25,6 +25,11 @@ type AssignmentRow = {
   chapterId: number | null;
 };
 
+type ScopedAssignmentRow = AssignmentRow & {
+  robotId?: number;
+  userId?: number;
+};
+
 export type RobotSyncHeartbeat = {
   appVersion?: string;
   deviceModel?: string;
@@ -270,6 +275,7 @@ export class RobotSyncService {
       }
     }
 
+    if (!filteredLevels.length) return null;
     return { ...course, levels: filteredLevels };
   }
 
@@ -376,6 +382,23 @@ export class RobotSyncService {
       });
 
     const allowedMap = this.buildAllowedMap(assignments);
+    const robotCourseAssignments: ScopedAssignmentRow[] =
+      await (this.prisma as any).robotCourseAccess.findMany({
+        where: { isEnabled: true, robot: { orgId: robot.orgId } },
+        select: {
+          robotId: true,
+          courseId: true,
+          accessType: true,
+          levelId: true,
+          chapterId: true,
+        },
+      });
+    const robotRestrictedCourseIds = new Set(
+      robotCourseAssignments.map((assignment) => assignment.courseId),
+    );
+    const robotAllowedMap = this.buildAllowedMap(
+      robotCourseAssignments.filter((assignment) => assignment.robotId === robot.id),
+    );
 
     const assignedCourseIds: number[] = Array.from(
       new Set(assignments.map((a) => a.courseId)),
@@ -410,12 +433,28 @@ export class RobotSyncService {
       .map((c: CourseWithLevels) => {
         const allow = allowedMap.get(c.id);
         if (!allow) return null;
-        return this.filterCourseByAllowed(c, allow);
+        const orgFiltered = this.filterCourseByAllowed(c, allow);
+        if (!orgFiltered) return null;
+        if (!robotRestrictedCourseIds.has(c.id)) return orgFiltered;
+        const robotAllow = robotAllowedMap.get(c.id);
+        if (!robotAllow) return null;
+        return this.filterCourseByAllowed(orgFiltered, robotAllow);
       })
       .filter((c): c is CourseWithLevels => Boolean(c));
 
+    const robotScopedOrgCourses = robotRestrictedCourseIds.size
+      ? orgOwnedCourses
+          .map((c: CourseWithLevels) => {
+            if (!robotRestrictedCourseIds.has(c.id)) return c;
+            const robotAllow = robotAllowedMap.get(c.id);
+            if (!robotAllow) return null;
+            return this.filterCourseByAllowed(c, robotAllow);
+          })
+          .filter((c): c is CourseWithLevels => Boolean(c))
+      : orgOwnedCourses;
+
     const myCourses: CourseWithLevels[] = [
-      ...orgOwnedCourses,
+      ...robotScopedOrgCourses,
       ...filteredAssigned,
     ];
     // 3) Public catalog = PUBLIC courses, only intro level, only PUBLIC_PREVIEW lessons

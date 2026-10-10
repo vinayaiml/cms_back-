@@ -49,6 +49,7 @@ model User {
   createdBy             User?                      @relation("UserCreator", fields: [createdByUserId], references: [id])
   createdUsers          User[]                     @relation("UserCreator")
   org                   Organization?              @relation(fields: [orgId], references: [id])
+  courseAssignments     UserCourseAccess[]
   directPermissions     UserPermission[]
   capabilityAssignments UserCapabilityAssignment[]
   roles                 UserRole[]
@@ -144,6 +145,7 @@ model Robot {
   licenseKeyFingerprint String?                     @unique
   events                Event[]
   org                   Organization                @relation(fields: [orgId], references: [id])
+  courseAssignments     RobotCourseAccess[]
   usageLogs             RobotUsageLog[]
   capabilityAssignments RobotCapabilityAssignment[]
 
@@ -284,6 +286,8 @@ model Course {
   lessons        Lesson[]
   levels         Level[]
   assignments    OrgCourseAccess[]
+  robotAccess    RobotCourseAccess[]
+  userAccess     UserCourseAccess[]
   usageLogs      RobotUsageLog[]
 
   @@index([ownerOrgId])
@@ -361,6 +365,42 @@ model OrgCourseAccess {
 
   @@unique([orgId, courseId, accessType, levelId, chapterId])
   @@index([orgId])
+}
+
+model RobotCourseAccess {
+  id         Int              @id @default(autoincrement())
+  robotId    Int
+  courseId   Int
+  accessType CourseAccessType @default(FULL_COURSE)
+  levelId    Int?
+  chapterId  Int?
+  isEnabled  Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  robot      Robot            @relation(fields: [robotId], references: [id], onDelete: Cascade)
+
+  @@unique([robotId, courseId, accessType, levelId, chapterId])
+  @@index([robotId])
+  @@index([courseId])
+}
+
+model UserCourseAccess {
+  id         Int              @id @default(autoincrement())
+  userId     Int
+  courseId   Int
+  accessType CourseAccessType @default(FULL_COURSE)
+  levelId    Int?
+  chapterId  Int?
+  isEnabled  Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId, accessType, levelId, chapterId])
+  @@index([userId])
+  @@index([courseId])
 }
 
 model RobotUsageLog {

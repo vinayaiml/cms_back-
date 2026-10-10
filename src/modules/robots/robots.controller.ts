@@ -164,6 +164,24 @@ export class RobotsController {
     );
   }
 
+  @Get(":id/users/:userId/manifest-preview")
+  @RequirePermissions("robot.read")
+  async userManifestPreview(
+    @CurrentUser() actor: JwtPayload,
+    @Param("id", ParseIntPipe) id: number,
+    @Param("userId", ParseIntPipe) userId: number,
+    @Query("appVersionCode") appVersionCode?: string,
+  ) {
+    if (actor.type !== "user")
+      throw new ForbiddenException("User token required");
+    return this.robots.getUserManifestPreview(
+      id,
+      userId,
+      { orgId: actor.orgId, isSuperAdmin: actor.isSuperAdmin },
+      this.parseOptionalNonNegativeInt(appVersionCode),
+    );
+  }
+
   @Get(":id")
   @RequirePermissions("robot.read")
   async detail(

@@ -134,7 +134,7 @@ export class RobotManifestResolver {
     const contentVersions = {
       cacheVersion: input.tenant.cacheVersion,
       tenantVersion: input.tenant.tenantVersion,
-      myCoursesVersion: `my-courses-org-${input.tenant.orgId}-v${input.tenant.tenantVersion}-${myCourses.length}`,
+      myCoursesVersion: `my-courses-org-${input.tenant.orgId}-v${input.tenant.tenantVersion}-${this.manifestHash(myCourses).slice(0, 12)}`,
       publicCatalogVersion: `public-catalog-v1-${publicCatalog.length}`,
       myCoursesCount: myCourses.length,
       publicCatalogCount: publicCatalog.length,
