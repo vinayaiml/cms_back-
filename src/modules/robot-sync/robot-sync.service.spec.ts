@@ -10,6 +10,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { RobotSyncService } from "./robot-sync.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
 import { RobotManifestResolver } from "./robot-manifest.resolver";
+import { ContentDeliveryService } from "../content-delivery/content-delivery.service";
 
 function buildRobot(overrides: Record<string, unknown> = {}) {
   return {
@@ -78,6 +79,7 @@ describe("RobotSyncService heartbeat updates", () => {
   let service: RobotSyncService;
 
   beforeEach(() => {
+    process.env.LICENSE_SECRET_KEY = "test-license-secret-key-that-is-long-enough";
     jest.clearAllMocks();
     const entitlements = new EntitlementsService(
       prisma as unknown as PrismaService,
@@ -727,6 +729,73 @@ describe("RobotSyncService heartbeat updates", () => {
     );
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("returns signed resumable delivery links for versioned lesson content", async () => {
+    const signedService = new RobotSyncService(
+      prisma as unknown as PrismaService,
+      new RobotManifestResolver(
+        new EntitlementsService(prisma as unknown as PrismaService),
+      ),
+      new ContentDeliveryService(prisma as unknown as PrismaService),
+    );
+    const lesson = {
+      id: 501,
+      courseId: 301,
+      levelId: 401,
+      chapterId: null,
+      name: "Signed Lesson",
+      sequence: 1,
+      contentType: "VIDEO",
+      contentUrl: "https://cdn.whizrobo.test/lesson-501.mp4",
+      contentVersion: 3,
+      contentSizeBytes: 2048,
+      contentChecksum: "b".repeat(64),
+    };
+    const course = {
+      id: 301,
+      courseCode: "SIGNED-COURSE",
+      courseName: "Signed Course",
+      source: "PLATFORM",
+      visibility: "PRIVATE",
+      levels: [
+        {
+          id: 401,
+          name: "Level 1",
+          sequence: 1,
+          chapters: [],
+          lessons: [lesson],
+        },
+      ],
+    };
+
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 301,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([course])
+      .mockResolvedValueOnce([]);
+
+    const result = await signedService.sync(10);
+    const signedLesson = (result as any).myCourses[0].levels[0].lessons[0];
+
+    expect(signedLesson.contentUrl).toMatch(/^\/api\/v1\/content\/delivery\//);
+    expect(signedLesson.contentDelivery).toEqual({
+      url: signedLesson.contentUrl,
+      expiresInSeconds: 900,
+      resumable: true,
+      method: "GET",
+    });
+    expect(JSON.stringify(result)).not.toContain(lesson.contentUrl);
+    expect(JSON.stringify(result)).not.toMatch(
+      /licenseKey|password|secret/i,
     );
   });
 

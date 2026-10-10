@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Optional } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import {
   CourseAccessType,
@@ -11,6 +11,7 @@ import {
 import { DomainLockedException } from "../../common/errors/domain-locked.exception";
 import { normalizeRobotHardwareProfile } from "../robots/robot-hardware-profile";
 import { RobotManifestResolver } from "./robot-manifest.resolver";
+import { ContentDeliveryService } from "../content-delivery/content-delivery.service";
 
 type Allowed = {
   full: boolean;
@@ -100,6 +101,8 @@ export class RobotSyncService {
   constructor(
     private prisma: PrismaService,
     private manifestResolver: RobotManifestResolver,
+    @Optional()
+    private contentDelivery?: ContentDeliveryService,
   ) {}
 
   private computeLicenseStatus(
@@ -497,7 +500,7 @@ export class RobotSyncService {
       logoUrl: c.logoUrl,
       introLevel: c.introLevel,
     }));
-    return this.manifestResolver.resolve({
+    const manifest = await this.manifestResolver.resolve({
       robot,
       licenseStatus: status,
       locked: false,
@@ -505,6 +508,23 @@ export class RobotSyncService {
       myCourses,
       publicCatalog,
     });
+    return this.decorateManifestContent(manifest, robot.id, robot.orgId);
+  }
+
+  private decorateManifestContent(manifest: any, robotId: number, orgId: number) {
+    if (!this.contentDelivery || manifest?.locked) return manifest;
+
+    return {
+      ...manifest,
+      myCourses: this.contentDelivery.decorateManifestContent(
+        manifest.myCourses ?? [],
+        { robotId, orgId },
+      ),
+      publicCatalog: this.contentDelivery.decorateManifestContent(
+        manifest.publicCatalog ?? [],
+        { robotId, orgId },
+      ),
+    };
   }
 
   async syncChanges(

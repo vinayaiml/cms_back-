@@ -20,6 +20,7 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { CapabilitiesModule } from "./modules/capabilities/capabilities.module";
 import { SubscriptionPlansModule } from "./modules/subscription-plans/subscription-plans.module";
 import { EntitlementsModule } from "./modules/entitlements/entitlements.module";
+import { ContentDeliveryModule } from "./modules/content-delivery/content-delivery.module";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RobotOnlyGuard } from "./common/guards/robot-only.guard";
 import { validateEnv } from "./config/env.validation";
@@ -46,6 +47,7 @@ import { validateEnv } from "./config/env.validation";
     CapabilitiesModule,
     SubscriptionPlansModule,
     EntitlementsModule,
+    ContentDeliveryModule,
     JobsModule,
   ],
   providers: [PermissionsGuard, RobotOnlyGuard],
