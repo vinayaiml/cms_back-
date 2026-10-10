@@ -24,6 +24,8 @@ import { ContentDeliveryModule } from "./modules/content-delivery/content-delive
 import { AiGatewayModule } from "./modules/ai-gateway/ai-gateway.module";
 import { PersonaModule } from "./modules/persona/persona.module";
 import { ConversationContextModule } from "./modules/conversation-context/conversation-context.module";
+import { IdentityModule } from "./modules/identity/identity.module";
+import { ConversationPublicationModule } from "./modules/conversation-publication/conversation-publication.module";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RobotOnlyGuard } from "./common/guards/robot-only.guard";
 import { validateEnv } from "./config/env.validation";
@@ -54,6 +56,8 @@ import { validateEnv } from "./config/env.validation";
     AiGatewayModule,
     PersonaModule,
     ConversationContextModule,
+    ConversationPublicationModule,
+    IdentityModule,
     JobsModule,
   ],
   providers: [PermissionsGuard, RobotOnlyGuard],

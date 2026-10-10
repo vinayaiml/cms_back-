@@ -36,6 +36,8 @@ model Organization {
   robotPersonaConfigs  RobotPersonaConfig[]
   conversationContext  OrganizationConversationContext?
   approvedQAs          OrganizationApprovedQa[]
+  publicationRevisions ConversationPublicationRevision[]
+  identityEmbeddings   IdentityEmbeddingRecord[]
 }
 
 model User {
@@ -622,4 +624,51 @@ model OrganizationApprovedQa {
   org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+}
+
+model ConversationPublicationRevision {
+  id                     Int          @id @default(autoincrement())
+  orgId                  Int
+  robotId                Int?
+  scope                  String
+  sourceType             String
+  sourceId               Int?
+  stableKey              String?
+  version                Int
+  previousVersion        Int?
+  snapshot               Json
+  publishedByUserId      Int?
+  publishedAt            DateTime
+  restoredFromRevisionId Int?
+  createdAt              DateTime     @default(now())
+  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, scope, stableKey])
+  @@index([orgId, robotId])
+  @@index([orgId, sourceType, version])
+}
+
+model IdentityEmbeddingRecord {
+  id                     Int          @id @default(autoincrement())
+  orgId                  Int
+  subjectRef             String
+  consentGranted         Boolean      @default(false)
+  consentSource          String
+  consentPolicyVersion   String
+  consentGrantedAt       DateTime
+  embeddingCiphertext    String?
+  embeddingFingerprint   String?
+  embeddingSchemaVersion Int          @default(1)
+  status                 String       @default("ACTIVE")
+  retentionExpiresAt     DateTime?
+  deletedAt              DateTime?
+  deletionReason         String?
+  createdByUserId        Int?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, subjectRef])
+  @@index([orgId, status])
+  @@index([orgId, retentionExpiresAt])
 }

@@ -1,15 +1,18 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActor } from '../audit/audit.types';
 import { UpsertConversationContextDto } from './conversation-context.dto';
 import { validateNoProhibitedSecretsOrPii } from './context-validation.util';
+import { ConversationPublicationService } from '../conversation-publication/conversation-publication.service';
 
 @Injectable()
 export class ConversationContextService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional()
+    private readonly publicationService?: ConversationPublicationService,
   ) {}
 
   private assertOrgAccess(orgId: number, actor: AuditActor) {
@@ -96,6 +99,25 @@ export class ConversationContextService {
         where: { id: orgId },
         data: { tenantVersion: { increment: 1 } },
       });
+
+      if (config.isPublished && this.publicationService) {
+        await this.publicationService.recordRevision(tx, {
+          orgId,
+          scope: 'organization',
+          sourceType: 'conversation_context',
+          sourceId: config.id,
+          version: config.version,
+          previousVersion: existing?.version ?? null,
+          snapshot: {
+            companyOverview: config.companyOverview,
+            operatingHours: config.operatingHours,
+            locationDetails: config.locationDetails,
+            visitorGuidelines: config.visitorGuidelines,
+            eventsSummary: config.eventsSummary,
+          },
+          actor,
+        });
+      }
 
       return config;
     });

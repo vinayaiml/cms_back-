@@ -43,6 +43,7 @@ export type RobotSyncChangesInput = {
   tenantVersion?: number;
   myCoursesVersion?: string;
   publicCatalogVersion?: string;
+  identityGalleryVersion?: string;
 };
 
 export type RobotDeviceProfileUpdate = {
@@ -662,7 +663,8 @@ export class RobotSyncService {
         client.cacheVersion &&
         client.tenantVersion !== undefined &&
         client.myCoursesVersion &&
-        client.publicCatalogVersion,
+        client.publicCatalogVersion &&
+        client.identityGalleryVersion,
     );
 
     if (!hasIncrementalBaseline || !manifest?.contentVersions || !manifest?.sync) {
@@ -695,6 +697,19 @@ export class RobotSyncService {
       manifest.contentVersions.publicCatalogVersion
     ) {
       changed.publicCatalog = manifest.publicCatalog ?? [];
+    }
+
+    if (
+      client.identityGalleryVersion !==
+      manifest.contentVersions.identityGalleryVersion
+    ) {
+      changed.identityGallery = manifest.identityGallery ?? {
+        schemaVersion: 1,
+        orgId: manifest.tenant?.orgId,
+        version: manifest.contentVersions.identityGalleryVersion,
+        count: 0,
+        records: [],
+      };
     }
 
     if (client.manifestHash !== manifest.sync.manifestHash) {

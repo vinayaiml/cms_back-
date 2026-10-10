@@ -1,7 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { LicenseStatus, Prisma } from "@prisma/client";
 import { createHash } from "crypto";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { safeAiProviderReference } from "../ai-gateway/ai-provider-reference";
+import { IdentityService } from "../identity/identity.service";
 
 type OrgContext = {
   id: number;
@@ -61,6 +64,7 @@ type ManifestInput = {
   appVersionCode?: number | null;
   myCourses?: unknown[];
   publicCatalog?: unknown[];
+  identityGalleryRecords?: unknown[];
   syncedAt?: string;
   approvedContext?: ManifestApprovedContext;
   policy?: ManifestConversationPolicy;
@@ -75,7 +79,11 @@ const APP_UPDATE_POLICY = {
 
 @Injectable()
 export class RobotManifestResolver {
-  constructor(private entitlements: EntitlementsService) {}
+  constructor(
+    private entitlements: EntitlementsService,
+    @Optional() private config?: ConfigService,
+    @Optional() private identity?: IdentityService,
+  ) {}
 
   private stableStringify(value: unknown): string {
     if (value instanceof Date) return value.toISOString();
@@ -157,6 +165,7 @@ export class RobotManifestResolver {
     entitlements: { subscription: unknown; paidCapabilities: unknown[] };
     myCourses?: unknown[];
     publicCatalog?: unknown[];
+    identityGalleryRecords?: unknown[];
     syncedAt?: string;
     appVersionCode?: number | null;
     approvedContext?: ManifestApprovedContext;
@@ -164,14 +173,24 @@ export class RobotManifestResolver {
   }) {
     const myCourses = input.myCourses ?? [];
     const publicCatalog = input.publicCatalog ?? [];
+    const identityGalleryRecords = input.identityGalleryRecords ?? [];
     const syncedAt = input.syncedAt ?? new Date().toISOString();
+    const identityGallery = {
+      schemaVersion: 1,
+      orgId: input.tenant.orgId,
+      version: `identity-gallery-org-${input.tenant.orgId}-${this.manifestHash(identityGalleryRecords).slice(0, 12)}`,
+      count: identityGalleryRecords.length,
+      records: identityGalleryRecords,
+    };
     const contentVersions = {
       cacheVersion: input.tenant.cacheVersion,
       tenantVersion: input.tenant.tenantVersion,
       myCoursesVersion: `my-courses-org-${input.tenant.orgId}-v${input.tenant.tenantVersion}-${this.manifestHash(myCourses).slice(0, 12)}`,
       publicCatalogVersion: `public-catalog-v1-${publicCatalog.length}`,
+      identityGalleryVersion: identityGallery.version,
       myCoursesCount: myCourses.length,
       publicCatalogCount: publicCatalog.length,
+      identityGalleryCount: identityGalleryRecords.length,
     };
     const policies = {
       schemaVersion: 1,
@@ -206,6 +225,7 @@ export class RobotManifestResolver {
         context: input.approvedContext?.context ?? null,
         approvedQa: input.approvedContext?.approvedQa ?? [],
       },
+      provider: safeAiProviderReference(this.config),
     };
 
     const hashSource = {
@@ -221,6 +241,7 @@ export class RobotManifestResolver {
       myCourses,
       publicCatalog,
       conversation,
+      identityGallery,
     };
     const manifestHash = this.manifestHash(hashSource);
     const configVersion = `manifest-${manifestHash.slice(0, 16)}`;
@@ -236,6 +257,7 @@ export class RobotManifestResolver {
       policies,
       contentVersions,
       conversation,
+      identityGallery,
       sync: {
         serverTime: syncedAt,
         syncedAt,
@@ -253,6 +275,11 @@ export class RobotManifestResolver {
 
   async resolve(input: ManifestInput) {
     const tenant = this.toTenant(input.robot.org);
+    const identityGalleryRecords =
+      input.identityGalleryRecords ??
+      (input.locked || !this.identity
+        ? []
+        : await this.identity.getAuthorizedGalleryForOrg(input.robot.orgId));
     const entitlements = input.locked
       ? {
           subscription: {
@@ -283,6 +310,7 @@ export class RobotManifestResolver {
       entitlements,
       myCourses: input.myCourses,
       publicCatalog: input.publicCatalog,
+      identityGalleryRecords,
       syncedAt: input.syncedAt,
       appVersionCode:
         input.appVersionCode ?? this.getStoredAppVersionCode(input.robot.deviceMetadata),

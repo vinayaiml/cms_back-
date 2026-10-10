@@ -3,8 +3,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { LicenseStatus } from '@prisma/client';
+import { LicenseStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActor } from '../audit/audit.types';
@@ -15,6 +16,7 @@ import {
   UpsertRobotPersonaOverrideDto,
 } from './persona.dto';
 import { validateNoProhibitedSecretsOrPii } from '../conversation-context/context-validation.util';
+import { ConversationPublicationService } from '../conversation-publication/conversation-publication.service';
 
 const DEFAULT_PERSONA_NAME = 'WhizRobot Assistant';
 const DEFAULT_GREETING_TEXT = 'Hello! Welcome to our organization.';
@@ -114,6 +116,8 @@ export class PersonaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional()
+    private readonly publicationService?: ConversationPublicationService,
   ) {}
 
   private assertOrgAccess(orgId: number, actor: AuditActor) {
@@ -226,6 +230,19 @@ export class PersonaService {
         where: { id: orgId },
         data: { tenantVersion: { increment: 1 } },
       });
+
+      if (config.isPublished && this.publicationService) {
+        await this.publicationService.recordRevision(tx, {
+          orgId,
+          scope: 'organization',
+          sourceType: 'organization_persona',
+          sourceId: config.id,
+          version: config.version,
+          previousVersion: existing?.version ?? null,
+          snapshot: this.personaSnapshot(config) as Prisma.InputJsonValue,
+          actor,
+        });
+      }
 
       return config;
     });
@@ -342,6 +359,20 @@ export class PersonaService {
         data: { tenantVersion: { increment: 1 } },
       });
 
+      if (config.isPublished && this.publicationService) {
+        await this.publicationService.recordRevision(tx, {
+          orgId,
+          robotId,
+          scope: 'robot',
+          sourceType: 'robot_persona',
+          sourceId: config.id,
+          version: config.version,
+          previousVersion: existing?.version ?? null,
+          snapshot: this.robotPersonaSnapshot(config) as Prisma.InputJsonValue,
+          actor,
+        });
+      }
+
       return config;
     });
 
@@ -397,6 +428,70 @@ export class PersonaService {
     }
 
     return { success: true };
+  }
+
+  private personaSnapshot(config: {
+    personaName: string;
+    personaPrompt: string | null;
+    greetingText: string;
+    speechGreeting: string;
+    voiceStyle: string;
+    language: string;
+    tone: string;
+    speechSpeed: number;
+    sessionMaxSeconds: number;
+    sessionIdleTimeoutSeconds: number;
+    cooldownSeconds: number;
+    dailySessionLimit: number;
+    supportedLanguages: string;
+  }) {
+    return {
+      personaName: config.personaName,
+      personaPrompt: config.personaPrompt,
+      greetingText: config.greetingText,
+      speechGreeting: config.speechGreeting,
+      voiceStyle: config.voiceStyle,
+      language: config.language,
+      tone: config.tone,
+      speechSpeed: config.speechSpeed,
+      sessionMaxSeconds: config.sessionMaxSeconds,
+      sessionIdleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
+      cooldownSeconds: config.cooldownSeconds,
+      dailySessionLimit: config.dailySessionLimit,
+      supportedLanguages: config.supportedLanguages,
+    };
+  }
+
+  private robotPersonaSnapshot(config: {
+    personaName: string | null;
+    personaPrompt: string | null;
+    greetingText: string | null;
+    speechGreeting: string | null;
+    voiceStyle: string | null;
+    language: string | null;
+    tone: string | null;
+    speechSpeed: number | null;
+    sessionMaxSeconds: number | null;
+    sessionIdleTimeoutSeconds: number | null;
+    cooldownSeconds: number | null;
+    dailySessionLimit: number | null;
+    supportedLanguages: string | null;
+  }) {
+    return {
+      personaName: config.personaName,
+      personaPrompt: config.personaPrompt,
+      greetingText: config.greetingText,
+      speechGreeting: config.speechGreeting,
+      voiceStyle: config.voiceStyle,
+      language: config.language,
+      tone: config.tone,
+      speechSpeed: config.speechSpeed,
+      sessionMaxSeconds: config.sessionMaxSeconds,
+      sessionIdleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
+      cooldownSeconds: config.cooldownSeconds,
+      dailySessionLimit: config.dailySessionLimit,
+      supportedLanguages: config.supportedLanguages,
+    };
   }
 
   async resolveEffectivePersona(

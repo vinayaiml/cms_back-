@@ -50,6 +50,16 @@ function readBoolean(env: Env, key: string, defaultValue: boolean, errors: strin
   return defaultValue;
 }
 
+function readOptionalSafeAlias(env: Env, key: string, fallback: string, errors: string[]) {
+  const value = clean(env[key]);
+  if (!value) return fallback;
+  if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(value)) {
+    errors.push(`${key} must be a safe alias using lowercase letters, numbers, dots, dashes or underscores`);
+    return fallback;
+  }
+  return value;
+}
+
 function durationToSeconds(value: string) {
   const match = value.trim().match(/^(\d+)([smhd])?$/);
   if (!match) return null;
@@ -154,6 +164,24 @@ export function validateEnv(config: Env) {
   if (aiGatewayBaseUrl) {
     requireUrl('AI_GATEWAY_BASE_URL', aiGatewayBaseUrl, errors);
   }
+  const aiGatewayProviderAlias = readOptionalSafeAlias(
+    config,
+    'AI_GATEWAY_PROVIDER_ALIAS',
+    'cms-ai-provider',
+    errors,
+  );
+  const aiGatewayModelAlias = readOptionalSafeAlias(
+    config,
+    'AI_GATEWAY_MODEL_ALIAS',
+    'default-conversation-model',
+    errors,
+  );
+  const aiGatewayPolicyVersion = readOptionalSafeAlias(
+    config,
+    'AI_GATEWAY_POLICY_VERSION',
+    'ai-provider-policy-v1',
+    errors,
+  );
 
   if (errors.length) {
     throw new Error(`Invalid environment configuration:\n- ${errors.join('\n- ')}`);
@@ -169,5 +197,8 @@ export function validateEnv(config: Env) {
     REDIS_ENABLED: String(redisEnabled),
     CORS_ALLOWED_ORIGINS: allowedOrigins.join(','),
     AI_GATEWAY_PROVIDER: aiGatewayProvider,
+    AI_GATEWAY_PROVIDER_ALIAS: aiGatewayProviderAlias,
+    AI_GATEWAY_MODEL_ALIAS: aiGatewayModelAlias,
+    AI_GATEWAY_POLICY_VERSION: aiGatewayPolicyVersion,
   };
 }

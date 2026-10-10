@@ -7,9 +7,10 @@ import { RobotSyncService } from "./robot-sync.service";
 import { RobotManifestResolver } from "./robot-manifest.resolver";
 import { EntitlementsModule } from "../entitlements/entitlements.module";
 import { ContentDeliveryModule } from "../content-delivery/content-delivery.module";
+import { IdentityModule } from "../identity/identity.module";
 
 @Module({
-  imports: [EntitlementsModule, ContentDeliveryModule],
+  imports: [EntitlementsModule, ContentDeliveryModule, IdentityModule],
   controllers: [RobotSyncController, RobotDeviceProfileController],
   providers: [RobotSyncService, RobotManifestResolver],
 })

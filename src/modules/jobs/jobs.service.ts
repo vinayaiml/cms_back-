@@ -1,18 +1,27 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LicenseStatus, Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
-type LicenseScanJobData = Record<string, never>;
+type CmsJobData = Record<string, never>;
+
+const PROHIBITED_PATTERN =
+  /(Bearer\s+[A-Za-z0-9._-]+|WHRB\d{6}|sk-[A-Za-z0-9_-]{8,}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\+?\d[\d ()-]{8,}\d)/i;
 
 @Injectable()
 export class JobsService implements OnModuleInit {
-  private queue!: Queue<LicenseScanJobData>;
-  private worker!: Worker<LicenseScanJobData>;
+  private queue!: Queue<CmsJobData>;
+  private worker!: Worker<CmsJobData>;
 
-  constructor(private config: ConfigService, private prisma: PrismaService) {}
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+    @Optional()
+    private audit?: AuditService,
+  ) {}
 
   async onModuleInit() {
     const redisEnabled = this.config.get<string>('REDIS_ENABLED') === 'true';
@@ -37,7 +46,7 @@ export class JobsService implements OnModuleInit {
       // Wait for connection to establish
       await connection.ping();
 
-      this.queue = new Queue<LicenseScanJobData>('whizrobot-jobs', { connection });
+      this.queue = new Queue<CmsJobData>('whizrobot-jobs', { connection });
 
       // Schedule daily license scan (Phase 1: runs in same process)
       await this.queue.add(
@@ -45,13 +54,21 @@ export class JobsService implements OnModuleInit {
         {},
         { repeat: { pattern: '0 0 * * *' }, removeOnComplete: true, removeOnFail: true },
       );
+      await this.queue.add(
+        'identity-retention-scan',
+        {},
+        { repeat: { pattern: '15 0 * * *' }, removeOnComplete: true, removeOnFail: true },
+      );
 
       // Worker processor
-      this.worker = new Worker<LicenseScanJobData>(
+      this.worker = new Worker<CmsJobData>(
         'whizrobot-jobs',
         async (job) => {
           if (job.name === 'license-scan') {
             await this.runLicenseScan();
+          }
+          if (job.name === 'identity-retention-scan') {
+            await this.runIdentityRetentionScan();
           }
         },
         { connection },
@@ -170,5 +187,69 @@ export class JobsService implements OnModuleInit {
         }
       }
     }
+  }
+
+  private async runIdentityRetentionScan() {
+    const now = new Date();
+    const expiredRecords = await (this.prisma as any).identityEmbeddingRecord.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        retentionExpiresAt: { lte: now },
+      },
+      select: {
+        id: true,
+        orgId: true,
+        subjectRef: true,
+        retentionExpiresAt: true,
+        embeddingSchemaVersion: true,
+      },
+      orderBy: [{ retentionExpiresAt: 'asc' }, { id: 'asc' }],
+    });
+
+    for (const record of expiredRecords) {
+      await this.prisma.$transaction(async (tx) => {
+        const result = await (tx as any).identityEmbeddingRecord.updateMany({
+          where: {
+            id: record.id,
+            status: 'ACTIVE',
+            deletedAt: null,
+            retentionExpiresAt: { lte: now },
+          },
+          data: {
+            status: 'DELETED',
+            embeddingCiphertext: null,
+            embeddingFingerprint: null,
+            deletedAt: now,
+            deletionReason: 'retention_expired',
+          },
+        });
+
+        if (!result.count) return;
+
+        if (!this.audit) return;
+        await this.audit.recordCritical(
+          {
+            actor: { userId: null, orgId: null, isSuperAdmin: true },
+            action: 'identity_embedding.retention_deleted',
+            targetType: 'identity_embedding',
+            targetId: record.id,
+            targetOrgId: record.orgId,
+            metadata: {
+              subjectRef: this.safeSubjectRef(record.subjectRef),
+              status: 'DELETED',
+              reason: 'retention_expired',
+              retentionExpiresAt: record.retentionExpiresAt?.toISOString() ?? null,
+              embeddingSchemaVersion: record.embeddingSchemaVersion,
+            },
+          },
+          tx,
+        );
+      });
+    }
+  }
+
+  private safeSubjectRef(value: string) {
+    return PROHIBITED_PATTERN.test(value) ? '[redacted]' : value;
   }
 }

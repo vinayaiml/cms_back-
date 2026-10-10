@@ -131,6 +131,7 @@ export class RobotSyncController {
     @Headers('x-robot-tenant-version') tenantVersionHeader?: string | string[],
     @Headers('x-robot-my-courses-version') myCoursesVersionHeader?: string | string[],
     @Headers('x-robot-public-catalog-version') publicCatalogVersionHeader?: string | string[],
+    @Headers('x-robot-identity-gallery-version') identityGalleryVersionHeader?: string | string[],
     @Res({ passthrough: true }) response?: Response,
   ) {
     if (actor.type !== 'robot') throw new ForbiddenException('Robot token required');
@@ -161,6 +162,12 @@ export class RobotSyncController {
       publicCatalogVersion: validateOptionalHeader(
         optionalHeader(publicCatalogVersionHeader),
         'x-robot-public-catalog-version',
+        120,
+        /^[0-9A-Za-z._+-]+$/,
+      ),
+      identityGalleryVersion: validateOptionalHeader(
+        optionalHeader(identityGalleryVersionHeader),
+        'x-robot-identity-gallery-version',
         120,
         /^[0-9A-Za-z._+-]+$/,
       ),

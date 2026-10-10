@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -13,12 +14,15 @@ import {
   UpsertApprovedQaDto,
 } from './conversation-context.dto';
 import { validateNoProhibitedSecretsOrPii } from './context-validation.util';
+import { ConversationPublicationService } from '../conversation-publication/conversation-publication.service';
 
 @Injectable()
 export class ApprovedQaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    @Optional()
+    private readonly publicationService?: ConversationPublicationService,
   ) {}
 
   private assertOrgAccess(orgId: number, actor: AuditActor) {
@@ -137,6 +141,24 @@ export class ApprovedQaService {
               version: existing.version + 1,
             },
           });
+          if (updated.isPublished && this.publicationService) {
+            await this.publicationService.recordRevision(tx, {
+              orgId,
+              scope: 'organization',
+              sourceType: 'approved_qa',
+              sourceId: updated.id,
+              stableKey: updated.category,
+              version: updated.version,
+              previousVersion: existing.version,
+              snapshot: {
+                question: updated.question,
+                answer: updated.answer,
+                category: updated.category,
+                sortOrder: updated.sortOrder,
+              },
+              actor,
+            });
+          }
           results.push(updated);
         } else {
           const created = await tx.organizationApprovedQa.create({
@@ -150,6 +172,24 @@ export class ApprovedQaService {
               version: 1,
             },
           });
+          if (created.isPublished && this.publicationService) {
+            await this.publicationService.recordRevision(tx, {
+              orgId,
+              scope: 'organization',
+              sourceType: 'approved_qa',
+              sourceId: created.id,
+              stableKey: created.category,
+              version: created.version,
+              previousVersion: null,
+              snapshot: {
+                question: created.question,
+                answer: created.answer,
+                category: created.category,
+                sortOrder: created.sortOrder,
+              },
+              actor,
+            });
+          }
           results.push(created);
         }
       }

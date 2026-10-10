@@ -42,6 +42,24 @@ export class DashboardService {
     };
   }
 
+  private conversationConfigSection(): DashboardSection {
+    return {
+      id: -4,
+      key: "conversation-config",
+      label: "Conversation",
+      path: "/conversation-config",
+      icon: "message-circle",
+      sortOrder: 18,
+      requiredPermission: "org.read",
+      isSuperAdminOnly: false,
+      isActive: true,
+      templateType: "NONE",
+      templateConfig: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    };
+  }
+
   async getUserPermissionKeys(userId: number): Promise<Set<string>> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -123,6 +141,9 @@ export class DashboardService {
       if (!sections.some((s) => s.key === "capability-assignments")) {
         sections.push(this.capabilityAssignmentsSection());
       }
+      if (!sections.some((s) => s.key === "conversation-config")) {
+        sections.push(this.conversationConfigSection());
+      }
 
       const sorted = sections.sort(
         (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
@@ -156,9 +177,18 @@ export class DashboardService {
     ) {
       sections.push(this.subscriptionPlansSection());
     }
+    if (
+      permKeys.has("org.read") &&
+      permKeys.has("robot.read") &&
+      !sections.some((s) => s.key === "conversation-config")
+    ) {
+      sections.push(this.conversationConfigSection());
+    }
     return sections.filter(
       (s: DashboardSection) =>
-        !s.requiredPermission || permKeys.has(s.requiredPermission),
+        s.key === "conversation-config"
+          ? permKeys.has("org.read") && permKeys.has("robot.read")
+          : !s.requiredPermission || permKeys.has(s.requiredPermission),
     );
   }
 

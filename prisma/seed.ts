@@ -586,6 +586,14 @@ async function main() {
       requiredPermission: "subscription.manage",
       isSuperAdminOnly: true,
     },
+    {
+      key: "conversation-config",
+      label: "Conversation",
+      path: "/conversation-config",
+      icon: "message-circle",
+      sortOrder: 18,
+      requiredPermission: "org.read",
+    },
 
     // Dynamic analytics page (no code page required)
     {
