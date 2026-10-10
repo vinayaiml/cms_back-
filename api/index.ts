@@ -15,13 +15,35 @@ async function bootstrap() {
   configureApp(app);
   await app.init();
 
+  // eslint-disable-next-line no-console
+  console.log('[vercel] NestJS bootstrap complete');
   return server;
 }
 
 export default async function handler(req: express.Request, res: express.Response) {
+  // Health/readiness probe — respond immediately without bootstrapping NestJS
   const path = req.url?.split('?')[0] ?? '/';
   if (req.method === 'GET' && (path === '/' || path === '/api/health')) {
-    res.status(200).json({ status: 'ok' });
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    return;
+  }
+
+  // Handle CORS preflight before bootstrap to avoid cold-start delays on OPTIONS
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization,Content-Type,X-Robot-App-Version,X-Robot-Device-Model');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
     return;
   }
 
@@ -31,7 +53,12 @@ export default async function handler(req: express.Request, res: express.Respons
   } catch (error) {
     bootstrapPromise = null;
     // eslint-disable-next-line no-console
-    console.error('API bootstrap failed', error);
-    res.status(500).json({ error: { code: 'API_BOOTSTRAP_FAILED', message: 'API failed to start' } });
+    console.error('[vercel] API bootstrap failed:', error instanceof Error ? error.message : error);
+    res.status(500).json({
+      error: {
+        code: 'API_BOOTSTRAP_FAILED',
+        message: 'The API failed to start. Check environment configuration.',
+      },
+    });
   }
 }
