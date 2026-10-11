@@ -26,18 +26,16 @@ model Organization {
   notifications        Notification[]
   assignments          OrgCourseAccess[]
   permissions          OrgPermission[]
-  robots               Robot[]
-  subscriptions        OrganizationSubscription[]
+  approvedQAs          OrganizationApprovedQa[]
   capabilityOverrides  OrganizationCapabilityOverride[]
+  conversationContext  OrganizationConversationContext?
+  personaConfig        OrganizationPersonaConfig?
+  subscriptions        OrganizationSubscription[]
+  robots               Robot[]
+  robotPersonaConfigs  RobotPersonaConfig[]
   usageLogs            RobotUsageLog[]
   roles                Role[]
   users                User[]
-  personaConfig        OrganizationPersonaConfig?
-  robotPersonaConfigs  RobotPersonaConfig[]
-  conversationContext  OrganizationConversationContext?
-  approvedQAs          OrganizationApprovedQa[]
-  publicationRevisions ConversationPublicationRevision[]
-  identityEmbeddings   IdentityEmbeddingRecord[]
 }
 
 model User {
@@ -55,9 +53,9 @@ model User {
   createdBy             User?                      @relation("UserCreator", fields: [createdByUserId], references: [id])
   createdUsers          User[]                     @relation("UserCreator")
   org                   Organization?              @relation(fields: [orgId], references: [id])
+  capabilityAssignments UserCapabilityAssignment[]
   courseAssignments     UserCourseAccess[]
   directPermissions     UserPermission[]
-  capabilityAssignments UserCapabilityAssignment[]
   roles                 UserRole[]
 
   @@index([createdByUserId])
@@ -141,20 +139,20 @@ model Robot {
   lastSeenAt            DateTime?
   appVersion            String?
   deviceModel           String?
-  hardwareModel         String?
-  hardwareProfile       Json?
-  hardwareCapabilities  Json?
   createdAt             DateTime                    @default(now())
   updatedAt             DateTime                    @updatedAt
   deviceMetadata        Json?
   licenseKeyCiphertext  String?
   licenseKeyFingerprint String?                     @unique
+  hardwareCapabilities  Json?
+  hardwareModel         String?
+  hardwareProfile       Json?
   events                Event[]
   org                   Organization                @relation(fields: [orgId], references: [id])
-  courseAssignments     RobotCourseAccess[]
-  usageLogs             RobotUsageLog[]
   capabilityAssignments RobotCapabilityAssignment[]
+  courseAssignments     RobotCourseAccess[]
   personaConfig         RobotPersonaConfig?
+  usageLogs             RobotUsageLog[]
 
   @@index([orgId])
 }
@@ -170,8 +168,8 @@ model Capability {
   isActive         Boolean                          @default(true)
   createdAt        DateTime                         @default(now())
   updatedAt        DateTime                         @updatedAt
-  plans            PlanCapability[]
   orgOverrides     OrganizationCapabilityOverride[]
+  plans            PlanCapability[]
   robotAssignments RobotCapabilityAssignment[]
   userAssignments  UserCapabilityAssignment[]
 }
@@ -185,8 +183,8 @@ model SubscriptionPlan {
   isActive         Boolean                    @default(true)
   createdAt        DateTime                   @default(now())
   updatedAt        DateTime                   @updatedAt
-  capabilities     PlanCapability[]
   orgSubscriptions OrganizationSubscription[]
+  capabilities     PlanCapability[]
 }
 
 model UserCapabilityAssignment {
@@ -198,8 +196,8 @@ model UserCapabilityAssignment {
   createdByUserId Int?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   capability      Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, capabilityId])
   @@index([capabilityId])
@@ -214,8 +212,8 @@ model RobotCapabilityAssignment {
   createdByUserId Int?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
-  robot           Robot      @relation(fields: [robotId], references: [id], onDelete: Cascade)
   capability      Capability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  robot           Robot      @relation(fields: [robotId], references: [id], onDelete: Cascade)
 
   @@unique([robotId, capabilityId])
   @@index([capabilityId])
@@ -230,16 +228,11 @@ model OrganizationCapabilityOverride {
   createdByUserId Int?
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
-  org             Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   capability      Capability               @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  org             Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([orgId, capabilityId])
   @@index([capabilityId])
-}
-
-enum CapabilityOverrideEffect {
-  ALLOW
-  DENY
 }
 
 model OrganizationSubscription {
@@ -258,11 +251,6 @@ model OrganizationSubscription {
   @@index([planId])
 }
 
-enum SubscriptionStatus {
-  ACTIVE
-  INACTIVE
-}
-
 model PlanCapability {
   planId       Int
   capabilityId Int
@@ -275,28 +263,28 @@ model PlanCapability {
 }
 
 model Course {
-  id             Int               @id @default(autoincrement())
-  courseCode     String            @unique
+  id             Int                 @id @default(autoincrement())
+  courseCode     String              @unique
   courseName     String
   description    String?
   courseImageUrl String?
   logoUrl        String?
-  source         CourseSource      @default(PLATFORM)
+  source         CourseSource        @default(PLATFORM)
   ownerOrgId     Int?
-  visibility     CourseVisibility  @default(PRIVATE)
-  isPublished    Boolean           @default(true)
-  introLevelId   Int?              @unique
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  introLevel     Level?            @relation("IntroLevel", fields: [introLevelId], references: [id])
-  ownerOrg       Organization?     @relation("OrgOwnedCourses", fields: [ownerOrgId], references: [id])
+  visibility     CourseVisibility    @default(PRIVATE)
+  introLevelId   Int?                @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  isPublished    Boolean             @default(true)
+  introLevel     Level?              @relation("IntroLevel", fields: [introLevelId], references: [id])
+  ownerOrg       Organization?       @relation("OrgOwnedCourses", fields: [ownerOrgId], references: [id])
   events         Event[]
   lessons        Lesson[]
   levels         Level[]
   assignments    OrgCourseAccess[]
   robotAccess    RobotCourseAccess[]
-  userAccess     UserCourseAccess[]
   usageLogs      RobotUsageLog[]
+  userAccess     UserCourseAccess[]
 
   @@index([ownerOrgId])
 }
@@ -332,25 +320,25 @@ model Chapter {
 }
 
 model Lesson {
-  id           Int              @id @default(autoincrement())
-  courseId     Int
-  levelId      Int
-  chapterId    Int?
-  name         String
-  sequence     Int
-  description  String?
-  durationMins Int?
-  contentType  ContentType      @default(VIDEO)
+  id               Int              @id @default(autoincrement())
+  courseId         Int
+  levelId          Int
+  chapterId        Int?
+  name             String
+  sequence         Int
+  description      String?
+  durationMins     Int?
+  contentType      ContentType      @default(VIDEO)
   contentUrl       String
-  contentVersion   Int              @default(1)
-  contentSizeBytes Int?
-  contentChecksum  String?
   thumbnailUrl     String?
   logoUrl          String?
   visibility       LessonVisibility @default(PRIVATE)
-  isPublished      Boolean          @default(true)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  contentChecksum  String?
+  contentSizeBytes Int?
+  contentVersion   Int              @default(1)
+  isPublished      Boolean          @default(true)
   events           Event[]
   chapter          Chapter?         @relation(fields: [chapterId], references: [id])
   course           Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -504,51 +492,10 @@ model GlobalCounter {
   value Int    @default(0)
 }
 
-enum LicenseStatus {
-  ACTIVE
-  EXPIRING_SOON
-  EXPIRED
-  REVOKED
-}
-
-enum ContentType {
-  VIDEO
-  IMAGE
-  TEXT
-}
-
-enum LessonVisibility {
-  PRIVATE
-  PUBLIC_PREVIEW
-}
-
-enum CourseVisibility {
-  PRIVATE
-  PUBLIC
-}
-
-enum CourseSource {
-  PLATFORM
-  ORGANIZATION
-}
-
-enum CourseAccessType {
-  FULL_COURSE
-  LEVEL_ONLY
-  CHAPTER_ONLY
-}
-
-enum DashboardTemplateType {
-  NONE
-  WIDGETS
-  KPI_OVERVIEW
-  MARKDOWN
-}
-
 model OrganizationPersonaConfig {
-  id             Int          @id @default(autoincrement())
-  orgId          Int          @unique
-  personaName    String       @default("WhizRobot Assistant")
+  id                        Int          @id @default(autoincrement())
+  orgId                     Int          @unique
+  personaName               String       @default("WhizRobot Assistant")
   personaPrompt             String?
   greetingText              String       @default("Hello! Welcome to our organization.")
   speechGreeting            String       @default("Hello! Welcome to our organization.")
@@ -596,79 +543,83 @@ model RobotPersonaConfig {
 }
 
 model OrganizationConversationContext {
-  id                 Int          @id @default(autoincrement())
-  orgId              Int          @unique
-  companyOverview    String?
-  operatingHours     String?
-  locationDetails    String?
-  visitorGuidelines  String?
-  eventsSummary      String?
-  version            Int          @default(1)
-  isPublished        Boolean      @default(true)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  id                Int          @id @default(autoincrement())
+  orgId             Int          @unique
+  companyOverview   String?
+  operatingHours    String?
+  locationDetails   String?
+  visitorGuidelines String?
+  eventsSummary     String?
+  version           Int          @default(1)
+  isPublished       Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model OrganizationApprovedQa {
-  id                 Int          @id @default(autoincrement())
-  orgId              Int
-  question           String
-  answer             String
-  category           String?
-  version            Int          @default(1)
-  isPublished        Boolean      @default(true)
-  sortOrder          Int          @default(0)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  org                Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  id          Int          @id @default(autoincrement())
+  orgId       Int
+  question    String
+  answer      String
+  category    String?
+  version     Int          @default(1)
+  isPublished Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
 }
 
-model ConversationPublicationRevision {
-  id                     Int          @id @default(autoincrement())
-  orgId                  Int
-  robotId                Int?
-  scope                  String
-  sourceType             String
-  sourceId               Int?
-  stableKey              String?
-  version                Int
-  previousVersion        Int?
-  snapshot               Json
-  publishedByUserId      Int?
-  publishedAt            DateTime
-  restoredFromRevisionId Int?
-  createdAt              DateTime     @default(now())
-  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  @@index([orgId, scope, stableKey])
-  @@index([orgId, robotId])
-  @@index([orgId, sourceType, version])
+enum CapabilityOverrideEffect {
+  ALLOW
+  DENY
 }
 
-model IdentityEmbeddingRecord {
-  id                     Int          @id @default(autoincrement())
-  orgId                  Int
-  subjectRef             String
-  consentGranted         Boolean      @default(false)
-  consentSource          String
-  consentPolicyVersion   String
-  consentGrantedAt       DateTime
-  embeddingCiphertext    String?
-  embeddingFingerprint   String?
-  embeddingSchemaVersion Int          @default(1)
-  status                 String       @default("ACTIVE")
-  retentionExpiresAt     DateTime?
-  deletedAt              DateTime?
-  deletionReason         String?
-  createdByUserId        Int?
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
 
-  @@unique([orgId, subjectRef])
-  @@index([orgId, status])
-  @@index([orgId, retentionExpiresAt])
+enum LicenseStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  REVOKED
+}
+
+enum ContentType {
+  VIDEO
+  IMAGE
+  TEXT
+}
+
+enum LessonVisibility {
+  PRIVATE
+  PUBLIC_PREVIEW
+}
+
+enum CourseVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum CourseSource {
+  PLATFORM
+  ORGANIZATION
+}
+
+enum CourseAccessType {
+  FULL_COURSE
+  LEVEL_ONLY
+  CHAPTER_ONLY
+}
+
+enum DashboardTemplateType {
+  NONE
+  WIDGETS
+  KPI_OVERVIEW
+  MARKDOWN
 }
