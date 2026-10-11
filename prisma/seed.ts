@@ -215,6 +215,16 @@ const permissions = [
     description: "Read administrative audit events",
     category: "audit",
   },
+  {
+    key: "identity.read",
+    description: "Read consented identity records",
+    category: "identity",
+  },
+  {
+    key: "identity.manage",
+    description: "Manage identity consent, correction and deletion",
+    category: "identity",
+  },
 ];
 
 const capabilityCatalog = [
@@ -593,6 +603,14 @@ async function main() {
       icon: "message-circle",
       sortOrder: 18,
       requiredPermission: "org.read",
+    },
+    {
+      key: "identity-admin",
+      label: "Identity Consent",
+      path: "/identity-admin",
+      icon: "shield",
+      sortOrder: 19,
+      requiredPermission: "identity.read",
     },
 
     // Dynamic analytics page (no code page required)

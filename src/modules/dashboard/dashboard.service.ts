@@ -60,6 +60,24 @@ export class DashboardService {
     };
   }
 
+  private identityAdminSection(): DashboardSection {
+    return {
+      id: -5,
+      key: "identity-admin",
+      label: "Identity Consent",
+      path: "/identity-admin",
+      icon: "shield",
+      sortOrder: 19,
+      requiredPermission: "identity.read",
+      isSuperAdminOnly: false,
+      isActive: true,
+      templateType: "NONE",
+      templateConfig: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    };
+  }
+
   async getUserPermissionKeys(userId: number): Promise<Set<string>> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -144,6 +162,9 @@ export class DashboardService {
       if (!sections.some((s) => s.key === "conversation-config")) {
         sections.push(this.conversationConfigSection());
       }
+      if (!sections.some((s) => s.key === "identity-admin")) {
+        sections.push(this.identityAdminSection());
+      }
 
       const sorted = sections.sort(
         (a, b) => a.sortOrder - b.sortOrder || a.id - b.id,
@@ -184,10 +205,18 @@ export class DashboardService {
     ) {
       sections.push(this.conversationConfigSection());
     }
+    if (
+      permKeys.has("identity.read") &&
+      !sections.some((s) => s.key === "identity-admin")
+    ) {
+      sections.push(this.identityAdminSection());
+    }
     return sections.filter(
       (s: DashboardSection) =>
         s.key === "conversation-config"
           ? permKeys.has("org.read") && permKeys.has("robot.read")
+          : s.key === "identity-admin"
+          ? permKeys.has("identity.read")
           : !s.requiredPermission || permKeys.has(s.requiredPermission),
     );
   }

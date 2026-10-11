@@ -1169,6 +1169,26 @@ Android mock fixtures should map to the OpenAPI examples by operation ID:
 
 Use the `/api/v1` examples as the fixture source. Legacy examples exist only to verify temporary backwards compatibility.
 
+## Identity Consent APIs
+
+Organization-scoped identity embedding records are managed by CMS user tokens only.
+The API returns safe record metadata and embedding fingerprints, never raw embedding
+metadata or encrypted ciphertext.
+
+```text
+GET /api/orgs/:orgId/identity-embeddings
+POST /api/orgs/:orgId/identity-embeddings
+PUT /api/orgs/:orgId/identity-embeddings/:id
+PATCH /api/orgs/:orgId/identity-embeddings/:id
+POST /api/orgs/:orgId/identity-embeddings/:id/revoke-consent
+PUT /api/orgs/:orgId/identity-embeddings/:id/revoke-consent
+DELETE /api/orgs/:orgId/identity-embeddings/:id
+```
+
+Correction, revoke-consent and delete operations are tenant-scoped and require
+`org.update`. Revoked and deleted records are excluded from subsequent robot
+identity-gallery sync responses.
+
 ## Common Errors
 
 Missing or invalid token:

@@ -42,7 +42,7 @@ export class IdentityController {
   }
 
   @Get()
-  @RequirePermissions("org.read")
+  @RequirePermissions("identity.read")
   async list(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -51,7 +51,7 @@ export class IdentityController {
   }
 
   @Post()
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async create(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -67,7 +67,7 @@ export class IdentityController {
   }
 
   @Put(":id")
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async correct(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -85,7 +85,7 @@ export class IdentityController {
   }
 
   @Patch(":id")
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async correctPatch(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -103,7 +103,7 @@ export class IdentityController {
   }
 
   @Post(":id/revoke-consent")
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async revokeConsent(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -121,7 +121,7 @@ export class IdentityController {
   }
 
   @Put(":id/revoke-consent")
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async revokeConsentPut(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -139,7 +139,7 @@ export class IdentityController {
   }
 
   @Delete(":id")
-  @RequirePermissions("org.update")
+  @RequirePermissions("identity.manage")
   async erase(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
