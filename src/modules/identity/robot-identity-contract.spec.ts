@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const yaml: any = require("js-yaml");
@@ -7,7 +7,14 @@ describe("CMS-81 Robot OpenAPI Contract Validation Suite", () => {
   let openapi: any;
 
   beforeAll(() => {
-    const openApiPath = join(__dirname, "../../../../docs/api/openapi.yaml");
+    const candidatePaths = [
+      join(__dirname, "../../../docs/api/openapi.yaml"),
+      join(__dirname, "../../../../docs/api/openapi.yaml"),
+    ];
+    const openApiPath = candidatePaths.find((path) => existsSync(path));
+    if (!openApiPath) {
+      throw new Error("OpenAPI contract not found");
+    }
     const rawYaml = readFileSync(openApiPath, "utf8");
     openapi = yaml.load(rawYaml) as any;
   });

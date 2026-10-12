@@ -93,6 +93,7 @@ describe("RobotSyncController heartbeat headers", () => {
       "1",
       "my-courses-org-1-v1-0",
       "public-catalog-v1-0",
+      "identity-gallery-org-1-v1",
       response as any,
     );
 
@@ -104,6 +105,7 @@ describe("RobotSyncController heartbeat headers", () => {
         tenantVersion: 1,
         myCoursesVersion: "my-courses-org-1-v1-0",
         publicCatalogVersion: "public-catalog-v1-0",
+        identityGalleryVersion: "identity-gallery-org-1-v1",
       },
       { appVersion: "0.1.0", deviceModel: "Mini ELF", appVersionCode: 2 },
     );
@@ -134,6 +136,7 @@ describe("RobotSyncController heartbeat headers", () => {
       "1",
       "my-courses-org-1-v1-0",
       "public-catalog-v1-0",
+      "identity-gallery-org-1-v1",
       response as any,
     );
 

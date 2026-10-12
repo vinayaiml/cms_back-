@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { LicenseStatus, PrismaClient } from '@prisma/client';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import * as request from 'supertest';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -26,7 +26,13 @@ describe('Robot API contract (responses match openapi.yaml)', () => {
   const licenseKey = `WHRB${suffix.slice(-6)}`;
   const serialNumber = `CONTRACT-${suffix}`;
   const openapi: any = yaml.load(
-    readFileSync(join(__dirname, '..', '..', 'docs', 'api', 'openapi.yaml'), 'utf8'),
+    readFileSync(
+      [
+        join(__dirname, '..', 'docs', 'api', 'openapi.yaml'),
+        join(__dirname, '..', '..', 'docs', 'api', 'openapi.yaml'),
+      ].find((path) => existsSync(path))!,
+      'utf8',
+    ),
   );
   const ajv = new Ajv({ strict: false, allErrors: true });
   addFormats(ajv);
