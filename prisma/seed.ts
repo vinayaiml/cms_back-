@@ -285,6 +285,61 @@ const capabilityCatalog = [
     version: 1,
     requiredHardware: { capabilities: ["videoPlayback"] },
   },
+  {
+    stableKey: "ai.conversation",
+    name: "AI Conversation",
+    description: "Converse with visitors through the CMS AI gateway.",
+    category: "ai",
+    version: 1,
+    requiredHardware: { capabilities: ["speaker"] },
+  },
+  {
+    stableKey: "ai.staff.search",
+    name: "AI Staff Search",
+    description: "Allow the AI gateway to search the approved staff directory.",
+    category: "ai",
+    version: 1,
+    requiredHardware: { capabilities: [] },
+  },
+  {
+    stableKey: "ai.appointment",
+    name: "AI Appointments",
+    description: "Allow the AI gateway to check availability and book appointments.",
+    category: "ai",
+    version: 1,
+    requiredHardware: { capabilities: [] },
+  },
+  {
+    stableKey: "robot.movement.request",
+    name: "AI Movement Request",
+    description:
+      "Allow the AI gateway to request movement; the robot safety controller decides.",
+    category: "robot",
+    version: 1,
+    requiredHardware: { capabilities: ["autonomousNavigation"] },
+  },
+  {
+    stableKey: "identity.recognition",
+    name: "Identity Recognition",
+    description: "Use approved on-device identity recognition and gallery sync.",
+    category: "identity",
+    version: 1,
+    requiredHardware: {
+      capabilities: ["camera"],
+      minAndroidApiLevel: 23,
+    },
+  },
+  {
+    stableKey: "identity.recognition.pro",
+    name: "Identity Recognition Pro",
+    description: "Use approved pro identity recognition model where hardware is eligible.",
+    category: "identity",
+    version: 1,
+    requiredHardware: {
+      capabilities: ["camera"],
+      minAndroidApiLevel: 28,
+    },
+  },
 ];
 
 const subscriptionPlans = [
@@ -311,6 +366,7 @@ const subscriptionPlans = [
       "display.touch",
       "media.video-playback",
       "speech.recognition",
+      "ai.conversation",
     ],
   },
 ];
