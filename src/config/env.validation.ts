@@ -12,6 +12,8 @@ const unsafeValues = new Set([
   'test',
 ]);
 
+const safeAliasPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
+
 function clean(value: string | undefined) {
   return value?.trim();
 }
@@ -39,6 +41,23 @@ function requireUrl(key: string, value: string, errors: string[]) {
   }
 }
 
+function readOptionalSafeAlias(
+  config: Env,
+  key: string,
+  errors: string[],
+  defaultValue: string,
+) {
+  const value = clean(config[key]);
+  if (!value) return defaultValue;
+  if (!safeAliasPattern.test(value)) {
+    errors.push(
+      `${key} must start with a lowercase letter and use lowercase letters, numbers, dots, underscores or hyphens`,
+    );
+    return defaultValue;
+  }
+  return value;
+}
+
 function readBoolean(env: Env, key: string, defaultValue: boolean, errors: string[]) {
   const value = clean(env[key]);
   if (!value) return defaultValue;
@@ -48,16 +67,6 @@ function readBoolean(env: Env, key: string, defaultValue: boolean, errors: strin
 
   errors.push(`${key} must be true or false`);
   return defaultValue;
-}
-
-function readOptionalSafeAlias(env: Env, key: string, fallback: string, errors: string[]) {
-  const value = clean(env[key]);
-  if (!value) return fallback;
-  if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(value)) {
-    errors.push(`${key} must be a safe alias using lowercase letters, numbers, dots, dashes or underscores`);
-    return fallback;
-  }
-  return value;
 }
 
 function durationToSeconds(value: string) {
@@ -84,6 +93,22 @@ function readDuration(env: Env, key: string, defaultValue: string, errors: strin
     errors.push(`${key} must be a positive duration such as 15m, 1h or 7d`);
   }
 
+  return value;
+}
+
+function readOptionalPositiveInteger(
+  env: Env,
+  key: string,
+  errors: string[],
+  min = 1,
+  max = Number.MAX_SAFE_INTEGER,
+) {
+  const value = clean(env[key]);
+  if (!value) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    errors.push(`${key} must be an integer between ${min} and ${max}`);
+  }
   return value;
 }
 
@@ -159,28 +184,43 @@ export function validateEnv(config: Env) {
     }
   }
 
-  const aiGatewayProvider = clean(config.AI_GATEWAY_PROVIDER) || 'mock';
-  const aiGatewayBaseUrl = clean(config.AI_GATEWAY_BASE_URL);
-  if (aiGatewayBaseUrl) {
-    requireUrl('AI_GATEWAY_BASE_URL', aiGatewayBaseUrl, errors);
+  const aiProviderBaseUrl = clean(config.AI_PROVIDER_BASE_URL);
+  const aiProviderApiKey = clean(config.AI_PROVIDER_API_KEY);
+  const aiProviderModel = clean(config.AI_PROVIDER_MODEL);
+  const aiConfigured = Boolean(aiProviderBaseUrl || aiProviderApiKey || aiProviderModel);
+  if (aiConfigured) {
+    if (!aiProviderBaseUrl) errors.push('AI_PROVIDER_BASE_URL is required when AI provider is configured');
+    else requireUrl('AI_PROVIDER_BASE_URL', aiProviderBaseUrl, errors);
+    if (!aiProviderApiKey) errors.push('AI_PROVIDER_API_KEY is required when AI provider is configured');
+    else rejectUnsafeSecret('AI_PROVIDER_API_KEY', aiProviderApiKey, errors);
+    if (!aiProviderModel) errors.push('AI_PROVIDER_MODEL is required when AI provider is configured');
   }
-  const aiGatewayProviderAlias = readOptionalSafeAlias(
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_TIMEOUT_MS', errors, 1000, 30000);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_FIRST_TOKEN_TIMEOUT_MS', errors, 1000, 30000);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_MAX_RETRIES', errors, 0, 3);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_MAX_INPUT_CHARS', errors, 1, 12000);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_MAX_OUTPUT_TOKENS', errors, 1, 2048);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_MAX_ESTIMATED_COST_MICRO_USD', errors, 0, 1000000);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_INPUT_COST_MICRO_USD_PER_1K_TOKENS', errors, 0, 1000000);
+  readOptionalPositiveInteger(config, 'AI_PROVIDER_OUTPUT_COST_MICRO_USD_PER_1K_TOKENS', errors, 0, 1000000);
+  readOptionalPositiveInteger(config, 'IDENTITY_RETENTION_DAYS', errors, 1, 3650);
+  const aiProviderAlias = readOptionalSafeAlias(
     config,
-    'AI_GATEWAY_PROVIDER_ALIAS',
+    'AI_PROVIDER_ALIAS',
+    errors,
     'cms-ai-provider',
-    errors,
   );
-  const aiGatewayModelAlias = readOptionalSafeAlias(
+  const aiProviderModelAlias = readOptionalSafeAlias(
     config,
-    'AI_GATEWAY_MODEL_ALIAS',
+    'AI_PROVIDER_MODEL_ALIAS',
+    errors,
     'default-conversation-model',
-    errors,
   );
-  const aiGatewayPolicyVersion = readOptionalSafeAlias(
+  const aiProviderPolicyVersion = readOptionalSafeAlias(
     config,
-    'AI_GATEWAY_POLICY_VERSION',
-    'ai-provider-policy-v1',
+    'AI_PROVIDER_POLICY_VERSION',
     errors,
+    'ai-provider-policy-v1',
   );
 
   if (errors.length) {
@@ -196,9 +236,11 @@ export function validateEnv(config: Env) {
     ROBOT_REFRESH_TOKEN_EXPIRES_IN: robotRefreshTokenExpiresIn,
     REDIS_ENABLED: String(redisEnabled),
     CORS_ALLOWED_ORIGINS: allowedOrigins.join(','),
-    AI_GATEWAY_PROVIDER: aiGatewayProvider,
-    AI_GATEWAY_PROVIDER_ALIAS: aiGatewayProviderAlias,
-    AI_GATEWAY_MODEL_ALIAS: aiGatewayModelAlias,
-    AI_GATEWAY_POLICY_VERSION: aiGatewayPolicyVersion,
+    AI_PROVIDER_BASE_URL: aiProviderBaseUrl,
+    AI_PROVIDER_API_KEY: aiProviderApiKey,
+    AI_PROVIDER_MODEL: aiProviderModel,
+    AI_PROVIDER_ALIAS: aiProviderAlias,
+    AI_PROVIDER_MODEL_ALIAS: aiProviderModelAlias,
+    AI_PROVIDER_POLICY_VERSION: aiProviderPolicyVersion,
   };
 }

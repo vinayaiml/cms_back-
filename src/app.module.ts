@@ -12,6 +12,7 @@ import { RobotSyncModule } from "./modules/robot-sync/robot-sync.module";
 import { UsageLogsModule } from "./modules/usage-logs/usage-logs.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { ContentModule } from "./modules/content/content.module";
+import { ContentDeliveryModule } from "./modules/content-delivery/content-delivery.module";
 import { JobsModule } from "./modules/jobs/jobs.module";
 import { SectionsModule } from "./modules/sections/sections.module";
 import { CourseAccessModule } from "./modules/course-access/course-access.module";
@@ -20,12 +21,9 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { CapabilitiesModule } from "./modules/capabilities/capabilities.module";
 import { SubscriptionPlansModule } from "./modules/subscription-plans/subscription-plans.module";
 import { EntitlementsModule } from "./modules/entitlements/entitlements.module";
-import { ContentDeliveryModule } from "./modules/content-delivery/content-delivery.module";
 import { AiGatewayModule } from "./modules/ai-gateway/ai-gateway.module";
-import { PersonaModule } from "./modules/persona/persona.module";
-import { ConversationContextModule } from "./modules/conversation-context/conversation-context.module";
+import { ConversationConfigModule } from "./modules/conversation-config/conversation-config.module";
 import { IdentityModule } from "./modules/identity/identity.module";
-import { ConversationPublicationModule } from "./modules/conversation-publication/conversation-publication.module";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RobotOnlyGuard } from "./common/guards/robot-only.guard";
 import { validateEnv } from "./config/env.validation";
@@ -45,6 +43,7 @@ import { validateEnv } from "./config/env.validation";
     UsageLogsModule,
     NotificationsModule,
     ContentModule,
+    ContentDeliveryModule,
     SectionsModule,
     CourseAccessModule,
     AnalyticsModule,
@@ -52,11 +51,8 @@ import { validateEnv } from "./config/env.validation";
     CapabilitiesModule,
     SubscriptionPlansModule,
     EntitlementsModule,
-    ContentDeliveryModule,
     AiGatewayModule,
-    PersonaModule,
-    ConversationContextModule,
-    ConversationPublicationModule,
+    ConversationConfigModule,
     IdentityModule,
     JobsModule,
   ],

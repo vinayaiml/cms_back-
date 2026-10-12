@@ -26,9 +26,8 @@ type AssignmentRow = {
   chapterId: number | null;
 };
 
-type ScopedAssignmentRow = AssignmentRow & {
-  robotId?: number;
-  userId?: number;
+type RobotCourseAssignmentRow = AssignmentRow & {
+  robotId: number;
 };
 
 export type RobotSyncHeartbeat = {
@@ -348,33 +347,29 @@ export class RobotSyncService {
         locked: true,
         reason: status,
         appVersionCode,
-        approvedContext: {
-          context: null,
-          approvedQa: [],
-        },
       });
     }
 
     // 1) Org-owned courses (always full access)
     const orgOwnedCourses: CourseWithLevels[] =
       await this.prisma.course.findMany({
-        where: { ownerOrgId: robot.orgId, isPublished: true } as any,
+        where: { ownerOrgId: robot.orgId, isPublished: true },
         orderBy: { id: "asc" },
         include: {
           levels: {
             orderBy: { sequence: "asc" },
             include: {
-              chapters: {
-                orderBy: { sequence: "asc" },
-                include: {
-                  lessons: {
-                    where: { isPublished: true } as any,
-                    orderBy: { sequence: "asc" },
+                chapters: {
+                  orderBy: { sequence: "asc" },
+                  include: {
+                    lessons: {
+                      where: { isPublished: true },
+                      orderBy: { sequence: "asc" },
+                    },
                   },
                 },
-              },
-              lessons: {
-                where: { chapterId: null, isPublished: true } as any,
+                lessons: {
+                where: { chapterId: null, isPublished: true },
                 orderBy: { sequence: "asc" },
               },
             },
@@ -395,8 +390,8 @@ export class RobotSyncService {
       });
 
     const allowedMap = this.buildAllowedMap(assignments);
-    const robotCourseAssignments: ScopedAssignmentRow[] =
-      await (this.prisma as any).robotCourseAccess.findMany({
+    const robotCourseAssignments: RobotCourseAssignmentRow[] =
+      await this.prisma.robotCourseAccess.findMany({
         where: { isEnabled: true, robot: { orgId: robot.orgId } },
         select: {
           robotId: true,
@@ -423,7 +418,7 @@ export class RobotSyncService {
             id: { in: assignedCourseIds },
             source: CourseSource.PLATFORM,
             isPublished: true,
-          } as any,
+          },
           orderBy: { id: "asc" },
           include: {
             levels: {
@@ -433,13 +428,13 @@ export class RobotSyncService {
                   orderBy: { sequence: "asc" },
                   include: {
                     lessons: {
-                      where: { isPublished: true } as any,
+                      where: { isPublished: true },
                       orderBy: { sequence: "asc" },
                     },
                   },
                 },
                 lessons: {
-                  where: { chapterId: null, isPublished: true } as any,
+                  where: { chapterId: null, isPublished: true },
                   orderBy: { sequence: "asc" },
                 },
               },
@@ -482,7 +477,7 @@ export class RobotSyncService {
         visibility: CourseVisibility.PUBLIC,
         isPublished: true,
         introLevelId: { not: null },
-      } as any,
+      },
       orderBy: { id: "asc" },
       include: {
         introLevel: {
@@ -491,7 +486,7 @@ export class RobotSyncService {
               orderBy: { sequence: "asc" },
               include: {
                 lessons: {
-                  where: { visibility: LessonVisibility.PUBLIC_PREVIEW, isPublished: true } as any,
+                  where: { visibility: LessonVisibility.PUBLIC_PREVIEW, isPublished: true },
                   orderBy: { sequence: "asc" },
                 },
               },
@@ -501,7 +496,7 @@ export class RobotSyncService {
                 chapterId: null,
                 visibility: LessonVisibility.PUBLIC_PREVIEW,
                 isPublished: true,
-              } as any,
+              },
               orderBy: { sequence: "asc" },
             },
           },
@@ -518,93 +513,6 @@ export class RobotSyncService {
       logoUrl: c.logoUrl,
       introLevel: c.introLevel,
     }));
-    const rawContext = await (this.prisma as any).organizationConversationContext?.findUnique?.({
-      where: { orgId: robot.orgId },
-    });
-    const rawApprovedQa = (await (this.prisma as any).organizationApprovedQa?.findMany?.({
-      where: { orgId: robot.orgId, isPublished: true },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    })) ?? [];
-
-    const approvedContext = {
-      context:
-        rawContext && rawContext.isPublished
-          ? {
-              companyOverview: rawContext.companyOverview,
-              operatingHours: rawContext.operatingHours,
-              locationDetails: rawContext.locationDetails,
-              visitorGuidelines: rawContext.visitorGuidelines,
-              eventsSummary: rawContext.eventsSummary,
-              version: rawContext.version,
-            }
-          : null,
-      approvedQa: rawApprovedQa.map((item: any) => ({
-        id: item.id,
-        question: item.question,
-        answer: item.answer,
-        category: item.category,
-        version: item.version,
-        sortOrder: item.sortOrder,
-      })),
-    };
-
-    const rawOrgPersona = await (this.prisma as any).organizationPersonaConfig?.findUnique?.({
-      where: { orgId: robot.orgId },
-    });
-    const rawRobotPersona = await (this.prisma as any).robotPersonaConfig?.findUnique?.({
-      where: { robotId: robot.id },
-    });
-
-    const isPersonaOverridden = Boolean(rawRobotPersona && rawRobotPersona.isPublished);
-    const defaultLanguage =
-      (isPersonaOverridden && rawRobotPersona?.language) ||
-      rawOrgPersona?.language ||
-      "en-US";
-    const rawSupported =
-      (isPersonaOverridden && rawRobotPersona?.supportedLanguages) ||
-      rawOrgPersona?.supportedLanguages ||
-      "en-US";
-    const supportedLanguages =
-      typeof rawSupported === "string"
-        ? rawSupported.split(",").map((s: string) => s.trim()).filter(Boolean)
-        : ["en-US"];
-    if (!supportedLanguages.includes(defaultLanguage)) {
-      supportedLanguages.unshift(defaultLanguage);
-    }
-    const speechSpeed =
-      isPersonaOverridden && rawRobotPersona?.speechSpeed != null
-        ? rawRobotPersona.speechSpeed
-        : (rawOrgPersona?.speechSpeed ?? 1.0);
-    const sessionMaxSeconds =
-      isPersonaOverridden && rawRobotPersona?.sessionMaxSeconds != null
-        ? rawRobotPersona.sessionMaxSeconds
-        : (rawOrgPersona?.sessionMaxSeconds ?? 300);
-    const sessionIdleTimeoutSeconds =
-      isPersonaOverridden && rawRobotPersona?.sessionIdleTimeoutSeconds != null
-        ? rawRobotPersona.sessionIdleTimeoutSeconds
-        : (rawOrgPersona?.sessionIdleTimeoutSeconds ?? 60);
-    const cooldownSeconds =
-      isPersonaOverridden && rawRobotPersona?.cooldownSeconds != null
-        ? rawRobotPersona.cooldownSeconds
-        : (rawOrgPersona?.cooldownSeconds ?? 5);
-    const dailySessionLimit =
-      isPersonaOverridden && rawRobotPersona?.dailySessionLimit != null
-        ? rawRobotPersona.dailySessionLimit
-        : (rawOrgPersona?.dailySessionLimit ?? 1000);
-    const policyVersion =
-      (rawOrgPersona?.version || 1) + (isPersonaOverridden ? (rawRobotPersona?.version || 0) : 0);
-
-    const policy = {
-      defaultLanguage,
-      supportedLanguages,
-      speechSpeed,
-      sessionMaxSeconds,
-      sessionIdleTimeoutSeconds,
-      cooldownSeconds,
-      dailySessionLimit,
-      version: policyVersion,
-    };
-
     const manifest = await this.manifestResolver.resolve({
       robot,
       licenseStatus: status,
@@ -612,15 +520,12 @@ export class RobotSyncService {
       appVersionCode,
       myCourses,
       publicCatalog,
-      approvedContext,
-      policy,
     });
     return this.decorateManifestContent(manifest, robot.id, robot.orgId);
   }
 
   private decorateManifestContent(manifest: any, robotId: number, orgId: number) {
     if (!this.contentDelivery || manifest?.locked) return manifest;
-
     return {
       ...manifest,
       myCourses: this.contentDelivery.decorateManifestContent(
@@ -685,7 +590,6 @@ export class RobotSyncService {
       changed.tenant = manifest.tenant;
       changed.capabilities = manifest.capabilities;
       changed.policies = manifest.policies;
-      changed.conversation = manifest.conversation;
     }
 
     if (client.myCoursesVersion !== manifest.contentVersions.myCoursesVersion) {
@@ -700,16 +604,11 @@ export class RobotSyncService {
     }
 
     if (
+      client.identityGalleryVersion &&
       client.identityGalleryVersion !==
-      manifest.contentVersions.identityGalleryVersion
+        manifest.contentVersions.identityGalleryVersion
     ) {
-      changed.identityGallery = manifest.identityGallery ?? {
-        schemaVersion: 1,
-        orgId: manifest.tenant?.orgId,
-        version: manifest.contentVersions.identityGalleryVersion,
-        count: 0,
-        records: [],
-      };
+      changed.identityGallery = manifest.identityGallery;
     }
 
     if (client.manifestHash !== manifest.sync.manifestHash) {

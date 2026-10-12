@@ -11,6 +11,7 @@ import { RobotSyncService } from "./robot-sync.service";
 import { EntitlementsService } from "../entitlements/entitlements.service";
 import { RobotManifestResolver } from "./robot-manifest.resolver";
 import { ContentDeliveryService } from "../content-delivery/content-delivery.service";
+import { IdentityService } from "../identity/identity.service";
 
 function buildRobot(overrides: Record<string, unknown> = {}) {
   return {
@@ -44,6 +45,39 @@ function buildRobot(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function buildManifestCourse(id: number, name = `Course ${id}`) {
+  return {
+    id,
+    courseCode: `COURSE-${id}`,
+    courseName: name,
+    source: "PLATFORM",
+    visibility: "PRIVATE",
+    levels: [
+      {
+        id: id * 10,
+        name: "Level 1",
+        sequence: 1,
+        chapters: [
+          {
+            id: id * 100,
+            name: "Chapter 1",
+            sequence: 1,
+            lessons: [
+              {
+                id: id * 1000,
+                name: "Lesson 1",
+                sequence: 1,
+                contentUrl: `https://cdn.whizrobo.test/course-${id}.mp4`,
+              },
+            ],
+          },
+        ],
+        lessons: [],
+      },
+    ],
+  };
+}
+
 describe("RobotSyncService heartbeat updates", () => {
   const prisma = {
     robot: {
@@ -59,9 +93,6 @@ describe("RobotSyncService heartbeat updates", () => {
     orgCourseAccess: {
       findMany: jest.fn(),
     },
-    robotCourseAccess: {
-      findMany: jest.fn(),
-    },
     organizationSubscription: {
       findFirst: jest.fn(),
     },
@@ -71,7 +102,16 @@ describe("RobotSyncService heartbeat updates", () => {
     robotCapabilityAssignment: {
       findMany: jest.fn(),
     },
+    robotCourseAccess: {
+      findMany: jest.fn(),
+    },
     userCapabilityAssignment: {
+      findMany: jest.fn(),
+    },
+    identityEmbeddingRecord: {
+      findMany: jest.fn(),
+    },
+    identityTemplate: {
       findMany: jest.fn(),
     },
   };
@@ -79,24 +119,48 @@ describe("RobotSyncService heartbeat updates", () => {
   let service: RobotSyncService;
 
   beforeEach(() => {
-    process.env.LICENSE_SECRET_KEY = "test-license-secret-key-that-is-long-enough";
     jest.clearAllMocks();
+    process.env.LICENSE_SECRET_KEY =
+      "robot-sync-test-license-secret-key-32chars";
+    prisma.identityTemplate.findMany.mockResolvedValue([]);
     const entitlements = new EntitlementsService(
       prisma as unknown as PrismaService,
     );
+    const conversationConfig = {
+      resolveForRobot: jest.fn().mockResolvedValue({
+        schemaVersion: 1,
+        source: "organizationDefault",
+        orgId: 1,
+        robotId: 10,
+        personaName: "Demo Guide",
+        personaPrompt: "Use approved CMS context only.",
+        greetingText: "Welcome to Demo School.",
+        voiceStyle: "friendly",
+        language: "en",
+        tone: "helpful",
+        version: {
+          organization: 1,
+          robot: 0,
+          effective: "conversation-org-1-v1-robot-10-v0",
+        },
+        publishedAt: "2026-10-07T00:00:00.000Z",
+      }),
+    };
     service = new RobotSyncService(
       prisma as unknown as PrismaService,
-      new RobotManifestResolver(entitlements),
+      new RobotManifestResolver(entitlements, conversationConfig as any),
+      new ContentDeliveryService(prisma as unknown as PrismaService),
     );
     prisma.robot.findUnique.mockResolvedValue(buildRobot());
     prisma.robot.update.mockResolvedValue({});
     prisma.course.findMany.mockResolvedValue([]);
     prisma.orgCourseAccess.findMany.mockResolvedValue([]);
-    prisma.robotCourseAccess.findMany.mockResolvedValue([]);
     prisma.organizationSubscription.findFirst.mockResolvedValue(null);
     prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
     prisma.robotCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([]);
     prisma.userCapabilityAssignment.findMany.mockResolvedValue([]);
+    prisma.identityEmbeddingRecord.findMany.mockResolvedValue([]);
   });
 
   it("updates last seen, app version and device model for the authenticated robot during sync", async () => {
@@ -156,6 +220,158 @@ describe("RobotSyncService heartbeat updates", () => {
     );
   });
 
+  it("syncs only the authenticated robot organization identity gallery", async () => {
+    const identity = new IdentityService(prisma as any, { recordCritical: jest.fn() } as any);
+    service = new RobotSyncService(
+      prisma as unknown as PrismaService,
+      new RobotManifestResolver(
+        new EntitlementsService(prisma as unknown as PrismaService),
+        undefined,
+        undefined,
+        identity,
+      ),
+      new ContentDeliveryService(prisma as unknown as PrismaService),
+    );
+    prisma.identityEmbeddingRecord.findMany.mockResolvedValue([
+      {
+        id: 1,
+        orgId: 1,
+        subjectRef: "visitor.demo-001",
+        consentGranted: true,
+        status: "ACTIVE",
+        consentPolicyVersion: "identity-v1",
+        consentGrantedAt: new Date("2026-10-09T00:00:00.000Z"),
+        embeddingFingerprint: "abc123",
+        embeddingSchemaVersion: 1,
+        retentionExpiresAt: null,
+        deletedAt: null,
+        updatedAt: new Date("2026-10-09T01:00:00.000Z"),
+      },
+    ]);
+
+    const result = (await service.sync(10)) as any;
+
+    expect(prisma.identityEmbeddingRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId: 1,
+      },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        subjectRef: true,
+        consentGranted: true,
+        status: true,
+        embeddingFingerprint: true,
+        retentionExpiresAt: true,
+        deletedAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(result.identityGallery).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        orgId: 1,
+        count: 1,
+      }),
+    );
+    expect(result.contentVersions.identityGalleryVersion).toMatch(
+      /^identity-gallery-org-1-[0-9a-f]{24}$/,
+    );
+    expect(JSON.stringify(result.identityGallery)).not.toMatch(
+      /embeddingCiphertext|licenseKey|WHRB|Bearer|@/,
+    );
+  });
+
+  it("excludes revoked identities from subsequent sync and updates identityGalleryVersion", async () => {
+    const identity = new IdentityService(prisma as any, { recordCritical: jest.fn() } as any);
+    service = new RobotSyncService(
+      prisma as unknown as PrismaService,
+      new RobotManifestResolver(
+        new EntitlementsService(prisma as unknown as PrismaService),
+        undefined,
+        undefined,
+        identity,
+      ),
+      new ContentDeliveryService(prisma as unknown as PrismaService),
+    );
+    // Initial sync with active consented identity
+    prisma.identityEmbeddingRecord.findMany.mockResolvedValueOnce([
+      {
+        id: 1,
+        orgId: 1,
+        subjectRef: "visitor.demo-001",
+        consentGranted: true,
+        status: "ACTIVE",
+        consentPolicyVersion: "identity-v1",
+        consentGrantedAt: new Date("2026-10-09T00:00:00.000Z"),
+        embeddingFingerprint: "abc123",
+        embeddingSchemaVersion: 1,
+        retentionExpiresAt: null,
+        deletedAt: null,
+        updatedAt: new Date("2026-10-09T01:00:00.000Z"),
+      },
+    ]);
+
+    const initialResult = (await service.sync(10)) as any;
+    expect(initialResult.identityGallery.count).toBe(1);
+    const initialVersion = initialResult.contentVersions.identityGalleryVersion;
+
+    // Subsequent sync after consent revocation (query excludes revoked record)
+    prisma.identityEmbeddingRecord.findMany.mockResolvedValueOnce([]);
+
+    const subsequentResult = (await service.sync(10)) as any;
+    expect(subsequentResult.identityGallery.count).toBe(0);
+    expect(subsequentResult.identityGallery.records).toBeUndefined();
+    expect(subsequentResult.contentVersions.identityGalleryVersion).not.toBe(initialVersion);
+  });
+
+  it("returns identity gallery as an incremental change when the gallery version differs", async () => {
+    const identity = new IdentityService(prisma as any, { recordCritical: jest.fn() } as any);
+    service = new RobotSyncService(
+      prisma as unknown as PrismaService,
+      new RobotManifestResolver(
+        new EntitlementsService(prisma as unknown as PrismaService),
+        undefined,
+        undefined,
+        identity,
+      ),
+      new ContentDeliveryService(prisma as unknown as PrismaService),
+    );
+    prisma.identityEmbeddingRecord.findMany.mockResolvedValue([
+      {
+        id: 1,
+        orgId: 1,
+        subjectRef: "visitor.demo-001",
+        consentGranted: true,
+        status: "ACTIVE",
+        consentPolicyVersion: "identity-v1",
+        consentGrantedAt: new Date("2026-10-09T00:00:00.000Z"),
+        embeddingFingerprint: "abc123",
+        embeddingSchemaVersion: 1,
+        retentionExpiresAt: null,
+        deletedAt: null,
+        updatedAt: new Date("2026-10-09T01:00:00.000Z"),
+      },
+    ]);
+
+    const result = (await service.syncChanges(10, {
+      manifestHash: "0".repeat(64),
+      cacheVersion: "org-1-v1",
+      tenantVersion: 1,
+      myCoursesVersion: "my-courses-org-1-v1-e3b0c44298fc",
+      publicCatalogVersion: "public-catalog-v1-0",
+      identityGalleryVersion: "identity-gallery-org-1-old",
+    })) as any;
+
+    expect(result.requiresFullSync).toBe(false);
+    expect(result.changed.identityGallery).toEqual(
+      expect.objectContaining({
+        orgId: 1,
+        count: 1,
+      }),
+    );
+  });
+
   it("asks for a full sync when incremental client versions are missing", async () => {
     const result = await service.syncChanges(10, {});
 
@@ -172,6 +388,26 @@ describe("RobotSyncService heartbeat updates", () => {
     );
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
+    );
+  });
+
+  it("asks for a full sync when identity gallery version is missing", async () => {
+    const full = (await service.sync(10)) as any;
+
+    const result = await service.syncChanges(10, {
+      manifestHash: full.sync.manifestHash,
+      cacheVersion: full.contentVersions.cacheVersion,
+      tenantVersion: full.contentVersions.tenantVersion,
+      myCoursesVersion: full.contentVersions.myCoursesVersion,
+      publicCatalogVersion: full.contentVersions.publicCatalogVersion,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        requiresFullSync: true,
+        fullSyncReason: "MISSING_OR_UNSUPPORTED_CLIENT_VERSIONS",
+        changed: {},
+      }),
     );
   });
 
@@ -200,6 +436,7 @@ describe("RobotSyncService heartbeat updates", () => {
       tenantVersion: full.contentVersions.tenantVersion,
       myCoursesVersion: full.contentVersions.myCoursesVersion,
       publicCatalogVersion: "public-catalog-v1-stale",
+      identityGalleryVersion: full.contentVersions.identityGalleryVersion,
     });
 
     expect(result).toEqual(
@@ -272,14 +509,37 @@ describe("RobotSyncService heartbeat updates", () => {
             updateRequired: false,
             updateRecommended: false,
           },
+          conversation: expect.objectContaining({
+            schemaVersion: 1,
+            source: "organizationDefault",
+            version: expect.objectContaining({
+              effective: "conversation-org-1-v1-robot-10-v0",
+            }),
+          }),
         },
+        conversation: expect.objectContaining({
+          schemaVersion: 1,
+          source: "organizationDefault",
+          personaName: "Demo Guide",
+          greetingText: "Welcome to Demo School.",
+          provider: {
+            schemaVersion: 1,
+            gateway: "cms-ai-gateway",
+            providerAlias: "cms-ai-provider",
+            modelAlias: "default-conversation-model",
+            policyVersion: "ai-provider-policy-v1",
+            directProviderAccess: false,
+          },
+        }),
         contentVersions: {
           cacheVersion: "org-1-v1",
           tenantVersion: 1,
           myCoursesVersion: expect.stringMatching(/^my-courses-org-1-v1-[0-9a-f]{12}$/),
           publicCatalogVersion: "public-catalog-v1-0",
+          identityGalleryVersion: expect.stringMatching(/^identity-gallery-org-1-[0-9a-f]{12}$/),
           myCoursesCount: 0,
           publicCatalogCount: 0,
+          identityGalleryCount: 0,
         },
         sync: expect.objectContaining({
           serverTime: expect.any(String),
@@ -296,27 +556,6 @@ describe("RobotSyncService heartbeat updates", () => {
     );
     expect(JSON.stringify(result)).not.toMatch(
       /licenseKey|token|password|secret/i,
-    );
-  });
-
-  it("includes effective conversation policy in manifest without secrets (CMS-72)", async () => {
-    const result = (await service.sync(10)) as any;
-
-    expect(result.conversation).toBeDefined();
-    expect(result.conversation.policy).toEqual(
-      expect.objectContaining({
-        defaultLanguage: "en-US",
-        supportedLanguages: expect.arrayContaining(["en-US"]),
-        speechSpeed: 1.0,
-        sessionMaxSeconds: 300,
-        sessionIdleTimeoutSeconds: 60,
-        cooldownSeconds: 5,
-        dailySessionLimit: 1000,
-        version: 1,
-      }),
-    );
-    expect(JSON.stringify(result.conversation)).not.toMatch(
-      /licenseKey|token|password|secret|apiKey/i,
     );
   });
 
@@ -669,8 +908,10 @@ describe("RobotSyncService heartbeat updates", () => {
       tenantVersion: 1,
       myCoursesVersion: expect.stringMatching(/^my-courses-org-1-v1-[0-9a-f]{12}$/),
       publicCatalogVersion: "public-catalog-v1-1",
+      identityGalleryVersion: expect.stringMatching(/^identity-gallery-org-1-[0-9a-f]{12}$/),
       myCoursesCount: 1,
       publicCatalogCount: 1,
+      identityGalleryCount: 0,
     });
     expect((result as any).policies.offlineCache.cacheVersion).toBe("org-1-v1");
     expect((result as any).policies.appUpdate).toEqual(
@@ -688,23 +929,125 @@ describe("RobotSyncService heartbeat updates", () => {
     );
   });
 
-  it("returns courses only for the authenticated robot when robot-aware LMS access is configured", async () => {
-    const allowedCourse = {
-      id: 301,
-      courseCode: "ROBOT-A",
-      courseName: "Robot A Course",
-      source: "PLATFORM",
-      visibility: "PRIVATE",
-      levels: [],
+  it("returns signed resumable content delivery links for assigned LMS lessons", async () => {
+    const course = buildManifestCourse(701, "Signed Delivery Course") as any;
+    course.levels[0].chapters[0].lessons[0] = {
+      ...course.levels[0].chapters[0].lessons[0],
+      contentVersion: 2,
+      contentSizeBytes: 2048,
+      contentChecksum: "b".repeat(64),
     };
-    const otherRobotCourse = {
-      id: 302,
-      courseCode: "ROBOT-B",
-      courseName: "Robot B Course",
-      source: "PLATFORM",
-      visibility: "PRIVATE",
-      levels: [],
-    };
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 701,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([course])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.sync(10);
+    const lesson = (result as any).myCourses[0].levels[0].chapters[0].lessons[0];
+
+    expect(lesson.contentUrl).toMatch(/^\/api\/v1\/content\/delivery\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    expect(lesson.contentDelivery).toEqual({
+      url: lesson.contentUrl,
+      expiresInSeconds: 900,
+      resumable: true,
+      method: "GET",
+    });
+    expect(JSON.stringify(result)).not.toMatch(/licenseKey|password|secret/i);
+  });
+
+  it("requests only published courses and lessons for new manifests", async () => {
+    prisma.orgCourseAccess.findMany.mockResolvedValue([
+      {
+        courseId: 701,
+        accessType: CourseAccessType.FULL_COURSE,
+        levelId: null,
+        chapterId: null,
+      },
+    ]);
+    prisma.course.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await service.sync(10);
+
+    expect(prisma.course.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { ownerOrgId: 1, isPublished: true },
+        include: expect.objectContaining({
+          levels: expect.objectContaining({
+            include: expect.objectContaining({
+              chapters: expect.objectContaining({
+                include: {
+                  lessons: expect.objectContaining({
+                    where: { isPublished: true },
+                  }),
+                },
+              }),
+              lessons: expect.objectContaining({
+                where: { chapterId: null, isPublished: true },
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(prisma.course.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: [701] },
+          source: "PLATFORM",
+          isPublished: true,
+        }),
+      }),
+    );
+    expect(prisma.course.findMany).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          visibility: "PUBLIC",
+          isPublished: true,
+        }),
+        include: expect.objectContaining({
+          introLevel: expect.objectContaining({
+            include: expect.objectContaining({
+              chapters: expect.objectContaining({
+                include: {
+                  lessons: expect.objectContaining({
+                    where: {
+                      visibility: "PUBLIC_PREVIEW",
+                      isPublished: true,
+                    },
+                  }),
+                },
+              }),
+              lessons: expect.objectContaining({
+                where: {
+                  chapterId: null,
+                  visibility: "PUBLIC_PREVIEW",
+                  isPublished: true,
+                },
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("returns assigned LMS content only for the explicitly allowed robot", async () => {
+    const allowedCourse = buildManifestCourse(301, "Allowed Robot Course");
+    const otherRobotCourse = buildManifestCourse(302, "Other Robot Course");
 
     prisma.orgCourseAccess.findMany.mockResolvedValue([
       {
@@ -753,71 +1096,45 @@ describe("RobotSyncService heartbeat updates", () => {
     );
   });
 
-  it("returns signed resumable delivery links for versioned lesson content", async () => {
-    const signedService = new RobotSyncService(
-      prisma as unknown as PrismaService,
-      new RobotManifestResolver(
-        new EntitlementsService(prisma as unknown as PrismaService),
-      ),
-      new ContentDeliveryService(prisma as unknown as PrismaService),
-    );
-    const lesson = {
-      id: 501,
-      courseId: 301,
-      levelId: 401,
-      chapterId: null,
-      name: "Signed Lesson",
-      sequence: 1,
-      contentType: "VIDEO",
-      contentUrl: "https://cdn.whizrobo.test/lesson-501.mp4",
-      contentVersion: 3,
-      contentSizeBytes: 2048,
-      contentChecksum: "b".repeat(64),
-    };
-    const course = {
-      id: 301,
-      courseCode: "SIGNED-COURSE",
-      courseName: "Signed Course",
-      source: "PLATFORM",
-      visibility: "PRIVATE",
-      levels: [
-        {
-          id: 401,
-          name: "Level 1",
-          sequence: 1,
-          chapters: [],
-          lessons: [lesson],
-        },
-      ],
-    };
+  it("intersects robot LMS scope with organization course access before returning manifest content", async () => {
+    const platformCourse = buildManifestCourse(401, "Scoped Platform Course");
 
     prisma.orgCourseAccess.findMany.mockResolvedValue([
       {
-        courseId: 301,
-        accessType: CourseAccessType.FULL_COURSE,
+        courseId: 401,
+        accessType: CourseAccessType.CHAPTER_ONLY,
         levelId: null,
+        chapterId: 40100,
+      },
+    ]);
+    prisma.robotCourseAccess.findMany.mockResolvedValue([
+      {
+        robotId: 10,
+        courseId: 401,
+        accessType: CourseAccessType.LEVEL_ONLY,
+        levelId: 4010,
         chapterId: null,
       },
     ]);
     prisma.course.findMany
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([course])
+      .mockResolvedValueOnce([platformCourse])
       .mockResolvedValueOnce([]);
 
-    const result = await signedService.sync(10);
-    const signedLesson = (result as any).myCourses[0].levels[0].lessons[0];
+    const result = await service.sync(10);
 
-    expect(signedLesson.contentUrl).toMatch(/^\/api\/v1\/content\/delivery\//);
-    expect(signedLesson.contentDelivery).toEqual({
-      url: signedLesson.contentUrl,
-      expiresInSeconds: 900,
-      resumable: true,
-      method: "GET",
-    });
-    expect(JSON.stringify(result)).not.toContain(lesson.contentUrl);
-    expect(JSON.stringify(result)).not.toMatch(
-      /licenseKey|password|secret/i,
-    );
+    expect((result as any).myCourses).toHaveLength(1);
+    expect((result as any).myCourses[0].levels).toEqual([
+      expect.objectContaining({
+        id: 4010,
+        chapters: [
+          expect.objectContaining({
+            id: 40100,
+          }),
+        ],
+        lessons: [],
+      }),
+    ]);
   });
 
   it("returns active subscription paid capabilities exactly from the assigned plan", async () => {
