@@ -8,34 +8,36 @@ datasource db {
 }
 
 model Organization {
-  id                        Int                              @id @default(autoincrement())
-  name                      String
-  state                     String
-  city                      String
-  authorizedPersonName      String
-  contactNo                 String
-  isActive                  Boolean                          @default(true)
-  createdAt                 DateTime                         @default(now())
-  updatedAt                 DateTime                         @updatedAt
-  logoUrl                   String?
-  primaryColor              String?
-  secondaryColor            String?
-  tenantVersion             Int                              @default(1)
-  courses                   Course[]                         @relation("OrgOwnedCourses")
-  events                    Event[]
-  notifications             Notification[]
-  assignments               OrgCourseAccess[]
-  permissions               OrgPermission[]
-  approvedQas               OrganizationApprovedQa[]
-  capabilityOverrides       OrganizationCapabilityOverride[]
-  conversationContexts      OrganizationConversationContext?
-  OrganizationPersonaConfig OrganizationPersonaConfig?
-  subscriptions             OrganizationSubscription[]
-  robots                    Robot[]
-  RobotPersonaConfig        RobotPersonaConfig[]
-  usageLogs                 RobotUsageLog[]
-  roles                     Role[]
-  users                     User[]
+  id                   Int                               @id @default(autoincrement())
+  name                 String
+  state                String
+  city                 String
+  authorizedPersonName String
+  contactNo            String
+  isActive             Boolean                           @default(true)
+  createdAt            DateTime                          @default(now())
+  updatedAt            DateTime                          @updatedAt
+  logoUrl              String?
+  primaryColor         String?
+  secondaryColor       String?
+  tenantVersion        Int                               @default(1)
+  courses              Course[]                          @relation("OrgOwnedCourses")
+  events               Event[]
+  notifications        Notification[]
+  assignments          OrgCourseAccess[]
+  permissions          OrgPermission[]
+  conversationConfig   OrganizationConversationConfig?
+  conversationContexts OrganizationConversationContext[]
+  conversationRevisions ConversationPublicationRevision[]
+  approvedQas          OrganizationApprovedQa[]
+  identityEmbeddings   IdentityEmbeddingRecord[]
+  identityThresholds   OrganizationIdentityThreshold[]
+  capabilityOverrides  OrganizationCapabilityOverride[]
+  subscriptions        OrganizationSubscription[]
+  robots               Robot[]
+  usageLogs            RobotUsageLog[]
+  roles                Role[]
+  users                User[]
 }
 
 model User {
@@ -150,42 +152,238 @@ model Robot {
   events                Event[]
   org                   Organization                @relation(fields: [orgId], references: [id])
   capabilityAssignments RobotCapabilityAssignment[]
+  conversationConfig    RobotConversationConfig?
   courseAssignments     RobotCourseAccess[]
-  RobotPersonaConfig    RobotPersonaConfig?
   usageLogs             RobotUsageLog[]
 
   @@index([orgId])
 }
 
+model OrganizationConversationConfig {
+  id                        Int          @id @default(autoincrement())
+  orgId                     Int          @unique
+  personaName               String?
+  personaPrompt             String?
+  greetingText              String?
+  voiceStyle                String?
+  language                  String?
+  tone                      String?
+  defaultLanguage           String?
+  supportedLanguages        Json?
+  speechSpeed               Float?
+  sessionMaxSeconds         Int?
+  sessionIdleTimeoutSeconds Int?
+  cooldownSeconds           Int?
+  dailySessionLimit         Int?
+  isPublished               Boolean      @default(false)
+  version                   Int          @default(1)
+  publishedAt               DateTime?
+  createdByUserId           Int?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+  org                       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isPublished])
+}
+
+model RobotConversationConfig {
+  id                        Int       @id @default(autoincrement())
+  robotId                   Int       @unique
+  personaName               String?
+  personaPrompt             String?
+  greetingText              String?
+  voiceStyle                String?
+  language                  String?
+  tone                      String?
+  defaultLanguage           String?
+  supportedLanguages        Json?
+  speechSpeed               Float?
+  sessionMaxSeconds         Int?
+  sessionIdleTimeoutSeconds Int?
+  cooldownSeconds           Int?
+  dailySessionLimit         Int?
+  isPublished               Boolean   @default(false)
+  version                   Int       @default(1)
+  publishedAt               DateTime?
+  createdByUserId           Int?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  robot                     Robot     @relation(fields: [robotId], references: [id], onDelete: Cascade)
+
+  @@index([robotId, isPublished])
+}
+
 model OrganizationConversationContext {
-  id                Int          @id @default(autoincrement())
-  orgId             Int          @unique
-  companyOverview   String?
-  operatingHours    String?
-  locationDetails   String?
-  visitorGuidelines String?
-  eventsSummary     String?
-  version           Int          @default(1)
-  isPublished       Boolean      @default(true)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  id              Int          @id @default(autoincrement())
+  orgId           Int
+  stableKey       String
+  contextType     String
+  title           String
+  body            String
+  isPublished     Boolean      @default(false)
+  version         Int          @default(1)
+  publishedAt     DateTime?
+  createdByUserId Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, stableKey])
+  @@index([orgId, isPublished])
 }
 
 model OrganizationApprovedQa {
-  id          Int          @id @default(autoincrement())
-  orgId       Int
-  question    String
-  answer      String
-  category    String?
-  version     Int          @default(1)
-  isPublished Boolean      @default(true)
-  sortOrder   Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  id              Int          @id @default(autoincrement())
+  orgId           Int
+  stableKey       String
+  question        String
+  answer          String
+  isPublished     Boolean      @default(false)
+  version         Int          @default(1)
+  publishedAt     DateTime?
+  createdByUserId Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
-  @@index([orgId])
+  @@unique([orgId, stableKey])
+  @@index([orgId, isPublished])
+}
+
+model ConversationPublicationRevision {
+  id                     Int          @id @default(autoincrement())
+  orgId                  Int
+  robotId                Int?
+  scope                  String
+  sourceType             String
+  sourceId               Int?
+  stableKey              String?
+  version                Int
+  previousVersion        Int?
+  snapshot               Json
+  publishedByUserId      Int?
+  publishedAt            DateTime
+  restoredFromRevisionId Int?
+  createdAt              DateTime     @default(now())
+  org                    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, scope, stableKey])
+  @@index([orgId, robotId])
+  @@index([orgId, sourceType, version])
+}
+
+model IdentityEmbeddingRecord {
+  id                   Int          @id @default(autoincrement())
+  orgId                Int
+  subjectRef           String
+  consentGranted       Boolean      @default(false)
+  consentSource        String
+  consentPolicyVersion String
+  consentGrantedAt     DateTime
+  embeddingCiphertext  String?
+  embeddingFingerprint String?
+  embeddingSchemaVersion Int        @default(1)
+  status               String       @default("ACTIVE")
+  retentionExpiresAt   DateTime?
+  deletedAt            DateTime?
+  deletionReason       String?
+  createdByUserId      Int?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  org                  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  templates            IdentityTemplate[]
+  recognitionFeedback  IdentityRecognitionFeedback[]
+
+  @@unique([orgId, subjectRef])
+  @@index([orgId, status])
+  @@index([orgId, retentionExpiresAt])
+}
+
+model IdentityTemplate {
+  id               Int                     @id @default(autoincrement())
+  identityId       Int
+  modelId          String
+  vectorCiphertext String
+  vectorFingerprint String
+  qualityScore     Float
+  sourceRobotId    Int
+  createdAt        DateTime                @default(now())
+  identity         IdentityEmbeddingRecord @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  model            RecognitionModel        @relation(fields: [modelId], references: [modelId])
+
+  @@index([identityId, modelId, qualityScore])
+  @@index([sourceRobotId])
+}
+
+model RecognitionModel {
+  id             Int                         @id @default(autoincrement())
+  modelId        String                      @unique
+  tier           String
+  version        String
+  fileId         String
+  sha256         String
+  fileBytes      Bytes?
+  inputSize      String
+  dimension      Int
+  minRamMb       Int
+  minAndroidApi  Int
+  status         String                      @default("ACTIVE")
+  license        String?
+  uploadedAt     DateTime?
+  uploadedByUserId Int?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  templates      IdentityTemplate[]
+  thresholds     OrganizationIdentityThreshold[]
+  feedback       IdentityRecognitionFeedback[]
+}
+
+model OrganizationIdentityThreshold {
+  id        Int              @id @default(autoincrement())
+  orgId     Int
+  modelId   String
+  accept    Float
+  margin    Float
+  reject    Float
+  votes     Int
+  updatedAt DateTime         @updatedAt
+  org       Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  model     RecognitionModel @relation(fields: [modelId], references: [modelId])
+
+  @@unique([orgId, modelId])
+}
+
+model IdentityRecognitionFeedback {
+  id         Int                     @id @default(autoincrement())
+  identityId Int?
+  modelId    String
+  orgId      Int
+  robotId    Int
+  score      Float
+  margin     Float
+  votes      Int
+  outcome    String
+  createdAt  DateTime                @default(now())
+  identity   IdentityEmbeddingRecord? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+  model      RecognitionModel        @relation(fields: [modelId], references: [modelId])
+
+  @@index([orgId, modelId, createdAt])
+  @@index([identityId, outcome, createdAt])
+}
+
+model RobotIdentityIdempotency {
+  id             Int      @id @default(autoincrement())
+  orgId          Int
+  robotId        Int
+  route          String
+  idempotencyKey String
+  response       Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  @@unique([orgId, robotId, route, idempotencyKey])
+  @@index([createdAt])
+  @@index([expiresAt])
 }
 
 model Capability {
@@ -303,10 +501,10 @@ model Course {
   source         CourseSource        @default(PLATFORM)
   ownerOrgId     Int?
   visibility     CourseVisibility    @default(PRIVATE)
+  isPublished    Boolean             @default(true)
   introLevelId   Int?                @unique
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
-  isPublished    Boolean             @default(true)
   introLevel     Level?              @relation("IntroLevel", fields: [introLevelId], references: [id])
   ownerOrg       Organization?       @relation("OrgOwnedCourses", fields: [ownerOrgId], references: [id])
   events         Event[]
@@ -314,8 +512,8 @@ model Course {
   levels         Level[]
   assignments    OrgCourseAccess[]
   robotAccess    RobotCourseAccess[]
-  usageLogs      RobotUsageLog[]
   userAccess     UserCourseAccess[]
+  usageLogs      RobotUsageLog[]
 
   @@index([ownerOrgId])
 }
@@ -361,15 +559,15 @@ model Lesson {
   durationMins     Int?
   contentType      ContentType      @default(VIDEO)
   contentUrl       String
+  contentVersion   Int              @default(1)
+  contentSizeBytes Int?
+  contentChecksum  String?
   thumbnailUrl     String?
   logoUrl          String?
   visibility       LessonVisibility @default(PRIVATE)
+  isPublished      Boolean          @default(true)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
-  contentChecksum  String?
-  contentSizeBytes Int?
-  contentVersion   Int              @default(1)
-  isPublished      Boolean          @default(true)
   events           Event[]
   chapter          Chapter?         @relation(fields: [chapterId], references: [id])
   course           Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -521,56 +719,6 @@ model AuditEvent {
 model GlobalCounter {
   key   String @id
   value Int    @default(0)
-}
-
-model OrganizationPersonaConfig {
-  id                        Int          @id @default(autoincrement())
-  orgId                     Int          @unique
-  personaName               String       @default("WhizRobot Assistant")
-  personaPrompt             String?
-  greetingText              String       @default("Hello! Welcome to our organization.")
-  speechGreeting            String       @default("Hello! Welcome to our organization.")
-  voiceStyle                String       @default("standard")
-  language                  String       @default("en-US")
-  tone                      String       @default("friendly")
-  speechSpeed               Float        @default(1.0)
-  sessionMaxSeconds         Int          @default(300)
-  sessionIdleTimeoutSeconds Int          @default(60)
-  cooldownSeconds           Int          @default(5)
-  dailySessionLimit         Int          @default(1000)
-  supportedLanguages        String       @default("en-US")
-  version                   Int          @default(1)
-  isPublished               Boolean      @default(true)
-  createdAt                 DateTime     @default(now())
-  updatedAt                 DateTime
-  Organization              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-}
-
-model RobotPersonaConfig {
-  id                        Int          @id @default(autoincrement())
-  orgId                     Int
-  robotId                   Int          @unique
-  personaName               String?
-  personaPrompt             String?
-  greetingText              String?
-  speechGreeting            String?
-  voiceStyle                String?
-  language                  String?
-  tone                      String?
-  speechSpeed               Float?
-  sessionMaxSeconds         Int?
-  sessionIdleTimeoutSeconds Int?
-  cooldownSeconds           Int?
-  dailySessionLimit         Int?
-  supportedLanguages        String?
-  version                   Int          @default(1)
-  isPublished               Boolean      @default(true)
-  createdAt                 DateTime     @default(now())
-  updatedAt                 DateTime
-  Organization              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  Robot                     Robot        @relation(fields: [robotId], references: [id], onDelete: Cascade)
-
-  @@index([orgId])
 }
 
 enum CapabilityOverrideEffect {
