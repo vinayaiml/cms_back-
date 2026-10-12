@@ -20,6 +20,7 @@ import { PermissionsGuard } from "../../common/guards/permissions.guard";
 import {
   CreateIdentityEmbeddingDto,
   DeleteIdentityEmbeddingDto,
+  RecognitionModelUploadDto,
   RevokeIdentityConsentDto,
   UpdateIdentityEmbeddingDto,
 } from "./identity.dto";
@@ -42,7 +43,7 @@ export class IdentityController {
   }
 
   @Get()
-  @RequirePermissions("identity.read")
+  @RequirePermissions("org.read")
   async list(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -51,7 +52,7 @@ export class IdentityController {
   }
 
   @Post()
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async create(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -67,7 +68,7 @@ export class IdentityController {
   }
 
   @Put(":id")
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async correct(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -85,7 +86,7 @@ export class IdentityController {
   }
 
   @Patch(":id")
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async correctPatch(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -103,7 +104,7 @@ export class IdentityController {
   }
 
   @Post(":id/revoke-consent")
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async revokeConsent(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -121,7 +122,7 @@ export class IdentityController {
   }
 
   @Put(":id/revoke-consent")
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async revokeConsentPut(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -139,7 +140,7 @@ export class IdentityController {
   }
 
   @Delete(":id")
-  @RequirePermissions("identity.manage")
+  @RequirePermissions("org.update")
   async erase(
     @CurrentUser() actor: JwtPayload,
     @Param("orgId", ParseIntPipe) orgId: number,
@@ -154,5 +155,31 @@ export class IdentityController {
       this.userActor(actor),
       correlationId,
     );
+  }
+}
+
+@Controller("identity-recognition-models")
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+export class RecognitionModelController {
+  constructor(private identity: IdentityService) {}
+
+  private userActor(actor: JwtPayload) {
+    if (actor.type !== "user") {
+      throw new ForbiddenException("User token required");
+    }
+    return {
+      userId: actor.sub,
+      orgId: actor.orgId,
+      isSuperAdmin: actor.isSuperAdmin,
+    };
+  }
+
+  @Post("upload")
+  @RequirePermissions("org.update")
+  async upload(
+    @CurrentUser() actor: JwtPayload,
+    @Body() dto: RecognitionModelUploadDto,
+  ) {
+    return this.identity.uploadRecognitionModel(dto, this.userActor(actor));
   }
 }

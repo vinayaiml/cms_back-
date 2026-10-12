@@ -67,11 +67,107 @@ Authorization: Bearer <robot-access-token>
 
 Do not use the user token or robot refresh token for robot sync or robot log upload. Those routes require a robot access token.
 
-## LMS Content Publish Workflow
 
-Courses and lessons have an `isPublished` delivery flag controlled by explicit publish/unpublish endpoints. `PATCH /api/content/course/{id}/unpublish` and `PATCH /api/content/lesson/{id}/unpublish` remove content from new robot manifests and invalidate existing signed delivery links during the next authorization check.
+## LMS Content Access Rules
 
-The publish/unpublish workflow is tenant-scoped, requires `content.write`, and records sanitized audit events without tokens, license keys or raw credentials.
+CMS enforces tenant-scoped Course -> Level -> Chapter -> Lesson access on the backend. Organization-owned courses are returned only to users in the owning organization. Platform courses require an `OrgCourseAccess` assignment:
+
+- `FULL_COURSE` returns all levels, chapters and lessons for the assigned course.
+- `LEVEL_ONLY` returns only the assigned level, including its chapters and direct lessons.
+- `CHAPTER_ONLY` returns only the assigned chapter and its lessons; direct level lessons outside the chapter are not returned.
+
+Unassigned platform courses, cross-tenant organization-owned courses and corrupted assignment rows are rejected before course content is returned. Public catalog responses remain limited to public courses and `PUBLIC_PREVIEW` lessons.
+
+Robot manifests also support robot/user-aware LMS access. `OrgCourseAccess` remains the organization ceiling. If enabled `RobotCourseAccess` rows exist for a course in the robot's organization, the course appears in `myCourses` only for robots with a matching enabled row, and the returned level/chapter scope is intersected with the organization ceiling. The CMS preview route `GET /api/robots/{id}/users/{userId}/manifest-preview` applies `UserCourseAccess` and the selected robot's `RobotCourseAccess` together, so user-context content is resolved as organization ceiling intersect robot access intersect user access. Courses without robot/user-specific rows keep the organization-level behavior for backward compatibility.
+
+The CMS Course Access page uses the same manifest preview routes for its effective access preview. Administrators select an organization, robot and optional user context, then CMS renders the exact `myCourses` courses, levels, chapters and lessons returned by the backend resolver. The UI does not independently calculate the delivered LMS scope.
+
+Lesson responses include `contentVersion`, `contentSizeBytes` and `contentChecksum` metadata for offline cache validation. Updating a lesson with the same content identity retains the version/checksum, while changing the content URL, size or checksum increments `contentVersion`. `contentChecksum` must be a SHA-256 hex string and no credentials or private URL secrets should be embedded in content URLs.
+
+Before platform content is assigned to an organization, CMS validates the lesson assets in the selected assignment scope. Assignments are rejected before mutation when the selected course, level or chapter contains no lessons, a malformed or unsupported asset URL, credentials in an asset URL, localhost/private-network asset hosts, negative size metadata, an invalid checksum or an unavailable content asset. Availability validation uses a bounded HTTP `HEAD` request with a range `GET` fallback for hosts that do not support `HEAD`. Unit tests mock this probe so CI remains repeatable and no private asset data is logged.
+
+Robot manifest lesson entries use signed CMS delivery links for downloadable LMS assets. The signed URL is returned in `contentUrl` and `contentDelivery.url`, with `contentDelivery.resumable=true` and a short expiry window. `GET /api/v1/content/delivery/{token}` validates the HMAC signature, expiry, current robot license, active organization, content version/checksum metadata and current organization/robot assignment before redirecting to the approved asset URL. Expired, tampered, unassigned, unauthorized, unpublished or corrupted content links return the shared safe error response and do not expose credentials, JWTs, license keys or raw secret material.
+
+Courses and lessons also have an `isPublished` delivery flag controlled by explicit publish/unpublish endpoints. `PATCH /api/content/course/{id}/unpublish` and `PATCH /api/content/lesson/{id}/unpublish` remove content from new robot manifests and invalidate existing signed delivery links during the next authorization check. The publish/unpublish workflow is tenant-scoped, requires `content.write`, and records sanitized audit events without tokens, license keys or raw credentials.
+
+## Robot AI Gateway
+
+Android robot clients must use CMS for AI conversation. They must not call DeepSeek, OpenAI or any OpenAI-compatible provider directly.
+
+```text
+POST http://localhost:3001/api/v1/robot/ai/conversation
+```
+
+The backend loads provider URL, model and API key only from backend secret configuration. These values are never returned in manifests, OpenAPI examples, logs, fixtures or client responses. If the provider is unconfigured, unavailable, times out or the input/cost limits are exceeded, CMS returns a safe fallback message.
+
+Robot manifests may include only the safe provider reference under `conversation.provider`: `gateway`, `providerAlias`, `modelAlias`, `policyVersion` and `directProviderAccess: false`. These aliases are routing/policy hints for the CMS gateway and do not authorize Android to call DeepSeek, OpenAI or any OpenAI-compatible provider directly.
+
+Approved tools are registry-controlled: `getApprovedOrganisationInformation`, `searchStaff`, `getStaffAvailability`, `holdAppointmentSlot`, `confirmAppointment` and `requestMovement`. Unregistered tools are rejected with a safe error response and a sanitized audit event. Registered tools independently enforce robot organization scope, active license/organization state, the organization's AI tool permission ceiling, effective capabilities and safety policy before execution.
+
+## Conversation Configuration
+
+CMS stores safe organization defaults and optional robot-specific persona/greeting overrides. Published robot overrides win over published organization defaults, and the effective conversation block is included in the robot bootstrap manifest. Provider URLs, provider API keys, JWTs, license keys and private secrets are never part of this configuration contract.
+
+```text
+GET /api/orgs/{orgId}/conversation-config
+PUT /api/orgs/{orgId}/conversation-config
+GET /api/robots/{robotId}/conversation-config
+PUT /api/robots/{robotId}/conversation-config
+```
+
+CMS also stores approved organization event/company context and approved Q&A rows for robot conversation grounding. Context and Q&A rows are upserted by stable key, can be published independently, and only published rows are included in `conversation.approvedContext` in the robot manifest.
+
+CMS conversation configuration also includes safe language, speech speed, session and cooldown policies. Values are range-validated server side, published settings are versioned through the same tenant cache path, and robot manifests expose the effective policy block at `conversation.policies` without provider secrets.
+
+The CMS dashboard exposes the same contract through `/conversation-config`, where authorized admins can edit organization defaults, robot overrides, approved context and approved Q&A, then preview the effective robot conversation block returned by the manifest.
+
+```text
+GET /api/orgs/{orgId}/conversation-context
+PUT /api/orgs/{orgId}/conversation-context
+GET /api/orgs/{orgId}/approved-qa
+PUT /api/orgs/{orgId}/approved-qa
+GET /api/orgs/{orgId}/conversation-publications
+PUT /api/orgs/{orgId}/conversation-publications/{revisionId}/restore
+```
+
+Publishing configuration, context or Q&A stores a server-side publication revision so a previous approved version can be identified and restored operationally. Revision list responses expose sanitized metadata only; raw rollback snapshots are not returned by normal APIs. Restoring a revision creates a new live version, bumps the tenant version so robot cache invalidation follows the same manifest path as other tenant-scoped configuration, and records sanitized audit metadata. Audit metadata stores record IDs, stable keys, publish state and versions only; raw prompt/context/Q&A text is not written to audit metadata.
+
+## Identity Consent and Protected Embeddings
+
+CMS stores identity embedding metadata only after explicit granted consent is supplied for the target organization. The protected payload is encrypted at rest and normal APIs return only consent state, retention expiry, record status, schema version and a non-reversible fingerprint.
+
+```text
+GET /api/orgs/{orgId}/identity-embeddings
+POST /api/orgs/{orgId}/identity-embeddings
+PUT /api/orgs/{orgId}/identity-embeddings/{id}
+POST /api/orgs/{orgId}/identity-embeddings/{id}/revoke-consent
+DELETE /api/orgs/{orgId}/identity-embeddings/{id}
+```
+
+Create/update/correction/revocation requests require `org.update`, active tenant state and same-tenant authorization unless the caller is Super Admin. Correction (`PUT`) updates subject reference, granted consent and re-encrypts updated embedding metadata at rest; correcting an erased record is rejected. Revoke-consent (`POST .../revoke-consent`) withdraws granted consent (`consentGranted: false`), transitions status to `REVOKED`, immediately clears protected embedding ciphertext and fingerprints, and records sanitized audit metadata. Delete requests clear encrypted embedding data, mark the record deleted and record sanitized audit metadata. The identity retention job clears expired protected embedding data, marks the record deleted with `retention_expired`, and writes sanitized audit metadata. Responses never include raw embedding metadata, embedding ciphertext, provider secrets, JWTs, license keys, emails or phone numbers.
+
+Robot sync includes the active tenant's authorized identity gallery at `identityGallery`. The gallery is resolved from the authenticated robot's organization only and contains consented active records with safe pseudonymous subject references plus non-reversible embedding fingerprints. Deleted records, revoked records, retention-expired records, records without consent, records without protected embedding fingerprints and records from other organizations are excluded. When consent is revoked, the identity is immediately excluded from the gallery, `contentVersions.identityGalleryVersion` is recomputed from the remaining active records, and `/api/v1/robot/sync/changes` drops the revoked identity on subsequent sync.
+
+CMS-81 adds robot-facing identity delivery APIs. The main manifest exposes identity version and count metadata; robots fetch enrollment/gallery deltas through the identity endpoints below.
+
+```text
+POST /api/v1/robot/identity/enrollments
+GET /api/v1/robot/identity/gallery?sinceVersion=<version>
+POST /api/v1/robot/identity/{identityId}/templates
+POST /api/v1/robot/identity/feedback
+GET /api/v1/robot/identity/models/{modelId}
+```
+
+Robot enrollment requires granted consent, a safe pseudonymous subject reference, an approved model ID and a base64 float32 vector. Image/video payloads are not part of the contract. Gallery responses are tenant-scoped and include `upserts`, `deletions` and `version`; revoked, deleted and retention-expired identities are emitted as deletion tombstones.
+
+CMS-81 also adds:
+
+```text
+POST /api/v1/robot/ai/conversation/stream
+POST /api/internal/jobs/run
+```
+
+The streaming conversation endpoint emits `ack`, `sentence`, `tool`, `done` and safe `error` events. The internal job endpoint is protected by `JOBS_TRIGGER_SECRET` and runs either `licence-expiry` or `identity-retention` once.
 
 ## User Login
 
@@ -683,7 +779,7 @@ Success response:
   "contentVersions": {
     "cacheVersion": "org-1-v1",
     "tenantVersion": 1,
-    "myCoursesVersion": "my-courses-org-1-v1-0",
+    "myCoursesVersion": "my-courses-org-1-v1-e3b0c44298fc",
     "publicCatalogVersion": "public-catalog-v1-0",
     "myCoursesCount": 0,
     "publicCatalogCount": 0
@@ -746,7 +842,7 @@ If-None-Match: "<previous-manifest-hash>"
 X-Robot-App-Version-Code: 2
 X-Robot-Cache-Version: org-1-v1
 X-Robot-Tenant-Version: 1
-X-Robot-My-Courses-Version: my-courses-org-1-v1-0
+X-Robot-My-Courses-Version: my-courses-org-1-v1-e3b0c44298fc
 X-Robot-Public-Catalog-Version: public-catalog-v1-0
 ```
 
@@ -763,7 +859,7 @@ Partial change response:
   "contentVersions": {
     "cacheVersion": "org-1-v1",
     "tenantVersion": 1,
-    "myCoursesVersion": "my-courses-org-1-v1-0",
+    "myCoursesVersion": "my-courses-org-1-v1-e3b0c44298fc",
     "publicCatalogVersion": "public-catalog-v1-1",
     "myCoursesCount": 0,
     "publicCatalogCount": 1
@@ -864,256 +960,6 @@ If the same `eventId` is sent again, the API may return:
 
 That means the request was accepted, but the log already existed.
 
-## Robot AI Conversation (CMS-69)
-
-Robot AI conversation and approved tool registry endpoint. Android sends conversational messages to CMS; CMS handles model-provider secret management, safety policies, tool execution, and safe fallback responses.
-
-```text
-POST /api/v1/robot/ai/conversation
-Authorization: Bearer <robot-access-token>
-Content-Type: application/json
-```
-
-Request:
-
-```json
-{
-  "message": "Hello, who is the principal of this school?",
-  "sessionId": "optional-session-id",
-  "contextReferences": {
-    "location": "Front Desk",
-    "screen": "HOME"
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "conversationId": "3b29c017-5757-463e-b816-7d1cbb0f91ef",
-  "reply": "Welcome to Whiz Academy! How can I assist you today?",
-  "speechText": "Welcome to Whiz Academy! How can I help you today?",
-  "action": null,
-  "toolExecutions": [
-    {
-      "toolName": "getApprovedOrganisationInformation",
-      "status": "EXECUTED",
-      "output": {
-        "organizationName": "Whiz Academy"
-      }
-    }
-  ],
-  "fallbackUsed": false
-}
-```
-
-## Organization and Robot Persona Configuration (CMS-70)
-
-Organization baseline and robot-specific override endpoints for conversational AI persona, tone, voice and greetings. Robot override fields take precedence over organization defaults; un-overridden fields fall back to organization defaults. All responses are stripped of backend provider secrets.
-
-### 1. Get Organization Persona Configuration
-
-```text
-GET /api/v1/orgs/{orgId}/persona
-Authorization: Bearer <user-token>
-```
-
-### 2. Update Organization Persona Configuration
-
-```text
-PUT /api/v1/orgs/{orgId}/persona
-Authorization: Bearer <user-token>
-Content-Type: application/json
-```
-
-Request Body:
-
-```json
-{
-  "personaName": "Whizzy Assistant",
-  "personaPrompt": "You are a courteous educational guide.",
-  "greetingText": "Welcome to Whiz Academy!",
-  "speechGreeting": "Welcome to Whiz Academy!",
-  "voiceStyle": "standard",
-  "language": "en-US",
-  "tone": "friendly",
-  "speechSpeed": 1.0,
-  "sessionMaxSeconds": 300,
-  "sessionIdleTimeoutSeconds": 60,
-  "cooldownSeconds": 5,
-  "dailySessionLimit": 1000,
-  "supportedLanguages": ["en-US", "es-ES"],
-  "isPublished": true
-}
-```
-
-### 3. Update Robot Persona Override
-
-```text
-PUT /api/v1/orgs/{orgId}/robots/{robotId}/persona
-Authorization: Bearer <user-token>
-Content-Type: application/json
-```
-
-Request Body:
-
-```json
-{
-  "personaName": "Reception Alpha",
-  "greetingText": "Welcome to the front desk!",
-  "tone": "formal",
-  "speechSpeed": 1.2,
-  "sessionMaxSeconds": 600,
-  "cooldownSeconds": 10
-}
-```
-
-### 4. Delete Robot Persona Override
-
-```text
-DELETE /api/v1/orgs/{orgId}/robots/{robotId}/persona
-Authorization: Bearer <user-token>
-```
-
-### 5. Effective Persona Resolution (Robot Runtime)
-
-```text
-GET /api/v1/robot/persona
-Authorization: Bearer <robot-access-token>
-```
-
-Response:
-
-```json
-{
-  "schemaVersion": 1,
-  "configVersion": "persona-org-10-r-101-v2",
-  "orgId": 10,
-  "robotId": 101,
-  "personaName": "Reception Alpha",
-  "personaPrompt": "You are a courteous educational guide.",
-  "greetingText": "Welcome to the front desk!",
-  "speechGreeting": "Welcome to Whiz Academy!",
-  "voiceStyle": "standard",
-  "language": "en-US",
-  "tone": "formal",
-  "speechSpeed": 1.2,
-  "sessionMaxSeconds": 600,
-  "sessionIdleTimeoutSeconds": 60,
-  "cooldownSeconds": 10,
-  "dailySessionLimit": 1000,
-  "supportedLanguages": ["en-US", "es-ES"],
-  "version": 2,
-  "isOverridden": true,
-  "publishedAt": "2026-10-10T07:30:00.000Z"
-}
-```
-
-### Organization Conversation Context and Approved Q&A (CMS-71)
-
-Enables organization event/company context and approved Q&A management for AI conversation. Published context and approved Q&A entries appear in the robot manifest under `conversation.approvedContext` and invalidate manifest caches by bumping `tenantVersion`.
-
-Prohibited credentials, secrets, tokens, API keys, private keys, SSNs, and credit cards are rejected with `400 Bad Request` prior to persistence. Audit metadata is strictly sanitized.
-
-#### Get Organization Conversation Context
-
-```text
-GET /api/v1/orgs/{orgId}/conversation-context
-Authorization: Bearer <user-token>
-```
-
-Response:
-```json
-{
-  "id": 1,
-  "orgId": 10,
-  "companyOverview": "Whiz STEM Academy provides innovative robotics education.",
-  "operatingHours": "Mon-Fri 08:00 - 17:00",
-  "locationDetails": "Main Campus, Building A",
-  "visitorGuidelines": "Visitors must check in at reception.",
-  "eventsSummary": "Robotics Open Day on Friday.",
-  "version": 1,
-  "isPublished": true
-}
-```
-
-#### Upsert Organization Conversation Context
-
-```text
-PUT /api/v1/orgs/{orgId}/conversation-context
-Authorization: Bearer <user-token>
-Content-Type: application/json
-```
-
-Body:
-```json
-{
-  "companyOverview": "Whiz STEM Academy provides innovative robotics education.",
-  "operatingHours": "Mon-Fri 08:00 - 17:00",
-  "locationDetails": "Main Campus, Building A",
-  "visitorGuidelines": "Visitors must check in at reception.",
-  "eventsSummary": "Robotics Open Day on Friday.",
-  "isPublished": true
-}
-```
-
-#### List Approved Q&A
-
-```text
-GET /api/v1/orgs/{orgId}/approved-qa?category=facilities
-Authorization: Bearer <user-token>
-```
-
-Response:
-```json
-{
-  "items": [
-    {
-      "id": 1,
-      "orgId": 10,
-      "question": "Where is the library?",
-      "answer": "The library is on the 2nd floor of Building B.",
-      "category": "facilities",
-      "version": 1,
-      "isPublished": true,
-      "sortOrder": 0
-    }
-  ],
-  "total": 1
-}
-```
-
-#### Bulk Upsert Approved Q&A
-
-```text
-PUT /api/v1/orgs/{orgId}/approved-qa
-Authorization: Bearer <user-token>
-Content-Type: application/json
-```
-
-Body:
-```json
-{
-  "items": [
-    {
-      "question": "Where is the library?",
-      "answer": "The library is on the 2nd floor of Building B.",
-      "category": "facilities",
-      "isPublished": true,
-      "sortOrder": 0
-    }
-  ]
-}
-```
-
-#### Delete Approved Q&A
-
-```text
-DELETE /api/v1/orgs/{orgId}/approved-qa/{id}
-Authorization: Bearer <user-token>
-```
-
 ## Thunder Client Verification
 
 1. Login as a CMS user:
@@ -1168,26 +1014,6 @@ Android mock fixtures should map to the OpenAPI examples by operation ID:
 | `uploadRobotLogsBatchV1` | `POST /api/v1/robot/logs/batch`   | New log upload, duplicate retry and validation errors                                                                      |
 
 Use the `/api/v1` examples as the fixture source. Legacy examples exist only to verify temporary backwards compatibility.
-
-## Identity Consent APIs
-
-Organization-scoped identity embedding records are managed by CMS user tokens only.
-The API returns safe record metadata and embedding fingerprints, never raw embedding
-metadata or encrypted ciphertext.
-
-```text
-GET /api/orgs/:orgId/identity-embeddings
-POST /api/orgs/:orgId/identity-embeddings
-PUT /api/orgs/:orgId/identity-embeddings/:id
-PATCH /api/orgs/:orgId/identity-embeddings/:id
-POST /api/orgs/:orgId/identity-embeddings/:id/revoke-consent
-PUT /api/orgs/:orgId/identity-embeddings/:id/revoke-consent
-DELETE /api/orgs/:orgId/identity-embeddings/:id
-```
-
-Correction, revoke-consent and delete operations are tenant-scoped and require
-`org.update`. Revoked and deleted records are excluded from subsequent robot
-identity-gallery sync responses.
 
 ## Common Errors
 

@@ -1,16 +1,15 @@
-import { Module } from '@nestjs/common';
-import { PrismaModule } from '../../prisma/prisma.module';
-import { AuditModule } from '../audit/audit.module';
-import { EntitlementsModule } from '../entitlements/entitlements.module';
-import { PersonaModule } from '../persona/persona.module';
-import { AiGatewayController } from './ai-gateway.controller';
-import { AiGatewayService } from './ai-gateway.service';
-import { AiToolRegistryService } from './tools/ai-tool-registry.service';
+import { Module } from "@nestjs/common";
+import { AuditModule } from "../audit/audit.module";
+import { ConversationConfigModule } from "../conversation-config/conversation-config.module";
+import { EntitlementsModule } from "../entitlements/entitlements.module";
+import { AiGatewayController } from "./ai-gateway.controller";
+import { AiGatewayService } from "./ai-gateway.service";
+import { AiProviderClient } from "./ai-provider.client";
+import { AiToolRegistryService } from "./ai-tool-registry.service";
 
 @Module({
-  imports: [PrismaModule, AuditModule, EntitlementsModule, PersonaModule],
+  imports: [AuditModule, EntitlementsModule, ConversationConfigModule],
   controllers: [AiGatewayController],
-  providers: [AiGatewayService, AiToolRegistryService],
-  exports: [AiGatewayService, AiToolRegistryService],
+  providers: [AiGatewayService, AiProviderClient, AiToolRegistryService],
 })
 export class AiGatewayModule {}

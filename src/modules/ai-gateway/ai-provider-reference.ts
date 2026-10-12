@@ -26,18 +26,15 @@ export function safeAiProviderReference(
     schemaVersion: 1,
     gateway: "cms-ai-gateway",
     providerAlias: safeAlias(
-      config?.get<string>("AI_GATEWAY_PROVIDER_ALIAS") ??
-        config?.get<string>("AI_PROVIDER_ALIAS"),
+      config?.get<string>("AI_PROVIDER_ALIAS"),
       "cms-ai-provider",
     ),
     modelAlias: safeAlias(
-      config?.get<string>("AI_GATEWAY_MODEL_ALIAS") ??
-        config?.get<string>("AI_PROVIDER_MODEL_ALIAS"),
+      config?.get<string>("AI_PROVIDER_MODEL_ALIAS"),
       "default-conversation-model",
     ),
     policyVersion: safeAlias(
-      config?.get<string>("AI_GATEWAY_POLICY_VERSION") ??
-        config?.get<string>("AI_PROVIDER_POLICY_VERSION"),
+      config?.get<string>("AI_PROVIDER_POLICY_VERSION"),
       "ai-provider-policy-v1",
     ),
     directProviderAccess: false,

@@ -1,8 +1,9 @@
-import { Injectable, Optional } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { LicenseStatus, Prisma } from "@prisma/client";
 import { createHash } from "crypto";
 import { EntitlementsService } from "../entitlements/entitlements.service";
+import { ConversationConfigService } from "../conversation-config/conversation-config.service";
 import { safeAiProviderReference } from "../ai-gateway/ai-provider-reference";
 import { IdentityService } from "../identity/identity.service";
 
@@ -26,36 +27,6 @@ type RobotContext = {
   org: OrgContext;
 };
 
-type ManifestApprovedContext = {
-  context: {
-    companyOverview: string | null;
-    operatingHours: string | null;
-    locationDetails: string | null;
-    visitorGuidelines: string | null;
-    eventsSummary: string | null;
-    version: number;
-  } | null;
-  approvedQa: Array<{
-    id: number;
-    question: string;
-    answer: string;
-    category: string | null;
-    version: number;
-    sortOrder: number;
-  }>;
-};
-
-type ManifestConversationPolicy = {
-  defaultLanguage: string;
-  supportedLanguages: string[];
-  speechSpeed: number;
-  sessionMaxSeconds: number;
-  sessionIdleTimeoutSeconds: number;
-  cooldownSeconds: number;
-  dailySessionLimit: number;
-  version: number;
-};
-
 type ManifestInput = {
   robot: RobotContext;
   licenseStatus: LicenseStatus;
@@ -65,9 +36,8 @@ type ManifestInput = {
   myCourses?: unknown[];
   publicCatalog?: unknown[];
   identityGalleryRecords?: unknown[];
+  identityGallerySummary?: { version: string; count: number };
   syncedAt?: string;
-  approvedContext?: ManifestApprovedContext;
-  policy?: ManifestConversationPolicy;
 };
 
 const APP_UPDATE_POLICY = {
@@ -77,12 +47,59 @@ const APP_UPDATE_POLICY = {
   recommendedVersionCode: 1,
 };
 
+const DEFAULT_CONVERSATION_CONFIG = {
+  schemaVersion: 1,
+  source: "systemDefault",
+  version: {
+    organization: 0,
+    robot: 0,
+    effective: "conversation-system-v0",
+  },
+  publishedAt: null,
+  personaName: "WhizRobot Assistant",
+  personaPrompt:
+    "Use only approved CMS context and registered tools. Do not reveal private data or backend configuration.",
+  greetingText: "Hello, I am your WhizRobot assistant.",
+  voiceStyle: "friendly",
+  language: "en",
+  tone: "helpful",
+  policies: {
+    schemaVersion: 1,
+    language: {
+      default: "en",
+      supported: ["en"],
+    },
+    speech: {
+      speed: 1,
+    },
+    session: {
+      maxSeconds: 600,
+      idleTimeoutSeconds: 120,
+      dailyLimit: 50,
+    },
+    cooldown: {
+      seconds: 5,
+    },
+  },
+  approvedContext: {
+    schemaVersion: 1,
+    version: {
+      context: 0,
+      qa: 0,
+      effective: "approved-context-v0-qa-v0",
+    },
+    contexts: [],
+    approvedQa: [],
+  },
+};
+
 @Injectable()
 export class RobotManifestResolver {
   constructor(
     private entitlements: EntitlementsService,
-    @Optional() private config?: ConfigService,
-    @Optional() private identity?: IdentityService,
+    private conversationConfig?: ConversationConfigService,
+    private config?: ConfigService,
+    private identity?: IdentityService,
   ) {}
 
   private stableStringify(value: unknown): string {
@@ -166,21 +183,26 @@ export class RobotManifestResolver {
     myCourses?: unknown[];
     publicCatalog?: unknown[];
     identityGalleryRecords?: unknown[];
+    identityGallerySummary?: { version: string; count: number };
     syncedAt?: string;
     appVersionCode?: number | null;
-    approvedContext?: ManifestApprovedContext;
-    policy?: ManifestConversationPolicy;
+    conversation?: unknown;
+    identity?: unknown;
   }) {
     const myCourses = input.myCourses ?? [];
     const publicCatalog = input.publicCatalog ?? [];
     const identityGalleryRecords = input.identityGalleryRecords ?? [];
     const syncedAt = input.syncedAt ?? new Date().toISOString();
+    const galleryVersion =
+      input.identityGallerySummary?.version ??
+      `identity-gallery-org-${input.tenant.orgId}-${this.manifestHash(identityGalleryRecords).slice(0, 12)}`;
+    const galleryCount =
+      input.identityGallerySummary?.count ?? identityGalleryRecords.length;
     const identityGallery = {
       schemaVersion: 1,
       orgId: input.tenant.orgId,
-      version: `identity-gallery-org-${input.tenant.orgId}-${this.manifestHash(identityGalleryRecords).slice(0, 12)}`,
-      count: identityGalleryRecords.length,
-      records: identityGalleryRecords,
+      version: galleryVersion,
+      count: galleryCount,
     };
     const contentVersions = {
       cacheVersion: input.tenant.cacheVersion,
@@ -190,7 +212,7 @@ export class RobotManifestResolver {
       identityGalleryVersion: identityGallery.version,
       myCoursesCount: myCourses.length,
       publicCatalogCount: publicCatalog.length,
-      identityGalleryCount: identityGalleryRecords.length,
+      identityGalleryCount: galleryCount,
     };
     const policies = {
       schemaVersion: 1,
@@ -204,28 +226,22 @@ export class RobotManifestResolver {
         retryAfterSeconds: 30,
       },
       appUpdate: this.buildAppUpdatePolicy(input.appVersionCode),
+      conversation: input.conversation,
+    };
+    const identity = {
+      ...(input.identity ?? {
+        enabled: false,
+        tier: "standard",
+        models: [],
+        thresholds: {},
+        galleryPollSeconds: 60,
+      }),
+      galleryVersion: identityGallery.version,
     };
     const capabilities = {
       schemaVersion: 1,
       effective: input.entitlements.paidCapabilities,
       resolver: "cms-entitlements-v1",
-    };
-    const conversation = {
-      policy: input.policy ?? {
-        defaultLanguage: "en-US",
-        supportedLanguages: ["en-US"],
-        speechSpeed: 1.0,
-        sessionMaxSeconds: 300,
-        sessionIdleTimeoutSeconds: 60,
-        cooldownSeconds: 5,
-        dailySessionLimit: 1000,
-        version: 1,
-      },
-      approvedContext: {
-        context: input.approvedContext?.context ?? null,
-        approvedQa: input.approvedContext?.approvedQa ?? [],
-      },
-      provider: safeAiProviderReference(this.config),
     };
 
     const hashSource = {
@@ -238,10 +254,11 @@ export class RobotManifestResolver {
       capabilities,
       policies,
       contentVersions,
+      conversation: input.conversation,
+      identityGallery,
+      identity,
       myCourses,
       publicCatalog,
-      conversation,
-      identityGallery,
     };
     const manifestHash = this.manifestHash(hashSource);
     const configVersion = `manifest-${manifestHash.slice(0, 16)}`;
@@ -255,9 +272,10 @@ export class RobotManifestResolver {
       license: input.license,
       capabilities,
       policies,
-      contentVersions,
-      conversation,
+      conversation: input.conversation,
+      identity,
       identityGallery,
+      contentVersions,
       sync: {
         serverTime: syncedAt,
         syncedAt,
@@ -275,11 +293,17 @@ export class RobotManifestResolver {
 
   async resolve(input: ManifestInput) {
     const tenant = this.toTenant(input.robot.org);
-    const identityGalleryRecords =
-      input.identityGalleryRecords ??
-      (input.locked || !this.identity
-        ? []
-        : await this.identity.getAuthorizedGalleryForOrg(input.robot.orgId));
+    const resolvedConversation = this.conversationConfig
+      ? await this.conversationConfig.resolveForRobot(input.robot.id)
+      : {
+          ...DEFAULT_CONVERSATION_CONFIG,
+          orgId: input.robot.orgId,
+          robotId: input.robot.id,
+        };
+    const conversation = {
+      ...resolvedConversation,
+      provider: safeAiProviderReference(this.config),
+    };
     const entitlements = input.locked
       ? {
           subscription: {
@@ -296,6 +320,26 @@ export class RobotManifestResolver {
           hardwareCapabilities: input.robot.hardwareCapabilities,
           enforceHardware: true,
         });
+    const capabilityKeys = new Set(
+      (entitlements.paidCapabilities ?? [])
+        .map((capability: any) =>
+          typeof capability === "string" ? capability : capability?.stableKey,
+        )
+        .filter(Boolean),
+    );
+    const identityGallerySummary =
+      input.identityGallerySummary ??
+      (input.locked || !this.identity
+        ? undefined
+        : await this.identity.getAuthorizedGallerySummaryForOrg(input.robot.orgId));
+    const identity =
+      input.locked || !this.identity
+        ? undefined
+        : await this.resolveIdentityPolicy(
+            input.robot.orgId,
+            input.robot.id,
+            capabilityKeys,
+          );
 
     return this.buildManifest({
       robotId: input.robot.id,
@@ -310,12 +354,47 @@ export class RobotManifestResolver {
       entitlements,
       myCourses: input.myCourses,
       publicCatalog: input.publicCatalog,
-      identityGalleryRecords,
+      identityGalleryRecords: input.identityGalleryRecords,
+      identityGallerySummary,
       syncedAt: input.syncedAt,
+      conversation,
+      identity,
       appVersionCode:
         input.appVersionCode ?? this.getStoredAppVersionCode(input.robot.deviceMetadata),
-      approvedContext: input.approvedContext,
-      policy: input.policy,
     });
+  }
+
+  private async resolveIdentityPolicy(
+    orgId: number,
+    robotId: number,
+    capabilityKeys: Set<string>,
+  ) {
+    try {
+      return await this.identity?.resolveRecognitionPolicy(orgId, robotId, capabilityKeys);
+    } catch {
+      return {
+        enabled: capabilityKeys.has("identity.recognition"),
+        tier: "standard",
+        models: [
+          {
+            modelId: "face-std-sface-int8-v1",
+            tier: "standard",
+            version: "1.0.0",
+            sha256:
+              "1111111111111111111111111111111111111111111111111111111111111111",
+            url: "/api/v1/robot/identity/models/face-std-sface-int8-v1",
+          },
+        ],
+        thresholds: {
+          "face-std-sface-int8-v1": {
+            accept: 0.363,
+            margin: 0.08,
+            reject: 0.25,
+            votes: 3,
+          },
+        },
+        galleryPollSeconds: 60,
+      };
+    }
   }
 }

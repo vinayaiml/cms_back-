@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
@@ -19,9 +19,17 @@ export class JobsService implements OnModuleInit {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
-    @Optional()
-    private audit?: AuditService,
+    private audit: AuditService,
   ) {}
+
+  async runOnce(name: 'licence-expiry' | 'license-expiry' | 'identity-retention') {
+    if (name === 'licence-expiry' || name === 'license-expiry') {
+      await this.runLicenseScan();
+      return { status: 'completed', job: 'licence-expiry' };
+    }
+    await this.runIdentityRetentionScan();
+    return { status: 'completed', job: 'identity-retention' };
+  }
 
   async onModuleInit() {
     const redisEnabled = this.config.get<string>('REDIS_ENABLED') === 'true';
@@ -191,7 +199,7 @@ export class JobsService implements OnModuleInit {
 
   private async runIdentityRetentionScan() {
     const now = new Date();
-    const expiredRecords = await (this.prisma as any).identityEmbeddingRecord.findMany({
+    const expiredRecords = await this.prisma.identityEmbeddingRecord.findMany({
       where: {
         status: 'ACTIVE',
         deletedAt: null,
@@ -209,7 +217,7 @@ export class JobsService implements OnModuleInit {
 
     for (const record of expiredRecords) {
       await this.prisma.$transaction(async (tx) => {
-        const result = await (tx as any).identityEmbeddingRecord.updateMany({
+        const result = await tx.identityEmbeddingRecord.updateMany({
           where: {
             id: record.id,
             status: 'ACTIVE',
@@ -227,7 +235,6 @@ export class JobsService implements OnModuleInit {
 
         if (!result.count) return;
 
-        if (!this.audit) return;
         await this.audit.recordCritical(
           {
             actor: { userId: null, orgId: null, isSuperAdmin: true },

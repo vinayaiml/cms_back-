@@ -84,7 +84,19 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'Idempotency-Key',
+      'X-Correlation-Id',
+      'Jobs-Trigger-Secret',
+      'X-Jobs-Trigger-Secret',
+      'X-Robot-Cache-Version',
+      'X-Robot-Tenant-Version',
+      'X-Robot-My-Courses-Version',
+      'X-Robot-Public-Catalog-Version',
+      'X-Robot-Identity-Gallery-Version',
+    ],
   });
 
   app.useGlobalPipes(

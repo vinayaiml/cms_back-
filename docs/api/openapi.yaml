@@ -264,6 +264,1215 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /v1/robot/ai/conversation:
+    post:
+      tags: [Robot]
+      operationId: createRobotAiConversation
+      summary: Send robot conversation input through the CMS AI gateway
+      description: >
+        Robot-authenticated AI gateway. Android sends speech/text and safe context
+        references to CMS only. Provider API keys and provider URLs remain backend
+        secrets and are never returned in responses, manifests, fixtures or logs.
+        Registered tool requests are executed only after organization, license,
+        effective capability and safety-policy checks.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+          example: cms-69-test
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotAiConversationRequest"
+            examples:
+              text:
+                value:
+                  inputMode: text
+                  message: Tell me about my school.
+                  contextReferences:
+                    manifestHash: 2a6a21d85d7d0b7c6fd7f21f012de62987b19b0f7a61c73ce6f3b42a72da6f34
+              approvedTool:
+                value:
+                  inputMode: speech
+                  message: What is my organization name?
+                  requestedTool:
+                    name: getApprovedOrganisationInformation
+                    arguments: {}
+      responses:
+        "201":
+          description: Safe AI gateway response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotAiConversationResponse"
+              examples:
+                fallback:
+                  value:
+                    schemaVersion: 1
+                    message: I cannot connect to the assistant right now. Please try again later.
+                    outOfContext: false
+                    policyAction: answer
+                    fallback: true
+                    fallbackReason: PROVIDER_NOT_CONFIGURED
+                    toolResults: []
+                toolResult:
+                  value:
+                    schemaVersion: 1
+                    message: Tool request completed.
+                    outOfContext: false
+                    policyAction: answer
+                    fallback: false
+                    toolResults:
+                      - name: getApprovedOrganisationInformation
+                        status: completed
+                        result:
+                          orgId: 1
+                          orgName: Demo School
+                          displayName: Demo School
+                          logoUrl: https://assets.whizrobo.test/orgs/demo-school-logo.png
+                          primaryColor: "#1D4ED8"
+                          secondaryColor: "#F97316"
+                          tenantVersion: 1
+                          cacheVersion: org-1-v1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "423":
+          $ref: "#/components/responses/Locked"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/ai/conversation/stream:
+    post:
+      tags: [Robot]
+      operationId: streamRobotAiConversation
+      summary: Stream robot conversation through the CMS AI gateway
+      description: >
+        Robot-authenticated text/event-stream fallback-compatible conversation endpoint.
+        Events are ack, sentence, tool, done and safe error codes. Provider secrets
+        and direct provider URLs are never returned.
+      security:
+        - robotBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotAiConversationRequest"
+      responses:
+        "201":
+          description: Server-sent event stream
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache
+            X-Accel-Buffering:
+              schema:
+                type: string
+              example: "no"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                stream:
+                  value: |
+                    event: ack
+                    data: {"requestId":"cms-81-stream"}
+
+                    event: sentence
+                    data: {"text":"Hello, I can help with approved event information."}
+
+                    event: done
+                    data: {"outOfContext":false,"policyAction":"answer","fallback":false}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /v1/robot/identity/enrollments:
+    post:
+      tags: [Robot]
+      operationId: enrollRobotIdentity
+      summary: Enroll a new identity from an authenticated robot
+      description: >
+        Enrolls a visitor or subject identity directly from an authenticated robot.
+        Requires valid consent, an approved recognition model, and a clean pseudonymous
+        subject reference. Prohibited PII (emails, phone numbers) and raw image data
+        are rejected. Idempotency is supported via the Idempotency-Key header.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9._:-]{8,120}$'
+          example: idem-enroll-001
+        - name: X-Correlation-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+          example: cms-81-enroll
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotIdentityEnrollmentRequest"
+            examples:
+              success:
+                summary: Successful enrollment request
+                value:
+                  subjectRef: visitor.hall-001
+                  displayName: Guest Visitor
+                  consent:
+                    granted: true
+                    source: frontdesk
+                    policyVersion: identity-v1
+                    grantedAt: "2026-10-11T00:00:00.000Z"
+                  embedding:
+                    modelId: mobilefacenet-v1
+                    dimension: 128
+                    vector: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+              replayIdempotent:
+                summary: Idempotent retry payload
+                value:
+                  subjectRef: visitor.hall-001
+                  consent:
+                    granted: true
+                    source: frontdesk
+                    policyVersion: identity-v1
+                    grantedAt: "2026-10-11T00:00:00.000Z"
+                  embedding:
+                    modelId: mobilefacenet-v1
+                    dimension: 128
+                    vector: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+      responses:
+        "201":
+          description: Identity successfully enrolled and encrypted at rest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityEmbeddingRecord"
+              examples:
+                success:
+                  value:
+                    id: 10
+                    orgId: 1
+                    subjectRef: visitor.hall-001
+                    consent:
+                      granted: true
+                      source: frontdesk
+                      policyVersion: identity-v1
+                      grantedAt: "2026-10-11T00:00:00.000Z"
+                    embedding:
+                      schemaVersion: 1
+                      fingerprint: 7b3d90f2a9
+                      encrypted: true
+                    status: ACTIVE
+                    retentionExpiresAt: "2027-10-11T00:00:00.000Z"
+                    deletedAt: null
+                    deletionReason: null
+                    createdByUserId: null
+                    createdAt: "2026-10-11T00:00:00.000Z"
+                    updatedAt: "2026-10-11T00:00:00.000Z"
+        "400":
+          description: Validation error, unapproved model, or prohibited PII
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidModel:
+                  value:
+                    statusCode: 400
+                    message: Identity embedding model is not approved
+                    error: Bad Request
+                prohibitedPii:
+                  value:
+                    statusCode: 400
+                    message: Identity subject reference contains blocked data
+                    error: Bad Request
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden, inactive organization, or inactive robot license
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                inactiveOrg:
+                  value:
+                    statusCode: 403
+                    message: Organization is inactive
+                    error: Forbidden
+                inactiveLicense:
+                  value:
+                    statusCode: 403
+                    message: Robot license is not active
+                    error: Forbidden
+                unauthorizedToken:
+                  value:
+                    statusCode: 403
+                    message: Robot token required
+                    error: Forbidden
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                rateLimitExceeded:
+                  value:
+                    statusCode: 429
+                    message: Robot identity request rate limit exceeded
+                    error: Too Many Requests
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/identity/gallery:
+    get:
+      tags: [Robot]
+      operationId: getRobotIdentityGallery
+      summary: Retrieve tenant identity gallery delta for authenticated robot
+      description: >
+        Returns gallery upserts and deletion tombstones for the authenticated robot's organization.
+        Supports caching via If-None-Match header and sinceVersion query parameter.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: sinceVersion
+          in: query
+          required: false
+          schema:
+            type: string
+          example: identity-gallery-org-1-e3b0c44298fc
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          example: '"identity-gallery-org-1-e3b0c44298fc"'
+      responses:
+        "200":
+          description: Gallery delta returned
+          headers:
+            ETag:
+              schema:
+                type: string
+              example: '"identity-gallery-org-1-e3b0c44298fc"'
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotIdentityGalleryDeltaResponse"
+              examples:
+                success:
+                  value:
+                    version: identity-gallery-org-1-e3b0c44298fc
+                    notModified: false
+                    upserts:
+                      - id: 10
+                        subjectRef: visitor.hall-001
+                        displayName: Guest Visitor
+                        modelId: mobilefacenet-v1
+                        dimension: 128
+                        vector: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+                        updatedAt: "2026-10-11T00:00:00.000Z"
+                    deletions:
+                      - id: 9
+                        subjectRef: visitor.old-002
+                        deletedAt: "2026-10-11T00:00:00.000Z"
+        "304":
+          description: Gallery not modified since provided version
+          headers:
+            ETag:
+              schema:
+                type: string
+              example: '"identity-gallery-org-1-e3b0c44298fc"'
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden or locked access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                inactiveOrg:
+                  value:
+                    statusCode: 403
+                    message: Organization is inactive
+                    error: Forbidden
+                unauthorizedRobot:
+                  value:
+                    statusCode: 403
+                    message: Robot is not authorized for identity gallery
+                    error: Forbidden
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/identity/{identityId}/templates:
+    post:
+      tags: [Robot]
+      operationId: addRobotIdentityTemplate
+      summary: Submit identity recognition template backfill from robot
+      description: >
+        Adds a recognition template vector for an existing active identity record.
+        Vector confidence scores must meet the organization's acceptance threshold.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: identityId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 10
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9._:-]{8,120}$'
+          example: idem-tmpl-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotIdentityTemplateRequest"
+            examples:
+              success:
+                value:
+                  modelId: mobilefacenet-v1
+                  dimension: 128
+                  vector: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+                  qualityScore: 0.92
+                  score: 0.88
+                  margin: 0.15
+                  votes: 4
+      responses:
+        "201":
+          description: Template successfully recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotIdentityTemplateResponse"
+              examples:
+                success:
+                  value:
+                    id: 101
+                    identityId: 10
+                    modelId: mobilefacenet-v1
+                    qualityScore: 0.92
+                    cappedAt: 10
+        "400":
+          description: Below threshold or invalid vector
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                belowThreshold:
+                  value:
+                    statusCode: 400
+                    message: Identity template confidence is below threshold
+                    error: Bad Request
+                invalidModel:
+                  value:
+                    statusCode: 400
+                    message: Identity embedding model is not approved
+                    error: Bad Request
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Ineligible identity record or inactive license
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notEligible:
+                  value:
+                    statusCode: 403
+                    message: Identity record is not eligible for template backfill
+                    error: Forbidden
+                inactiveOrg:
+                  value:
+                    statusCode: 403
+                    message: Organization is inactive
+                    error: Forbidden
+        "404":
+          description: Identity record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notFound:
+                  value:
+                    statusCode: 404
+                    message: Identity record not found
+                    error: Not Found
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                rateLimitExceeded:
+                  value:
+                    statusCode: 429
+                    message: Robot identity request rate limit exceeded
+                    error: Too Many Requests
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/identity/feedback:
+    post:
+      tags: [Robot]
+      operationId: submitRobotIdentityFeedback
+      summary: Record face recognition feedback telemetry from robot
+      description: >
+        Records confirmation, rejection, or recovered missed recognition telemetry.
+        Accumulated rejections flag the identity for re-registration.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9._:-]{8,120}$'
+          example: idem-feed-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RobotIdentityFeedbackRequest"
+            examples:
+              confirmed:
+                summary: Confirmed face recognition
+                value:
+                  identityId: 10
+                  modelId: mobilefacenet-v1
+                  score: 0.89
+                  margin: 0.18
+                  votes: 4
+                  outcome: confirmed
+              rejected:
+                summary: Rejected face recognition
+                value:
+                  identityId: 10
+                  modelId: mobilefacenet-v1
+                  score: 0.22
+                  margin: 0.02
+                  votes: 1
+                  outcome: rejected
+      responses:
+        "201":
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotIdentityFeedbackResponse"
+              examples:
+                success:
+                  value:
+                    id: 205
+                    stored: true
+                    needsReregistration: false
+                    idempotencyKey: idem-feed-001
+        "400":
+          description: Invalid feedback payload or unapproved model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidModel:
+                  value:
+                    statusCode: 400
+                    message: Identity embedding model is not approved
+                    error: Bad Request
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden or inactive license
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                inactiveOrg:
+                  value:
+                    statusCode: 403
+                    message: Organization is inactive
+                    error: Forbidden
+        "404":
+          description: Identity record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notFound:
+                  value:
+                    statusCode: 404
+                    message: Identity record not found
+                    error: Not Found
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                rateLimitExceeded:
+                  value:
+                    statusCode: 429
+                    message: Robot identity request rate limit exceeded
+                    error: Too Many Requests
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/identity/models/{modelId}:
+    get:
+      tags: [Robot]
+      operationId: getRobotRecognitionModel
+      summary: Retrieve recognition model metadata and signed download URL
+      description: >
+        Returns model metadata and a short-lived HMAC-signed download link
+        if the robot's hardware (RAM and Android API level) meets minimum specifications.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: mobilefacenet-v1
+      responses:
+        "200":
+          description: Model metadata and signed download link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotRecognitionModelResponse"
+              examples:
+                success:
+                  value:
+                    modelId: mobilefacenet-v1
+                    tier: lightweight
+                    version: 1.0.0
+                    fileId: file-mfn-v1
+                    sha256: 3a2c5e7b9f8d1a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c
+                    inputSize: 112
+                    dimension: 128
+                    minRamMb: 1024
+                    minAndroidApi: 23
+                    checksumRequired: true
+                    download:
+                      url: /api/v1/robot/identity/models/mobilefacenet-v1/download?token=signed-token-example
+                      expiresInSeconds: 300
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Hardware profile below minimum requirements or inactive license
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                insufficientHardware:
+                  value:
+                    statusCode: 403
+                    message: Recognition model is not authorized for this robot
+                    error: Forbidden
+                inactiveOrg:
+                  value:
+                    statusCode: 403
+                    message: Organization is inactive
+                    error: Forbidden
+        "404":
+          description: Recognition model not found or inactive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                modelNotFound:
+                  value:
+                    statusCode: 404
+                    message: Recognition model not found
+                    error: Not Found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/robot/identity/models/{modelId}/download:
+    get:
+      tags: [Robot]
+      operationId: downloadRobotRecognitionModel
+      summary: Download model asset descriptor with signed token
+      description: Verifies the HMAC-signed token and delivers model binary delivery descriptor.
+      security:
+        - robotBearerAuth: []
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: mobilefacenet-v1
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          example: signed-token-example
+      responses:
+        "200":
+          description: Model delivery metadata descriptor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotRecognitionModelDownloadResponse"
+              examples:
+                success:
+                  value:
+                    modelId: mobilefacenet-v1
+                    fileId: file-mfn-v1
+                    sha256: 3a2c5e7b9f8d1a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c
+                    contentType: application/octet-stream
+                    delivery: signed-cms-model-metadata
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Invalid or expired signed token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidToken:
+                  value:
+                    statusCode: 403
+                    message: Signed model link is invalid or expired
+                    error: Forbidden
+        "404":
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                modelNotFound:
+                  value:
+                    statusCode: 404
+                    message: Recognition model not found
+                    error: Not Found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /orgs/{orgId}/conversation-config:
+    get:
+      tags: [Organizations]
+      operationId: getOrganizationConversationConfig
+      summary: Get organization conversation configuration
+      description: Returns the safe organization-level persona and greeting configuration. Provider secrets and model credentials are not part of this contract.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Organization conversation configuration, or null when not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Organizations]
+      operationId: upsertOrganizationConversationConfig
+      summary: Create or update organization conversation configuration
+      description: Updates the organization default persona and greeting settings, optionally publishes them, bumps tenantVersion for robot cache reset, and records a sanitized audit event.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertConversationConfigRequest"
+            examples:
+              publishDefault:
+                value:
+                  personaName: Demo Guide
+                  personaPrompt: Use approved CMS context only.
+                  greetingText: Welcome to Demo School.
+                  voiceStyle: friendly
+                  language: en
+                  tone: helpful
+                  publish: true
+      responses:
+        "200":
+          description: Organization conversation configuration saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /orgs/{orgId}/conversation-context:
+    get:
+      tags: [Organizations]
+      operationId: listOrganizationConversationContext
+      summary: List approved conversation context records
+      description: Returns organization-scoped event/company context records. Published records are included in the robot manifest conversation block.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Conversation context records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationContextRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Organizations]
+      operationId: upsertOrganizationConversationContext
+      summary: Create or update approved conversation context
+      description: Upserts by stableKey, optionally publishes the record, bumps tenantVersion and writes sanitized audit metadata without raw body text.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertConversationContextRequest"
+            examples:
+              publishEventContext:
+                value:
+                  stableKey: event.schedule
+                  contextType: EVENT
+                  title: Science Expo
+                  body: The expo opens at 10 AM in Hall A.
+                  publish: true
+      responses:
+        "200":
+          description: Conversation context saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationContextRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/approved-qa:
+    get:
+      tags: [Organizations]
+      operationId: listOrganizationApprovedQa
+      summary: List approved Q&A records
+      description: Returns organization-scoped approved Q&A records. Published rows are included in the robot manifest conversation block.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Approved Q&A records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovedQaRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Organizations]
+      operationId: upsertOrganizationApprovedQa
+      summary: Create or update approved Q&A
+      description: Upserts by stableKey, optionally publishes the Q&A, bumps tenantVersion and writes sanitized audit metadata without raw question or answer text.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertApprovedQaRequest"
+            examples:
+              publishQuestion:
+                value:
+                  stableKey: parking
+                  question: Where is visitor parking?
+                  answer: Visitor parking is near Gate 2.
+                  publish: true
+      responses:
+        "200":
+          description: Approved Q&A saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovedQaRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/conversation-publications:
+    get:
+      tags: [Organizations]
+      operationId: listConversationPublicationRevisions
+      summary: List conversation publication revisions
+      description: Returns sanitized publication metadata for persona, approved context and approved Q&A revisions. Raw prompt, context body and Q&A answer snapshots are retained server-side for rollback but are not returned by this list API.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Conversation publication revision metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationPublicationRevision"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/conversation-publications/{revisionId}/restore:
+    put:
+      tags: [Organizations]
+      operationId: restoreConversationPublicationRevision
+      summary: Restore a conversation publication revision
+      description: Restores a previous persona, approved context or approved Q&A revision into the active published record, increments the live version, bumps tenantVersion for robot cache reset and records sanitized audit metadata. The response does not include server-side rollback snapshots.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Conversation publication revision restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationPublicationRestoreResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /orgs/{orgId}/identity-embeddings:
+    get:
+      tags: [Organizations]
+      operationId: listIdentityEmbeddingRecords
+      summary: List identity embedding records
+      description: Returns tenant-scoped identity consent, retention expiry and encrypted-embedding metadata. Raw embeddings, embedding ciphertext, secrets, tokens and prohibited PII are never returned.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+      responses:
+        "200":
+          description: Identity embedding metadata records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IdentityEmbeddingRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Organizations]
+      operationId: createIdentityEmbeddingRecord
+      summary: Create or update an identity embedding record
+      description: Requires explicit granted consent before encrypted embedding metadata is stored. The response exposes only safe metadata, retention expiry and a fingerprint, never the raw embedding or ciphertext.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIdentityEmbeddingRequest"
+            examples:
+              consentedIdentity:
+                value:
+                  subjectRef: visitor.demo-001
+                  consent:
+                    granted: true
+                    source: frontdesk
+                    policyVersion: identity-v1
+                    grantedAt: "2026-10-09T00:00:00.000Z"
+                  embeddingMetadata:
+                    provider: local
+                    dimensions: 384
+                    modelAlias: face-embedding-v1
+      responses:
+        "201":
+          description: Identity embedding metadata stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityEmbeddingRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /orgs/{orgId}/identity-embeddings/{id}:
+    put:
+      tags: [Organizations]
+      operationId: correctIdentityEmbeddingRecord
+      summary: Correct an identity embedding record
+      description: Corrects subject reference, granted consent or encrypted embedding metadata for an existing record. Re-encrypts protected metadata at rest, validates against prohibited personal data, and records sanitized audit metadata. Cannot be called on erased records.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIdentityEmbeddingRequest"
+            examples:
+              correctedIdentity:
+                value:
+                  subjectRef: visitor.demo-001-corrected
+                  consent:
+                    granted: true
+                    source: frontdesk-kiosk
+                    policyVersion: identity-v2
+                    grantedAt: "2026-10-10T00:00:00.000Z"
+                  embeddingMetadata:
+                    provider: local
+                    dimensions: 384
+                    modelAlias: face-embedding-v2
+      responses:
+        "200":
+          description: Identity embedding record corrected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityEmbeddingRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Organizations]
+      operationId: eraseIdentityEmbeddingRecord
+      summary: Erase identity embedding metadata
+      description: Clears encrypted embedding metadata, marks the record deleted, and records sanitized audit metadata. The retention job performs the same protected-data clearing for expired records. Cross-tenant direct-ID erasure attempts are rejected before mutation.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteIdentityEmbeddingRequest"
+      responses:
+        "200":
+          description: Identity embedding metadata erased
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityEmbeddingRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /orgs/{orgId}/identity-embeddings/{id}/revoke-consent:
+    post:
+      tags: [Organizations]
+      operationId: revokeIdentityConsent
+      summary: Revoke consent for an identity embedding record
+      description: Revokes granted consent for an identity embedding record, sets status to REVOKED, clears encrypted embedding ciphertext and fingerprints, and records sanitized audit metadata. Revoked records immediately disappear from subsequent robot sync manifests.
+      parameters:
+        - $ref: "#/components/parameters/OrgId"
+        - $ref: "#/components/parameters/Id"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeIdentityConsentRequest"
+            examples:
+              withdrawnConsent:
+                value:
+                  reason: subject_withdrew_consent
+      responses:
+        "200":
+          description: Identity consent revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityEmbeddingRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /robots/{robotId}/conversation-config:
+    get:
+      tags: [Robot]
+      operationId: getRobotEffectiveConversationConfig
+      summary: Get effective robot conversation configuration
+      description: Resolves safe published organization settings plus robot-specific overrides. Robot override values win over organization defaults. Provider secrets are never returned.
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Effective robot conversation configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectiveConversationConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Robot]
+      operationId: upsertRobotConversationConfig
+      summary: Create or update robot conversation override
+      description: Updates a robot-specific persona/greeting override, optionally publishes it, bumps the owning tenant version and records a sanitized audit event.
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertConversationConfigRequest"
+            examples:
+              publishOverride:
+                value:
+                  personaName: Lobby Robot
+                  greetingText: Welcome to the robotics lab.
+                  tone: cheerful
+                  publish: true
+      responses:
+        "200":
+          description: Effective robot conversation configuration after override
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectiveConversationConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /v1/robot/sync:
     get:
       tags: [Robot]
@@ -366,13 +1575,125 @@ paths:
                         currentVersionCode: 2
                         updateRequired: false
                         updateRecommended: false
+                      conversation:
+                        schemaVersion: 1
+                        source: organizationDefault
+                        orgId: 1
+                        robotId: 10
+                        version:
+                          organization: 1
+                          robot: 0
+                          effective: conversation-org-1-v1-robot-10-v0
+                        publishedAt: "2026-08-27T00:00:00.000Z"
+                        personaName: Demo Guide
+                        personaPrompt: Use approved CMS context only.
+                        greetingText: Welcome to Demo School.
+                        voiceStyle: friendly
+                        language: en
+                        tone: helpful
+                        provider:
+                          schemaVersion: 1
+                          gateway: cms-ai-gateway
+                          providerAlias: cms-ai-provider
+                          modelAlias: default-conversation-model
+                          policyVersion: ai-provider-policy-v1
+                          directProviderAccess: false
+                        approvedContext:
+                          schemaVersion: 1
+                          version:
+                            context: 1
+                            qa: 1
+                            effective: approved-context-v1-qa-v1
+                          contexts:
+                            - stableKey: event.schedule
+                              contextType: EVENT
+                              title: Science Expo
+                              body: The expo opens at 10 AM in Hall A.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                          approvedQa:
+                            - stableKey: parking
+                              question: Where is visitor parking?
+                              answer: Visitor parking is near Gate 2.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                        policies:
+                          schemaVersion: 1
+                          language:
+                            default: en-IN
+                            supported: [en-IN, hi-IN]
+                          speech:
+                            speed: 1.1
+                          session:
+                            maxSeconds: 600
+                            idleTimeoutSeconds: 120
+                            dailyLimit: 40
+                          cooldown:
+                            seconds: 5
+                    conversation:
+                      schemaVersion: 1
+                      source: organizationDefault
+                      orgId: 1
+                      robotId: 10
+                      version:
+                        organization: 1
+                        robot: 0
+                        effective: conversation-org-1-v1-robot-10-v0
+                      publishedAt: "2026-08-27T00:00:00.000Z"
+                      personaName: Demo Guide
+                      personaPrompt: Use approved CMS context only.
+                      greetingText: Welcome to Demo School.
+                      voiceStyle: friendly
+                      language: en
+                      tone: helpful
+                      provider:
+                        schemaVersion: 1
+                        gateway: cms-ai-gateway
+                        providerAlias: cms-ai-provider
+                        modelAlias: default-conversation-model
+                        policyVersion: ai-provider-policy-v1
+                        directProviderAccess: false
+                      approvedContext:
+                        schemaVersion: 1
+                        version:
+                          context: 1
+                          qa: 1
+                          effective: approved-context-v1-qa-v1
+                        contexts:
+                          - stableKey: event.schedule
+                            contextType: EVENT
+                            title: Science Expo
+                            body: The expo opens at 10 AM in Hall A.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                        approvedQa:
+                          - stableKey: parking
+                            question: Where is visitor parking?
+                            answer: Visitor parking is near Gate 2.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                      policies:
+                        schemaVersion: 1
+                        language:
+                          default: en-IN
+                          supported: [en-IN, hi-IN]
+                        speech:
+                          speed: 1.1
+                        session:
+                          maxSeconds: 600
+                          idleTimeoutSeconds: 120
+                          dailyLimit: 40
+                        cooldown:
+                          seconds: 5
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
-                      myCoursesVersion: my-courses-org-1-v1-0
+                      myCoursesVersion: my-courses-org-1-v1-e3b0c44298fc
                       publicCatalogVersion: public-catalog-v1-0
+                      identityGalleryVersion: identity-gallery-org-1-e3b0c44298fc
                       myCoursesCount: 0
                       publicCatalogCount: 0
+                      identityGalleryCount: 0
                     sync:
                       serverTime: "2026-08-27T00:00:00.000Z"
                       syncedAt: "2026-08-27T00:00:00.000Z"
@@ -500,7 +1821,7 @@ paths:
           schema:
             type: string
             maxLength: 120
-          example: my-courses-org-1-v1-0
+          example: my-courses-org-1-v1-e3b0c44298fc
           description: Cached myCoursesVersion from the previous manifest.
         - name: X-Robot-Public-Catalog-Version
           in: header
@@ -510,6 +1831,14 @@ paths:
             maxLength: 120
           example: public-catalog-v1-0
           description: Cached publicCatalogVersion from the previous manifest.
+        - name: X-Robot-Identity-Gallery-Version
+          in: header
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          example: identity-gallery-org-1-e3b0c44298fc
+          description: Cached identityGalleryVersion from the previous manifest.
       responses:
         "200":
           description: Incremental manifest changes or full-sync fallback instruction
@@ -534,10 +1863,12 @@ paths:
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
-                      myCoursesVersion: my-courses-org-1-v1-0
+                      myCoursesVersion: my-courses-org-1-v1-e3b0c44298fc
                       publicCatalogVersion: public-catalog-v1-1
+                      identityGalleryVersion: identity-gallery-org-1-e3b0c44298fc
                       myCoursesCount: 0
                       publicCatalogCount: 1
+                      identityGalleryCount: 0
                     changed:
                       publicCatalog:
                         - id: 201
@@ -565,10 +1896,12 @@ paths:
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
-                      myCoursesVersion: my-courses-org-1-v1-0
+                      myCoursesVersion: my-courses-org-1-v1-e3b0c44298fc
                       publicCatalogVersion: public-catalog-v1-0
+                      identityGalleryVersion: identity-gallery-org-1-e3b0c44298fc
                       myCoursesCount: 0
                       publicCatalogCount: 0
+                      identityGalleryCount: 0
                     changed: {}
                     sync:
                       serverTime: "2026-08-27T00:00:00.000Z"
@@ -756,88 +2089,6 @@ paths:
                     inserted: 0
         "400":
           $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "423":
-          $ref: "#/components/responses/Locked"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
-
-  /v1/robot/ai/conversation:
-    post:
-      tags: [Robot]
-      operationId: converseRobotAiV1
-      summary: Robot AI conversation gateway
-      description: |
-        Processes speech or text conversation for an authenticated robot via backend AI gateway.
-        Provider credentials remain strictly on the backend. Approved AI tools (organization info,
-        staff directory, appointment booking, safety-checked movement) are executed subject to
-        tenant isolation, active license checks, and safety limits.
-      security:
-        - robotBearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RobotConversationRequest"
-            examples:
-              askOrgInfo:
-                value:
-                  message: "Hello! Who is the principal here?"
-                  sessionId: "sess-8a9b0c"
-                  contextReferences:
-                    location: "Reception"
-                    screen: "HOME"
-      responses:
-        "200":
-          description: AI conversation response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RobotConversationResponse"
-              examples:
-                successWithTool:
-                  value:
-                    conversationId: "c7e12720-3c5e-4bb5-8fa9-43c2fa4b840e"
-                    reply: "Welcome to Whiz Academy! Our principal is Dr. Sharma. How may I assist you?"
-                    speechText: "Welcome to Whiz Academy! How may I assist you?"
-                    action: null
-                    toolExecutions:
-                      - toolName: "getApprovedOrganisationInformation"
-                        status: "EXECUTED"
-                    fallbackUsed: false
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "423":
-          $ref: "#/components/responses/Locked"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
-
-  /v1/robot/persona:
-    get:
-      tags: [Robot]
-      operationId: getRobotEffectivePersonaV1
-      summary: Get robot resolved effective persona and greetings
-      description: |
-        Resolves effective persona, tone, voice, and greetings for the authenticated robot.
-        Combines organization baseline with published robot override.
-        Guarantees zero model provider secrets, URLs, or internal tokens are returned.
-      security:
-        - robotBearerAuth: []
-      responses:
-        "200":
-          description: Resolved effective persona response
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EffectivePersonaResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1168,13 +2419,125 @@ paths:
                         currentVersionCode: 2
                         updateRequired: false
                         updateRecommended: false
+                      conversation:
+                        schemaVersion: 1
+                        source: organizationDefault
+                        orgId: 1
+                        robotId: 10
+                        version:
+                          organization: 1
+                          robot: 0
+                          effective: conversation-org-1-v1-robot-10-v0
+                        publishedAt: "2026-08-27T00:00:00.000Z"
+                        personaName: Demo Guide
+                        personaPrompt: Use approved CMS context only.
+                        greetingText: Welcome to Demo School.
+                        voiceStyle: friendly
+                        language: en
+                        tone: helpful
+                        provider:
+                          schemaVersion: 1
+                          gateway: cms-ai-gateway
+                          providerAlias: cms-ai-provider
+                          modelAlias: default-conversation-model
+                          policyVersion: ai-provider-policy-v1
+                          directProviderAccess: false
+                        approvedContext:
+                          schemaVersion: 1
+                          version:
+                            context: 1
+                            qa: 1
+                            effective: approved-context-v1-qa-v1
+                          contexts:
+                            - stableKey: event.schedule
+                              contextType: EVENT
+                              title: Science Expo
+                              body: The expo opens at 10 AM in Hall A.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                          approvedQa:
+                            - stableKey: parking
+                              question: Where is visitor parking?
+                              answer: Visitor parking is near Gate 2.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                        policies:
+                          schemaVersion: 1
+                          language:
+                            default: en-IN
+                            supported: [en-IN, hi-IN]
+                          speech:
+                            speed: 1.1
+                          session:
+                            maxSeconds: 600
+                            idleTimeoutSeconds: 120
+                            dailyLimit: 40
+                          cooldown:
+                            seconds: 5
+                    conversation:
+                      schemaVersion: 1
+                      source: organizationDefault
+                      orgId: 1
+                      robotId: 10
+                      version:
+                        organization: 1
+                        robot: 0
+                        effective: conversation-org-1-v1-robot-10-v0
+                      publishedAt: "2026-08-27T00:00:00.000Z"
+                      personaName: Demo Guide
+                      personaPrompt: Use approved CMS context only.
+                      greetingText: Welcome to Demo School.
+                      voiceStyle: friendly
+                      language: en
+                      tone: helpful
+                      provider:
+                        schemaVersion: 1
+                        gateway: cms-ai-gateway
+                        providerAlias: cms-ai-provider
+                        modelAlias: default-conversation-model
+                        policyVersion: ai-provider-policy-v1
+                        directProviderAccess: false
+                      approvedContext:
+                        schemaVersion: 1
+                        version:
+                          context: 1
+                          qa: 1
+                          effective: approved-context-v1-qa-v1
+                        contexts:
+                          - stableKey: event.schedule
+                            contextType: EVENT
+                            title: Science Expo
+                            body: The expo opens at 10 AM in Hall A.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                        approvedQa:
+                          - stableKey: parking
+                            question: Where is visitor parking?
+                            answer: Visitor parking is near Gate 2.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                      policies:
+                        schemaVersion: 1
+                        language:
+                          default: en-IN
+                          supported: [en-IN, hi-IN]
+                        speech:
+                          speed: 1.1
+                        session:
+                          maxSeconds: 600
+                          idleTimeoutSeconds: 120
+                          dailyLimit: 40
+                        cooldown:
+                          seconds: 5
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
-                      myCoursesVersion: my-courses-org-1-v1-0
+                      myCoursesVersion: my-courses-org-1-v1-e3b0c44298fc
                       publicCatalogVersion: public-catalog-v1-0
+                      identityGalleryVersion: identity-gallery-org-1-e3b0c44298fc
                       myCoursesCount: 0
                       publicCatalogCount: 0
+                      identityGalleryCount: 0
                     sync:
                       serverTime: "2026-08-27T00:00:00.000Z"
                       syncedAt: "2026-08-27T00:00:00.000Z"
@@ -3079,13 +4442,125 @@ paths:
                         currentVersionCode: 0
                         updateRequired: true
                         updateRecommended: true
+                      conversation:
+                        schemaVersion: 1
+                        source: organizationDefault
+                        orgId: 1
+                        robotId: 10
+                        version:
+                          organization: 1
+                          robot: 0
+                          effective: conversation-org-1-v1-robot-10-v0
+                        publishedAt: "2026-08-27T00:00:00.000Z"
+                        personaName: Demo Guide
+                        personaPrompt: Use approved CMS context only.
+                        greetingText: Welcome to Demo School.
+                        voiceStyle: friendly
+                        language: en
+                        tone: helpful
+                        provider:
+                          schemaVersion: 1
+                          gateway: cms-ai-gateway
+                          providerAlias: cms-ai-provider
+                          modelAlias: default-conversation-model
+                          policyVersion: ai-provider-policy-v1
+                          directProviderAccess: false
+                        approvedContext:
+                          schemaVersion: 1
+                          version:
+                            context: 1
+                            qa: 1
+                            effective: approved-context-v1-qa-v1
+                          contexts:
+                            - stableKey: event.schedule
+                              contextType: EVENT
+                              title: Science Expo
+                              body: The expo opens at 10 AM in Hall A.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                          approvedQa:
+                            - stableKey: parking
+                              question: Where is visitor parking?
+                              answer: Visitor parking is near Gate 2.
+                              version: 1
+                              publishedAt: "2026-08-27T00:00:00.000Z"
+                        policies:
+                          schemaVersion: 1
+                          language:
+                            default: en-IN
+                            supported: [en-IN, hi-IN]
+                          speech:
+                            speed: 1.1
+                          session:
+                            maxSeconds: 600
+                            idleTimeoutSeconds: 120
+                            dailyLimit: 40
+                          cooldown:
+                            seconds: 5
+                    conversation:
+                      schemaVersion: 1
+                      source: organizationDefault
+                      orgId: 1
+                      robotId: 10
+                      version:
+                        organization: 1
+                        robot: 0
+                        effective: conversation-org-1-v1-robot-10-v0
+                      publishedAt: "2026-08-27T00:00:00.000Z"
+                      personaName: Demo Guide
+                      personaPrompt: Use approved CMS context only.
+                      greetingText: Welcome to Demo School.
+                      voiceStyle: friendly
+                      language: en
+                      tone: helpful
+                      provider:
+                        schemaVersion: 1
+                        gateway: cms-ai-gateway
+                        providerAlias: cms-ai-provider
+                        modelAlias: default-conversation-model
+                        policyVersion: ai-provider-policy-v1
+                        directProviderAccess: false
+                      approvedContext:
+                        schemaVersion: 1
+                        version:
+                          context: 1
+                          qa: 1
+                          effective: approved-context-v1-qa-v1
+                        contexts:
+                          - stableKey: event.schedule
+                            contextType: EVENT
+                            title: Science Expo
+                            body: The expo opens at 10 AM in Hall A.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                        approvedQa:
+                          - stableKey: parking
+                            question: Where is visitor parking?
+                            answer: Visitor parking is near Gate 2.
+                            version: 1
+                            publishedAt: "2026-08-27T00:00:00.000Z"
+                      policies:
+                        schemaVersion: 1
+                        language:
+                          default: en-IN
+                          supported: [en-IN, hi-IN]
+                        speech:
+                          speed: 1.1
+                        session:
+                          maxSeconds: 600
+                          idleTimeoutSeconds: 120
+                          dailyLimit: 40
+                        cooldown:
+                          seconds: 5
                     contentVersions:
                       cacheVersion: org-1-v1
                       tenantVersion: 1
-                      myCoursesVersion: my-courses-org-1-v1-0
+                      myCoursesVersion: my-courses-org-1-v1-e3b0c44298fc
                       publicCatalogVersion: public-catalog-v1-0
+                      identityGalleryVersion: identity-gallery-org-1-e3b0c44298fc
                       myCoursesCount: 0
                       publicCatalogCount: 0
+                      identityGalleryCount: 0
                     sync:
                       serverTime: "2026-08-27T00:00:00.000Z"
                       syncedAt: "2026-08-27T00:00:00.000Z"
@@ -3111,6 +4586,47 @@ paths:
                     myCourses: []
                     publicCatalog: []
                     syncedAt: "2026-08-27T00:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /robots/{id}/users/{userId}/manifest-preview:
+    get:
+      tags: [Robot]
+      operationId: previewRobotUserManifest
+      summary: Preview effective robot bootstrap manifest for a user context
+      description: Returns the sanitized effective bootstrap manifest after applying organization course access and user-specific LMS access for an authorized CMS admin. The response reuses the robot sync manifest schema and does not include license keys, JWTs, credential ciphertext or fingerprints.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: appVersionCode
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          example: 0
+      responses:
+        "200":
+          description: User-scoped effective robot manifest preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RobotSyncResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3824,6 +5340,46 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /v1/content/delivery/{token}:
+    get:
+      tags: [Content]
+      summary: Download LMS content through a signed delivery link
+      description: Validates the signed content token, expiry, current robot license, tenant state and current LMS assignment rules before redirecting to the approved asset URL. Supports resumable clients through byte-range compatible delivery metadata and rejects expired, tampered, unauthorized, unassigned, unpublished, expired or corrupted content paths.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: HMAC-signed content delivery token generated by CMS.
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            example: bytes=0-1023
+      responses:
+        "302":
+          description: Signed link is valid. Client is redirected to the approved content asset.
+          headers:
+            Location:
+              schema:
+                type: string
+            Accept-Ranges:
+              schema:
+                type: string
+                example: bytes
+            X-Content-Size-Bytes:
+              schema:
+                type: string
+            X-Content-Checksum-Sha256:
+              schema:
+                type: string
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /content/import:
     post:
       tags: [Content]
@@ -3954,6 +5510,7 @@ paths:
     post:
       tags: [Course Access]
       summary: Grant course access
+      description: Super Admin-only assignment. CMS validates the selected platform course, level or chapter asset metadata and availability before mutation and rejects empty scopes, malformed or unsupported asset URLs, credentialed URLs, private/internal asset hosts, invalid size metadata, invalid checksums or unavailable assets.
       parameters:
         - $ref: "#/components/parameters/OrgId"
       requestBody:
@@ -3987,157 +5544,8 @@ paths:
           content:
             application/json:
               schema:
-  /orgs/{orgId}/conversation-context:
-    get:
-      tags: [Organizations]
-      operationId: getConversationContext
-      summary: Get organization conversation and event context
-      description: Returns organization background, operating hours, location details, visitor guidelines, and events summary.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/OrgId"
-      responses:
-        "200":
-          description: Organization conversation context
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrganizationConversationContext"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-    put:
-      tags: [Organizations]
-      operationId: upsertConversationContext
-      summary: Upsert organization conversation and event context
-      description: Updates published context and increments tenantVersion to trigger robot cache refresh. Rejects prohibited secrets and personal credentials.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/OrgId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpsertConversationContextRequest"
-      responses:
-        "200":
-          description: Updated conversation context
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrganizationConversationContext"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /orgs/{orgId}/approved-qa:
-    get:
-      tags: [Organizations]
-      operationId: listApprovedQa
-      summary: List organization approved Q&A entries
-      description: Lists approved question and answer entries for AI conversation reference.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/OrgId"
-        - name: category
-          in: query
-          schema:
-            type: string
-        - name: includeUnpublished
-          in: query
-          schema:
-            type: boolean
-      responses:
-        "200":
-          description: List of approved Q&A entries
-          content:
-            application/json:
-              schema:
                 type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/OrganizationApprovedQa"
-                  total:
-                    type: integer
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-    put:
-      tags: [Organizations]
-      operationId: upsertApprovedQa
-      summary: Bulk upsert approved Q&A entries
-      description: Creates or updates approved Q&A entries. Rejects prohibited credentials and personal data before persistence.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/OrgId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpsertApprovedQaRequest"
-      responses:
-        "200":
-          description: Saved approved Q&A entries
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/OrganizationApprovedQa"
-                  total:
-                    type: integer
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-
-  /orgs/{orgId}/approved-qa/{id}:
-    delete:
-      tags: [Organizations]
-      operationId: deleteApprovedQa
-      summary: Delete an approved Q&A entry
-      description: Deletes an approved Q&A entry and increments tenantVersion.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/OrgId"
-        - $ref: "#/components/parameters/Id"
-      responses:
-        "200":
-          description: Item deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  id:
-                    type: integer
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                additionalProperties: true
 
   /dashboard/sections:
     get:
@@ -4550,6 +5958,958 @@ components:
         password:
           type: string
           format: password
+    RobotAiToolCall:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          enum:
+            - getApprovedOrganisationInformation
+            - searchStaff
+            - getStaffAvailability
+            - holdAppointmentSlot
+            - confirmAppointment
+            - requestMovement
+        arguments:
+          type: object
+          additionalProperties: true
+          description: Tool arguments are redacted before audit or telemetry storage.
+    RobotAiConversationRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 4000
+          description: Speech transcript or text input. Secrets and prohibited PII are redacted before audit or telemetry storage.
+        inputMode:
+          type: string
+          enum: [speech, text]
+          default: text
+        contextReferences:
+          type: object
+          additionalProperties: true
+          description: Safe references such as manifest hash or content identifiers. Do not send provider keys, JWTs, license keys or raw PII.
+        requestedTool:
+          $ref: "#/components/schemas/RobotAiToolCall"
+    RobotAiConversationResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, message, outOfContext, policyAction, fallback, toolResults]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        message:
+          type: string
+          description: Safe assistant message. Provider secrets, tokens and prohibited PII are never included.
+        outOfContext:
+          type: boolean
+          description: True when the request does not match approved context or approved Q&A.
+        policyAction:
+          type: string
+          enum: [answer, redirect, refuse]
+          description: Configured out-of-context policy action applied to the reply.
+        fallback:
+          type: boolean
+          description: True when the provider is unavailable, unconfigured, timed out or input/cost limits are exceeded.
+        fallbackReason:
+          type: string
+          enum:
+            - PROVIDER_NOT_CONFIGURED
+            - PROVIDER_TIMEOUT
+            - PROVIDER_UNAVAILABLE
+            - PROVIDER_ERROR
+            - PROVIDER_RATE_LIMIT
+            - INPUT_LIMIT
+            - COST_LIMIT
+        toolResults:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Results from approved registered tools after organization, capability and safety checks.
+    UpsertConversationConfigRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        personaName:
+          type: string
+          nullable: true
+          maxLength: 80
+        personaPrompt:
+          type: string
+          nullable: true
+          maxLength: 1200
+          description: Safe persona instruction. Must not include provider secrets, credentials or prohibited PII.
+        greetingText:
+          type: string
+          nullable: true
+          maxLength: 280
+        voiceStyle:
+          type: string
+          nullable: true
+          maxLength: 80
+        language:
+          type: string
+          nullable: true
+          maxLength: 32
+        tone:
+          type: string
+          nullable: true
+          maxLength: 80
+        defaultLanguage:
+          type: string
+          nullable: true
+          maxLength: 8
+          pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+        supportedLanguages:
+          type: array
+          nullable: true
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 8
+            pattern: "^[a-z]{2}(-[A-Z]{2})?$"
+        speechSpeed:
+          type: number
+          nullable: true
+          minimum: 0.5
+          maximum: 2
+        sessionMaxSeconds:
+          type: integer
+          nullable: true
+          minimum: 60
+          maximum: 3600
+        sessionIdleTimeoutSeconds:
+          type: integer
+          nullable: true
+          minimum: 15
+          maximum: 900
+        cooldownSeconds:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 600
+        dailySessionLimit:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 100
+        publish:
+          type: boolean
+          default: false
+    ConversationConfig:
+      type: object
+      additionalProperties: false
+      required: [id, isPublished, version, publishedAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        personaName:
+          type: string
+          nullable: true
+        personaPrompt:
+          type: string
+          nullable: true
+        greetingText:
+          type: string
+          nullable: true
+        voiceStyle:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+        tone:
+          type: string
+          nullable: true
+        defaultLanguage:
+          type: string
+          nullable: true
+        supportedLanguages:
+          type: array
+          nullable: true
+          items:
+            type: string
+        speechSpeed:
+          type: number
+          nullable: true
+        sessionMaxSeconds:
+          type: integer
+          nullable: true
+        sessionIdleTimeoutSeconds:
+          type: integer
+          nullable: true
+        cooldownSeconds:
+          type: integer
+          nullable: true
+        dailySessionLimit:
+          type: integer
+          nullable: true
+        isPublished:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    UpsertConversationContextRequest:
+      type: object
+      additionalProperties: false
+      required: [stableKey, contextType, title, body]
+      properties:
+        stableKey:
+          type: string
+          maxLength: 80
+          pattern: "^[a-z0-9._-]+$"
+        contextType:
+          type: string
+          maxLength: 40
+          pattern: "^[A-Z_]+$"
+          example: EVENT
+        title:
+          type: string
+          maxLength: 120
+        body:
+          type: string
+          maxLength: 2000
+        publish:
+          type: boolean
+          default: false
+    ConversationContextRecord:
+      type: object
+      additionalProperties: false
+      required: [id, stableKey, contextType, title, body, isPublished, version, publishedAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        stableKey:
+          type: string
+        contextType:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        isPublished:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    UpsertApprovedQaRequest:
+      type: object
+      additionalProperties: false
+      required: [stableKey, question, answer]
+      properties:
+        stableKey:
+          type: string
+          maxLength: 80
+          pattern: "^[a-z0-9._-]+$"
+        question:
+          type: string
+          maxLength: 280
+        answer:
+          type: string
+          maxLength: 1200
+        publish:
+          type: boolean
+          default: false
+    ApprovedQaRecord:
+      type: object
+      additionalProperties: false
+      required: [id, stableKey, question, answer, isPublished, version, publishedAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        stableKey:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        isPublished:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    ConversationPublicationRevision:
+      type: object
+      additionalProperties: false
+      required:
+        [id, orgId, robotId, scope, sourceType, sourceId, stableKey, version, previousVersion, publishedByUserId, publishedAt, restoredFromRevisionId, createdAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        robotId:
+          type: integer
+          nullable: true
+        scope:
+          type: string
+          enum: [organization, robot, context, qa]
+        sourceType:
+          type: string
+          enum:
+            - organization_config
+            - robot_config
+            - conversation_context
+            - approved_qa
+        sourceId:
+          type: integer
+          nullable: true
+        stableKey:
+          type: string
+          nullable: true
+          description: Present for approved context and Q&A revisions.
+        version:
+          type: integer
+          minimum: 1
+          description: Version captured by this revision.
+        previousVersion:
+          type: integer
+          nullable: true
+          minimum: 1
+        publishedByUserId:
+          type: integer
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+        restoredFromRevisionId:
+          type: integer
+          nullable: true
+          description: Present when this revision was created by a rollback restore.
+        createdAt:
+          type: string
+          format: date-time
+    ConversationPublicationRestoreResponse:
+      type: object
+      additionalProperties: false
+      required: [revision, restored]
+      properties:
+        revision:
+          $ref: "#/components/schemas/ConversationPublicationRevision"
+        restored:
+          oneOf:
+            - $ref: "#/components/schemas/ConversationConfig"
+            - $ref: "#/components/schemas/ConversationContextRecord"
+            - $ref: "#/components/schemas/ApprovedQaRecord"
+    IdentityConsent:
+      type: object
+      additionalProperties: false
+      required: [granted, source, policyVersion, grantedAt]
+      properties:
+        granted:
+          type: boolean
+          enum: [true]
+        source:
+          type: string
+          maxLength: 80
+          pattern: "^[A-Za-z0-9._:-]+$"
+        policyVersion:
+          type: string
+          maxLength: 80
+          pattern: "^[A-Za-z0-9._:-]+$"
+        grantedAt:
+          type: string
+          format: date-time
+    CreateIdentityEmbeddingRequest:
+      type: object
+      additionalProperties: false
+      required: [subjectRef, consent, embeddingMetadata]
+      properties:
+        subjectRef:
+          type: string
+          maxLength: 120
+          pattern: "^[A-Za-z0-9._:-]+$"
+          description: Tenant-local safe identity reference. Do not send real names, phone numbers, emails or secrets.
+        consent:
+          $ref: "#/components/schemas/IdentityConsent"
+        embeddingMetadata:
+          type: object
+          additionalProperties: true
+          description: Embedding metadata encrypted at rest. Raw values are never returned by normal APIs.
+    UpdateIdentityEmbeddingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        subjectRef:
+          type: string
+          maxLength: 120
+          pattern: "^[A-Za-z0-9._:-]+$"
+          description: Tenant-local safe identity reference. Do not send real names, phone numbers, emails or secrets.
+        consent:
+          $ref: "#/components/schemas/IdentityConsent"
+        embeddingMetadata:
+          type: object
+          additionalProperties: true
+          description: Embedding metadata encrypted at rest. Raw values are never returned by normal APIs.
+    RevokeIdentityConsentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          maxLength: 160
+    DeleteIdentityEmbeddingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          maxLength: 160
+    IdentityEmbeddingRecord:
+      type: object
+      additionalProperties: false
+      required: [id, orgId, subjectRef, consent, embedding, status, retentionExpiresAt, deletedAt, deletionReason, createdByUserId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: integer
+        subjectRef:
+          type: string
+        consent:
+          type: object
+          additionalProperties: false
+          required: [granted, source, policyVersion, grantedAt]
+          properties:
+            granted:
+              type: boolean
+            source:
+              type: string
+            policyVersion:
+              type: string
+            grantedAt:
+              type: string
+              format: date-time
+        embedding:
+          type: object
+          additionalProperties: false
+          required: [schemaVersion, fingerprint, encrypted]
+          properties:
+            schemaVersion:
+              type: integer
+              example: 1
+            fingerprint:
+              type: string
+              nullable: true
+              description: HMAC fingerprint for dedupe/traceability. Raw embedding and ciphertext are not returned.
+            encrypted:
+              type: boolean
+        status:
+          type: string
+          enum: [ACTIVE, REVOKED, DELETED]
+        retentionExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp after which the retention job removes protected embedding data and excludes the identity from robot galleries.
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletionReason:
+          type: string
+          nullable: true
+        createdByUserId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RobotIdentityGallery:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, orgId, version, count]
+      description: Summary of the organization-scoped identity gallery for the authenticated robot. Bootstrap manifests include only version/count; records and tombstones are returned by the robot identity gallery endpoint.
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        orgId:
+          type: integer
+        version:
+          type: string
+          example: identity-gallery-org-1-e3b0c44298fc
+        count:
+          type: integer
+          minimum: 0
+    RobotIdentityEnrollmentRequest:
+      type: object
+      additionalProperties: false
+      required: [consent, subjectRef, embedding]
+      properties:
+        consent:
+          type: object
+          additionalProperties: false
+          required: [granted, policyVersion, grantedAt]
+          properties:
+            granted:
+              type: boolean
+              enum: [true]
+            source:
+              type: string
+              maxLength: 80
+            policyVersion:
+              type: string
+              maxLength: 80
+            grantedAt:
+              type: string
+              format: date-time
+        subjectRef:
+          type: string
+          maxLength: 120
+          pattern: '^[A-Za-z0-9._:-]+$'
+          description: Safe pseudonym reference. Emails, phone numbers and tokens are prohibited.
+        displayName:
+          type: string
+          maxLength: 80
+          pattern: '^[A-Za-z0-9 ._-]+$'
+        embedding:
+          type: object
+          additionalProperties: false
+          required: [modelId, dimension, vector]
+          properties:
+            modelId:
+              type: string
+              maxLength: 80
+            dimension:
+              type: integer
+              minimum: 1
+              maximum: 4096
+            vector:
+              type: string
+              description: Base64-encoded float32 vector
+    RobotIdentityGalleryDeltaResponse:
+      type: object
+      additionalProperties: false
+      required: [version, upserts, deletions, notModified]
+      properties:
+        version:
+          type: string
+        notModified:
+          type: boolean
+        upserts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RobotIdentityGalleryUpsertItem"
+        deletions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RobotIdentityGalleryDeletionItem"
+    RobotIdentityGalleryUpsertItem:
+      type: object
+      additionalProperties: false
+      required: [id, subjectRef, modelId, dimension, vector, updatedAt]
+      properties:
+        id:
+          type: integer
+        subjectRef:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        modelId:
+          type: string
+        dimension:
+          type: integer
+        vector:
+          type: string
+        templates:
+          type: array
+          description: All templates the robot may match against (enrolment embedding first, then backfills), filtered to the robot's models.
+          items:
+            type: object
+            additionalProperties: false
+            required: [modelId, dimension, vector, qualityScore]
+            properties:
+              modelId:
+                type: string
+              dimension:
+                type: integer
+              vector:
+                type: string
+                description: Base64 float32 vector.
+              qualityScore:
+                type: number
+        updatedAt:
+          type: string
+          format: date-time
+    RobotIdentityGalleryDeletionItem:
+      type: object
+      additionalProperties: false
+      required: [id, subjectRef, deletedAt]
+      properties:
+        id:
+          type: integer
+        subjectRef:
+          type: string
+        deletedAt:
+          type: string
+          format: date-time
+    RobotIdentityTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [modelId, vector, dimension, qualityScore, score, margin, votes]
+      properties:
+        modelId:
+          type: string
+          maxLength: 80
+        vector:
+          type: string
+          description: Base64-encoded float32 vector
+        dimension:
+          type: integer
+          minimum: 1
+          maximum: 4096
+        qualityScore:
+          type: number
+          minimum: 0
+        score:
+          type: number
+          minimum: 0
+        margin:
+          type: number
+          minimum: 0
+        votes:
+          type: integer
+          minimum: 1
+    RobotIdentityTemplateResponse:
+      type: object
+      additionalProperties: false
+      required: [id, identityId, modelId, qualityScore, cappedAt]
+      properties:
+        id:
+          type: integer
+        identityId:
+          type: integer
+        modelId:
+          type: string
+        qualityScore:
+          type: number
+        cappedAt:
+          type: integer
+          example: 10
+    RobotIdentityFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [modelId, score, margin, votes, outcome]
+      properties:
+        identityId:
+          type: integer
+          minimum: 1
+          nullable: true
+        modelId:
+          type: string
+          maxLength: 80
+        score:
+          type: number
+          minimum: 0
+        margin:
+          type: number
+          minimum: 0
+        votes:
+          type: integer
+          minimum: 1
+        outcome:
+          type: string
+          enum: [confirmed, rejected, recovered_missed]
+    RobotIdentityFeedbackResponse:
+      type: object
+      additionalProperties: false
+      required: [id, stored, needsReregistration]
+      properties:
+        id:
+          type: integer
+        stored:
+          type: boolean
+        needsReregistration:
+          type: boolean
+        idempotencyKey:
+          type: string
+          nullable: true
+    RobotRecognitionModelResponse:
+      type: object
+      additionalProperties: false
+      required: [modelId, tier, version, fileId, sha256, inputSize, dimension, minRamMb, minAndroidApi, checksumRequired, download]
+      properties:
+        modelId:
+          type: string
+        tier:
+          type: string
+        version:
+          type: string
+        fileId:
+          type: string
+        sha256:
+          type: string
+        inputSize:
+          type: integer
+        dimension:
+          type: integer
+        minRamMb:
+          type: integer
+        minAndroidApi:
+          type: integer
+        checksumRequired:
+          type: boolean
+        download:
+          type: object
+          additionalProperties: false
+          required: [url, expiresInSeconds]
+          properties:
+            url:
+              type: string
+            expiresInSeconds:
+              type: integer
+    RobotRecognitionModelDownloadResponse:
+      type: object
+      additionalProperties: false
+      required: [modelId, fileId, sha256, contentType, delivery]
+      properties:
+        modelId:
+          type: string
+        fileId:
+          type: string
+        sha256:
+          type: string
+        contentType:
+          type: string
+          example: application/octet-stream
+        delivery:
+          type: string
+          example: signed-cms-model-metadata
+    EffectiveApprovedContext:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, version, contexts, approvedQa]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        version:
+          type: object
+          additionalProperties: false
+          required: [context, qa, effective]
+          properties:
+            context:
+              type: integer
+              minimum: 0
+            qa:
+              type: integer
+              minimum: 0
+            effective:
+              type: string
+              example: approved-context-v5-qa-v6
+        contexts:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [stableKey, contextType, title, body, version, publishedAt]
+            properties:
+              stableKey:
+                type: string
+              contextType:
+                type: string
+              title:
+                type: string
+              body:
+                type: string
+              version:
+                type: integer
+              publishedAt:
+                type: string
+                format: date-time
+                nullable: true
+        approvedQa:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [stableKey, question, answer, version, publishedAt]
+            properties:
+              stableKey:
+                type: string
+              question:
+                type: string
+              answer:
+                type: string
+              version:
+                type: integer
+              publishedAt:
+                type: string
+                format: date-time
+                nullable: true
+    ConversationPolicies:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, language, speech, session, cooldown]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        language:
+          type: object
+          additionalProperties: false
+          required: [default, supported]
+          properties:
+            default:
+              type: string
+              example: en-IN
+            supported:
+              type: array
+              items:
+                type: string
+              example: [en-IN, hi-IN]
+        speech:
+          type: object
+          additionalProperties: false
+          required: [speed]
+          properties:
+            speed:
+              type: number
+              minimum: 0.5
+              maximum: 2
+              example: 1.1
+        session:
+          type: object
+          additionalProperties: false
+          required: [maxSeconds, idleTimeoutSeconds, dailyLimit]
+          properties:
+            maxSeconds:
+              type: integer
+              minimum: 60
+              maximum: 3600
+            idleTimeoutSeconds:
+              type: integer
+              minimum: 15
+              maximum: 900
+            dailyLimit:
+              type: integer
+              minimum: 1
+              maximum: 100
+        cooldown:
+          type: object
+          additionalProperties: false
+          required: [seconds]
+          properties:
+            seconds:
+              type: integer
+              minimum: 0
+              maximum: 600
+    AiProviderReference:
+      type: object
+      additionalProperties: false
+      required:
+        [schemaVersion, gateway, providerAlias, modelAlias, policyVersion, directProviderAccess]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        gateway:
+          type: string
+          enum: [cms-ai-gateway]
+          description: Robot must use the CMS AI gateway and must not call the model provider directly.
+        providerAlias:
+          type: string
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          example: cms-ai-provider
+          description: Safe provider reference alias. This is not a provider URL or credential.
+        modelAlias:
+          type: string
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          example: default-conversation-model
+          description: Safe model reference alias. This is not the backend provider model secret.
+        policyVersion:
+          type: string
+          pattern: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          example: ai-provider-policy-v1
+        directProviderAccess:
+          type: boolean
+          enum: [false]
+          description: Always false; Android is not authorized to call provider endpoints directly.
+    EffectiveConversationConfig:
+      type: object
+      additionalProperties: false
+      required:
+        [schemaVersion, source, orgId, robotId, version, publishedAt, provider, approvedContext, policies, personaName, personaPrompt, greetingText, voiceStyle, language, tone]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 1
+        source:
+          type: string
+          enum: [systemDefault, organizationDefault, robotOverride]
+        orgId:
+          type: integer
+        robotId:
+          type: integer
+        version:
+          type: object
+          additionalProperties: false
+          required: [organization, robot, effective]
+          properties:
+            organization:
+              type: integer
+              minimum: 0
+            robot:
+              type: integer
+              minimum: 0
+            effective:
+              type: string
+              example: conversation-org-1-v1-robot-10-v0
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedContext:
+          $ref: "#/components/schemas/EffectiveApprovedContext"
+        provider:
+          $ref: "#/components/schemas/AiProviderReference"
+        policies:
+          $ref: "#/components/schemas/ConversationPolicies"
+        personaName:
+          type: string
+        personaPrompt:
+          type: string
+        greetingText:
+          type: string
+        voiceStyle:
+          type: string
+        language:
+          type: string
+        tone:
+          type: string
     RobotLoginRequest:
       type: object
       required: [licenseKey, serialNumber, deviceMetadata]
@@ -6044,7 +8404,7 @@ components:
             $ref: "#/components/schemas/EntitlementCapability"
     RobotBootstrapPolicies:
       type: object
-      required: [schemaVersion, offlineCache, sync, appUpdate]
+      required: [schemaVersion, offlineCache, sync, appUpdate, conversation]
       additionalProperties: false
       properties:
         schemaVersion:
@@ -6101,10 +8461,12 @@ components:
               type: boolean
             updateRecommended:
               type: boolean
+        conversation:
+          $ref: "#/components/schemas/EffectiveConversationConfig"
     RobotBootstrapContentVersions:
       type: object
       required:
-        [cacheVersion, tenantVersion, myCoursesVersion, publicCatalogVersion, myCoursesCount, publicCatalogCount]
+        [cacheVersion, tenantVersion, myCoursesVersion, publicCatalogVersion, identityGalleryVersion, myCoursesCount, publicCatalogCount, identityGalleryCount]
       additionalProperties: false
       properties:
         cacheVersion:
@@ -6113,12 +8475,19 @@ components:
           type: integer
         myCoursesVersion:
           type: string
+          description: Hash-derived version for the robot/user-aware `myCourses` manifest section. Changes when the effective LMS course payload changes.
         publicCatalogVersion:
           type: string
+        identityGalleryVersion:
+          type: string
+          description: Hash-derived version for the organization-scoped identity gallery returned to this robot.
         myCoursesCount:
           type: integer
           minimum: 0
         publicCatalogCount:
+          type: integer
+          minimum: 0
+        identityGalleryCount:
           type: integer
           minimum: 0
     RobotBootstrapSyncMetadata:
@@ -6145,7 +8514,7 @@ components:
     RobotSyncResponse:
       type: object
       required:
-        [schemaVersion, manifestVersion, locked, tenant, license, capabilities, policies, contentVersions, sync]
+        [schemaVersion, manifestVersion, locked, tenant, license, capabilities, policies, conversation, contentVersions, sync]
       properties:
         schemaVersion:
           type: integer
@@ -6168,6 +8537,10 @@ components:
           $ref: "#/components/schemas/RobotBootstrapCapabilities"
         policies:
           $ref: "#/components/schemas/RobotBootstrapPolicies"
+        conversation:
+          $ref: "#/components/schemas/EffectiveConversationConfig"
+        identityGallery:
+          $ref: "#/components/schemas/RobotIdentityGallery"
         contentVersions:
           $ref: "#/components/schemas/RobotBootstrapContentVersions"
         sync:
@@ -6249,6 +8622,8 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Course"
+            identityGallery:
+              $ref: "#/components/schemas/RobotIdentityGallery"
         sync:
           $ref: "#/components/schemas/RobotBootstrapSyncMetadata"
     UploadUsageLogsRequest:
@@ -6383,6 +8758,20 @@ components:
           enum: [VIDEO, IMAGE, TEXT]
         contentUrl:
           type: string
+          description: Signed CMS delivery URL for robot manifest responses. Administrative content APIs may return the configured source asset URL.
+        contentDelivery:
+          $ref: "#/components/schemas/ContentDeliveryLink"
+        contentVersion:
+          type: integer
+          minimum: 1
+        contentSizeBytes:
+          type: integer
+          minimum: 0
+          nullable: true
+        contentChecksum:
+          type: string
+          nullable: true
+          pattern: "^[a-f0-9]{64}$"
         thumbnailUrl:
           type: string
           nullable: true
@@ -6394,6 +8783,24 @@ components:
           enum: [PRIVATE, PUBLIC_PREVIEW]
         isPublished:
           type: boolean
+    ContentDeliveryLink:
+      type: object
+      additionalProperties: false
+      required: [url, expiresInSeconds, resumable, method]
+      properties:
+        url:
+          type: string
+          example: /api/v1/content/delivery/eyJzY2hlbWFWZXJzaW9uIjoxfQ.TvL7KjNgNq-cRyfUPt13TLsYstYlR1pt7j2O5tcq5jE
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+          example: 900
+        resumable:
+          type: boolean
+          example: true
+        method:
+          type: string
+          enum: [GET]
     UpdateCourseRequest:
       type: object
       properties:
@@ -6454,6 +8861,14 @@ components:
           enum: [VIDEO, IMAGE, TEXT]
         contentUrl:
           type: string
+        contentSizeBytes:
+          type: integer
+          minimum: 0
+          nullable: true
+        contentChecksum:
+          type: string
+          nullable: true
+          pattern: "^[a-fA-F0-9]{64}$"
         thumbnailUrl:
           type: string
           nullable: true
@@ -6463,8 +8878,6 @@ components:
         visibility:
           type: string
           enum: [PRIVATE, PUBLIC_PREVIEW]
-        isPublished:
-          type: boolean
         chapterId:
           type: integer
           nullable: true
@@ -6588,356 +9001,3 @@ components:
           type: string
           format: date-time
           nullable: true
-    RobotConversationRequest:
-      type: object
-      required: [message]
-      properties:
-        message:
-          type: string
-          maxLength: 2000
-          description: User speech or text message
-        sessionId:
-          type: string
-          maxLength: 100
-          nullable: true
-          description: Optional client conversation session identifier
-        contextReferences:
-          type: object
-          additionalProperties: true
-          nullable: true
-          description: Contextual references such as current screen, location or anonymized visitor ref
-    RobotConversationResponse:
-      type: object
-      required: [conversationId, reply, speechText, toolExecutions, fallbackUsed]
-      properties:
-        conversationId:
-          type: string
-          format: uuid
-        reply:
-          type: string
-          description: Conversational text response for display
-        speechText:
-          type: string
-          description: Sanitized text suitable for robot text-to-speech engine
-        action:
-          type: object
-          nullable: true
-          description: Optional approved physical or UI action dispatch
-          properties:
-            type:
-              type: string
-            payload:
-              type: object
-              additionalProperties: true
-        toolExecutions:
-          type: array
-          items:
-            type: object
-            required: [toolName, status]
-            properties:
-              toolName:
-                type: string
-              status:
-                type: string
-                enum: [EXECUTED, REJECTED]
-              reason:
-                type: string
-                nullable: true
-              output:
-                type: object
-                nullable: true
-                additionalProperties: true
-        fallbackUsed:
-          type: boolean
-          description: Indicates if safe fallback was used due to model provider error or timeout
-    EffectivePersonaResponse:
-      type: object
-      required: [schemaVersion, configVersion, orgId, robotId, personaName, greetingText, speechGreeting, voiceStyle, language, tone, speechSpeed, sessionMaxSeconds, sessionIdleTimeoutSeconds, cooldownSeconds, dailySessionLimit, supportedLanguages, version, isOverridden, publishedAt]
-      properties:
-        schemaVersion:
-          type: integer
-          example: 1
-        configVersion:
-          type: string
-          example: "persona-org-10-r-101-v2"
-        orgId:
-          type: integer
-          example: 10
-        robotId:
-          type: integer
-          example: 101
-        personaName:
-          type: string
-          example: "Whizzy Guide"
-        personaPrompt:
-          type: string
-          nullable: true
-          example: "You are a courteous educational guide."
-        greetingText:
-          type: string
-          example: "Welcome to Whiz Academy!"
-        speechGreeting:
-          type: string
-          example: "Welcome to Whiz Academy!"
-        voiceStyle:
-          type: string
-          example: "standard"
-        language:
-          type: string
-          example: "en-US"
-        tone:
-          type: string
-          example: "friendly"
-        speechSpeed:
-          type: number
-          format: float
-          example: 1.0
-          minimum: 0.5
-          maximum: 2.0
-        sessionMaxSeconds:
-          type: integer
-          example: 300
-          minimum: 30
-          maximum: 3600
-        sessionIdleTimeoutSeconds:
-          type: integer
-          example: 60
-          minimum: 10
-          maximum: 600
-        cooldownSeconds:
-          type: integer
-          example: 5
-          minimum: 0
-          maximum: 300
-        dailySessionLimit:
-          type: integer
-          example: 1000
-          minimum: 1
-          maximum: 100000
-        supportedLanguages:
-          type: array
-          items:
-            type: string
-          example: ["en-US"]
-        version:
-          type: integer
-          example: 2
-        isOverridden:
-          type: boolean
-          example: true
-        publishedAt:
-          type: string
-          format: date-time
-    UpsertOrganizationPersonaRequest:
-      type: object
-      properties:
-        personaName:
-          type: string
-          maxLength: 100
-        personaPrompt:
-          type: string
-          maxLength: 2000
-        greetingText:
-          type: string
-          maxLength: 500
-        speechGreeting:
-          type: string
-          maxLength: 500
-        voiceStyle:
-          type: string
-          maxLength: 50
-        language:
-          type: string
-          maxLength: 20
-        tone:
-          type: string
-          maxLength: 50
-        speechSpeed:
-          type: number
-          minimum: 0.5
-          maximum: 2.0
-        sessionMaxSeconds:
-          type: integer
-          minimum: 30
-          maximum: 3600
-        sessionIdleTimeoutSeconds:
-          type: integer
-          minimum: 10
-          maximum: 600
-        cooldownSeconds:
-          type: integer
-          minimum: 0
-          maximum: 300
-        dailySessionLimit:
-          type: integer
-          minimum: 1
-          maximum: 100000
-        supportedLanguages:
-          oneOf:
-            - type: array
-              items:
-                type: string
-            - type: string
-        isPublished:
-          type: boolean
-    UpsertRobotPersonaOverrideRequest:
-      type: object
-      properties:
-        personaName:
-          type: string
-          maxLength: 100
-        personaPrompt:
-          type: string
-          maxLength: 2000
-        greetingText:
-          type: string
-          maxLength: 500
-        speechGreeting:
-          type: string
-          maxLength: 500
-        voiceStyle:
-          type: string
-          maxLength: 50
-        language:
-          type: string
-          maxLength: 20
-        tone:
-          type: string
-          maxLength: 50
-        speechSpeed:
-          type: number
-          minimum: 0.5
-          maximum: 2.0
-        sessionMaxSeconds:
-          type: integer
-          minimum: 30
-          maximum: 3600
-        sessionIdleTimeoutSeconds:
-          type: integer
-          minimum: 10
-          maximum: 600
-        cooldownSeconds:
-          type: integer
-          minimum: 0
-          maximum: 300
-        dailySessionLimit:
-          type: integer
-          minimum: 1
-          maximum: 100000
-        supportedLanguages:
-          oneOf:
-            - type: array
-              items:
-                type: string
-            - type: string
-        isPublished:
-          type: boolean
-    OrganizationConversationContext:
-      type: object
-      properties:
-        id:
-          type: integer
-          nullable: true
-          example: 1
-        orgId:
-          type: integer
-          example: 10
-        companyOverview:
-          type: string
-          nullable: true
-          example: "Whiz STEM Academy provides innovative robotics education."
-        operatingHours:
-          type: string
-          nullable: true
-          example: "Mon-Fri 08:00 - 17:00"
-        locationDetails:
-          type: string
-          nullable: true
-          example: "Main Building, Floor 2"
-        visitorGuidelines:
-          type: string
-          nullable: true
-          example: "Visitors must check in at reception."
-        eventsSummary:
-          type: string
-          nullable: true
-          example: "Robotics Open Day on Oct 24."
-        version:
-          type: integer
-          example: 2
-        isPublished:
-          type: boolean
-          example: true
-    UpsertConversationContextRequest:
-      type: object
-      properties:
-        companyOverview:
-          type: string
-          maxLength: 10000
-        operatingHours:
-          type: string
-          maxLength: 5000
-        locationDetails:
-          type: string
-          maxLength: 5000
-        visitorGuidelines:
-          type: string
-          maxLength: 5000
-        eventsSummary:
-          type: string
-          maxLength: 10000
-        isPublished:
-          type: boolean
-    OrganizationApprovedQa:
-      type: object
-      required: [id, orgId, question, answer, version, isPublished, sortOrder]
-      properties:
-        id:
-          type: integer
-          example: 1
-        orgId:
-          type: integer
-          example: 10
-        question:
-          type: string
-          example: "Where is the main auditorium?"
-        answer:
-          type: string
-          example: "The auditorium is located on the ground floor next to the cafeteria."
-        category:
-          type: string
-          nullable: true
-          example: "facilities"
-        version:
-          type: integer
-          example: 1
-        isPublished:
-          type: boolean
-          example: true
-        sortOrder:
-          type: integer
-          example: 0
-    UpsertApprovedQaRequest:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            required: [question, answer]
-            properties:
-              id:
-                type: integer
-              question:
-                type: string
-                maxLength: 1000
-              answer:
-                type: string
-                maxLength: 5000
-              category:
-                type: string
-                maxLength: 100
-              isPublished:
-                type: boolean
-              sortOrder:
-                type: integer

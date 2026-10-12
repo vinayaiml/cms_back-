@@ -1,41 +1,38 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from "class-validator";
+import { Type } from "class-transformer";
 
-export class RobotConversationDto {
+export class AiToolCallDto {
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(2000)
-  message!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  sessionId?: string;
+  @MaxLength(80)
+  name!: string;
 
   @IsOptional()
   @IsObject()
-  contextReferences?: {
-    location?: string;
-    screen?: string;
-    visitorId?: string;
-    [key: string]: unknown;
-  };
+  arguments?: Record<string, unknown>;
 }
 
-export type ToolExecutionResult = {
-  toolName: string;
-  status: 'EXECUTED' | 'REJECTED';
-  reason?: string;
-  output?: Record<string, unknown> | null;
-};
+export class RobotAiConversationDto {
+  @IsString()
+  @MaxLength(4000)
+  message!: string;
 
-export type RobotConversationResponse = {
-  conversationId: string;
-  reply: string;
-  speechText: string;
-  action: {
-    type: string;
-    payload?: Record<string, unknown>;
-  } | null;
-  toolExecutions: ToolExecutionResult[];
-  fallbackUsed: boolean;
-};
+  @IsOptional()
+  @IsIn(["speech", "text"])
+  inputMode?: "speech" | "text";
+
+  @IsOptional()
+  @IsObject()
+  contextReferences?: Record<string, unknown>;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AiToolCallDto)
+  requestedTool?: AiToolCallDto;
+}
