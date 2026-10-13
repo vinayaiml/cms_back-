@@ -943,6 +943,49 @@ export class RobotsService {
     });
   }
 
+  async updateHardware(
+    robotId: number,
+    model: string,
+    actor: { userId: number | null; orgId: number | null; isSuperAdmin: boolean },
+    correlationId?: string,
+  ) {
+    const robot = await this.getRobotOrThrow(robotId);
+    await this.ensureOrgAccess(actor, robot.orgId);
+
+    const hardware = normalizeRobotHardwareProfile({ model }, { modelOnly: true });
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.robot.update({
+        where: { id: robotId },
+        data: {
+          hardwareModel: hardware.hardwareModel,
+          hardwareProfile: hardware.hardwareProfile ?? Prisma.JsonNull,
+          hardwareCapabilities: hardware.hardwareCapabilities ?? Prisma.JsonNull,
+        },
+        select: this.robotSelect,
+      });
+
+      await this.audit.recordCritical(
+        {
+          actor,
+          action: 'robot.hardware_updated',
+          targetType: 'robot',
+          targetId: robotId,
+          targetOrgId: robot.orgId,
+          correlationId,
+          metadata: {
+            serialNumber: robot.serialNumber,
+            previousHardwareModel: robot.hardwareModel,
+            newHardwareModel: hardware.hardwareModel,
+          },
+        },
+        tx,
+      );
+
+      return updated;
+    });
+  }
+
   async renewLicense(robotId: number, validUntil: Date) {
     const robot = await this.prisma.robot.findUnique({
       where: { id: robotId },

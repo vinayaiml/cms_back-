@@ -79,6 +79,18 @@ export class ReassignRobotDto {
   orgId!: number;
 }
 
+export class UpdateRobotHardwareDto {
+  @IsString()
+  @IsIn(['MINI_ELF', 'ELF', 'NANO', 'S5'])
+  model!: string;
+}
+
+export class UpdateRobotNameDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+}
+
 export class UpsertRobotCapabilityAssignmentDto {
   @IsString()
   @IsNotEmpty()

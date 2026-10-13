@@ -25,6 +25,7 @@ import {
   LockRobotDto,
   ReassignRobotDto,
   RenewLicenseDto,
+  UpdateRobotHardwareDto,
   UpsertRobotCapabilityAssignmentDto,
 } from "./robots.dto";
 import { LicenseStatus } from "@prisma/client";
@@ -287,6 +288,28 @@ export class RobotsController {
     return this.robots.reassignRobot(
       id,
       dto.orgId,
+      {
+        userId: actor.sub,
+        orgId: actor.orgId,
+        isSuperAdmin: actor.isSuperAdmin,
+      },
+      correlationId,
+    );
+  }
+
+  @Patch(":id/hardware")
+  @RequirePermissions("robot.update")
+  async updateHardware(
+    @CurrentUser() actor: JwtPayload,
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdateRobotHardwareDto,
+    @Headers("x-correlation-id") correlationId?: string,
+  ) {
+    if (actor.type !== "user")
+      throw new ForbiddenException("User token required");
+    return this.robots.updateHardware(
+      id,
+      dto.model,
       {
         userId: actor.sub,
         orgId: actor.orgId,

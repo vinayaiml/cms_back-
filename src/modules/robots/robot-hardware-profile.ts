@@ -101,7 +101,7 @@ function cleanManufacturer(value: unknown): string | null {
   return trimmed;
 }
 
-export function normalizeRobotHardwareProfile(input?: HardwareProfileInput | null) {
+export function normalizeRobotHardwareProfile(input?: HardwareProfileInput | null, options?: { modelOnly?: boolean }) {
   if (!input) {
     return {
       hardwareModel: null,
@@ -115,14 +115,19 @@ export function normalizeRobotHardwareProfile(input?: HardwareProfileInput | nul
   }
 
   const policy = HARDWARE_POLICIES[input.model];
-  if (input.androidApiLevel !== policy.androidApiLevel) {
-    throw new BadRequestException('Invalid robot hardware Android API level');
-  }
-  if (input.abi !== policy.abi) {
-    throw new BadRequestException('Invalid robot hardware ABI');
-  }
-  if (input.display?.width !== policy.display.width || input.display?.height !== policy.display.height) {
-    throw new BadRequestException('Invalid robot hardware display profile');
+
+  // When called from the CMS hardware editor, we only have the model name —
+  // skip the strict device-spec checks (API level, ABI, display).
+  if (!options?.modelOnly) {
+    if (input.androidApiLevel !== policy.androidApiLevel) {
+      throw new BadRequestException('Invalid robot hardware Android API level');
+    }
+    if (input.abi !== policy.abi) {
+      throw new BadRequestException('Invalid robot hardware ABI');
+    }
+    if (input.display?.width !== policy.display.width || input.display?.height !== policy.display.height) {
+      throw new BadRequestException('Invalid robot hardware display profile');
+    }
   }
 
   const requestedCapabilities = input.capabilities ?? {};

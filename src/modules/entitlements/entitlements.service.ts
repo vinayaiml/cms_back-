@@ -316,7 +316,12 @@ export class EntitlementsService {
         );
     }
 
-    let effective = input.robotId
+    // CMS-81: a robot with zero assignments inherits the org's effective
+    // capabilities (open decision resolved: inherit by default).
+    // A robot that *has* assignments (even disabled ones) is still subject to
+    // the intersection so that explicit per-robot scoping is respected.
+    const robotHasAssignments = robotAssignments.length > 0;
+    let effective = input.robotId && robotHasAssignments
       ? this.intersects(capabilities, robotAssignments)
       : capabilities;
     effective = input.userId
