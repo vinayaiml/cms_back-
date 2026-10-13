@@ -117,9 +117,6 @@ const CONFIG_FIELDS = [
 
 const LANGUAGE_PATTERN = /^[a-z]{2}(-[A-Z]{2})?$/;
 
-const PROHIBITED_PATTERN =
-  /(Bearer\s+[A-Za-z0-9._-]+|WHRB\d{6}|sk-[A-Za-z0-9_-]{8,}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\+?\d[\d ()-]{8,}\d)/i;
-
 @Injectable()
 export class ConversationConfigService {
   constructor(
@@ -1007,9 +1004,6 @@ export class ConversationConfigService {
         data[field] = null;
         continue;
       }
-      if (PROHIBITED_PATTERN.test(trimmed)) {
-        throw new BadRequestException("Conversation settings contain blocked data");
-      }
       data[field] = trimmed;
     }
 
@@ -1091,9 +1085,6 @@ export class ConversationConfigService {
     const trimmed = value.trim();
     if (!trimmed) {
       throw new BadRequestException(`Invalid ${field}`);
-    }
-    if (PROHIBITED_PATTERN.test(trimmed)) {
-      throw new BadRequestException("Conversation content contains blocked data");
     }
     return trimmed;
   }

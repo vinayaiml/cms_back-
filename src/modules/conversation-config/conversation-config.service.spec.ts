@@ -210,16 +210,38 @@ describe("ConversationConfigService", () => {
     expect(prisma.robotConversationConfig.upsert).not.toHaveBeenCalled();
   });
 
-  it("rejects secrets and prohibited PII in published settings", async () => {
+  it("allows contact details in published conversation settings", async () => {
+    prisma.organizationConversationConfig.findUnique.mockResolvedValue(null);
+    prisma.organizationConversationConfig.upsert.mockResolvedValue({
+      id: 1,
+      personaName: null,
+      personaPrompt: null,
+      greetingText: "Call +91 99999 99999",
+      voiceStyle: null,
+      language: null,
+      tone: null,
+      defaultLanguage: null,
+      supportedLanguages: null,
+      speechSpeed: null,
+      sessionMaxSeconds: null,
+      sessionIdleTimeoutSeconds: null,
+      cooldownSeconds: null,
+      dailySessionLimit: null,
+      isPublished: true,
+      version: 1,
+      publishedAt: new Date("2026-10-08T00:00:00.000Z"),
+      updatedAt: new Date("2026-10-08T00:00:00.000Z"),
+    });
+
     await expect(
       service().upsertOrgConfig(
         1,
         { greetingText: "Call +91 99999 99999", publish: true },
         actor,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(prisma.organizationConversationConfig.upsert).not.toHaveBeenCalled();
+    ).resolves.toEqual(
+      expect.objectContaining({ greetingText: "Call +91 99999 99999" }),
+    );
   });
 
   it("writes sanitized audit metadata and bumps tenant version on publish", async () => {
@@ -531,7 +553,19 @@ describe("ConversationConfigService", () => {
     );
   });
 
-  it("rejects prohibited PII in approved Q&A", async () => {
+  it("allows contact details in approved Q&A", async () => {
+    prisma.organizationApprovedQa.findUnique.mockResolvedValue(null);
+    prisma.organizationApprovedQa.upsert.mockResolvedValue({
+      id: 1,
+      stableKey: "contact",
+      question: "How do I call?",
+      answer: "Call +91 99999 99999",
+      isPublished: true,
+      version: 1,
+      publishedAt: new Date("2026-10-08T00:00:00.000Z"),
+      updatedAt: new Date("2026-10-08T00:00:00.000Z"),
+    });
+
     await expect(
       service().upsertApprovedQa(
         1,
@@ -543,8 +577,8 @@ describe("ConversationConfigService", () => {
         },
         actor,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(prisma.organizationApprovedQa.upsert).not.toHaveBeenCalled();
+    ).resolves.toEqual(
+      expect.objectContaining({ answer: "Call +91 99999 99999" }),
+    );
   });
 });
