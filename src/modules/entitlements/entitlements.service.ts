@@ -26,6 +26,8 @@ type ResolveInput = {
   orgId: number;
   robotId?: number;
   userId?: number;
+  hardwareModel?: string | null;
+  hardwareProfile?: Prisma.JsonValue | null;
   hardwareCapabilities?: Prisma.JsonValue | null;
   enforceHardware?: boolean;
 };
@@ -94,9 +96,27 @@ export class EntitlementsService {
     return (hardwareCapabilities as Record<string, unknown>)[key] === true;
   }
 
+  private hasHardwareValue(
+    hardwareProfile: Prisma.JsonValue | null | undefined,
+    key: string,
+    predicate: (value: unknown) => boolean,
+  ) {
+    if (
+      !hardwareProfile ||
+      typeof hardwareProfile !== "object" ||
+      Array.isArray(hardwareProfile)
+    )
+      return false;
+    return predicate((hardwareProfile as Record<string, unknown>)[key]);
+  }
+
   private supportsRequiredHardware(
     requiredHardware: Prisma.JsonValue | null,
-    hardwareCapabilities: Prisma.JsonValue | null | undefined,
+    hardware: {
+      hardwareModel?: string | null;
+      hardwareProfile?: Prisma.JsonValue | null;
+      hardwareCapabilities?: Prisma.JsonValue | null;
+    },
   ) {
     if (!requiredHardware) return true;
     if (typeof requiredHardware !== "object" || Array.isArray(requiredHardware))
@@ -108,16 +128,65 @@ export class EntitlementsService {
       : [];
     for (const capability of requiredCapabilities) {
       if (typeof capability !== "string") return false;
-      if (!this.hasHardwareCapability(hardwareCapabilities, capability))
+      if (!this.hasHardwareCapability(hardware.hardwareCapabilities, capability))
         return false;
     }
 
+    const requiredModels = Array.isArray(policy.models) ? policy.models : [];
+    if (requiredModels.length) {
+      const hardwareModel =
+        hardware.hardwareModel ||
+        (this.hasHardwareValue(
+          hardware.hardwareProfile,
+          "model",
+          (value) => typeof value === "string",
+        )
+          ? (hardware.hardwareProfile as Record<string, unknown>).model
+          : null);
+      if (
+        typeof hardwareModel !== "string" ||
+        !requiredModels.every((model) => typeof model === "string") ||
+        !requiredModels.includes(hardwareModel)
+      )
+        return false;
+    }
+
+    if (policy.minAndroidApiLevel !== undefined) {
+      const minAndroidApiLevel = Number(policy.minAndroidApiLevel);
+      if (!Number.isFinite(minAndroidApiLevel)) return false;
+      const supportsAndroidApi = this.hasHardwareValue(
+        hardware.hardwareProfile,
+        "androidApiLevel",
+        (value) => typeof value === "number" && value >= minAndroidApiLevel,
+      );
+      if (!supportsAndroidApi) return false;
+    }
+
+    const requiredAbi = Array.isArray(policy.abi) ? policy.abi : [];
+    if (requiredAbi.length) {
+      const supportsAbi = this.hasHardwareValue(
+        hardware.hardwareProfile,
+        "abi",
+        (value) =>
+          typeof value === "string" &&
+          requiredAbi.every((abi) => typeof abi === "string") &&
+          requiredAbi.includes(value),
+      );
+      if (!supportsAbi) return false;
+    }
+
     for (const [key, value] of Object.entries(policy)) {
-      if (key === "capabilities") continue;
+      if (
+        key === "capabilities" ||
+        key === "models" ||
+        key === "minAndroidApiLevel" ||
+        key === "abi"
+      )
+        continue;
       if (
         typeof value === "boolean" &&
         value &&
-        !this.hasHardwareCapability(hardwareCapabilities, key)
+        !this.hasHardwareCapability(hardware.hardwareCapabilities, key)
       )
         return false;
     }
@@ -127,7 +196,11 @@ export class EntitlementsService {
 
   private applyHardwareFilter(
     capabilities: Map<string, ReturnType<EntitlementsService["toCapability"]>>,
-    hardwareCapabilities: Prisma.JsonValue | null | undefined,
+    hardware: {
+      hardwareModel?: string | null;
+      hardwareProfile?: Prisma.JsonValue | null;
+      hardwareCapabilities?: Prisma.JsonValue | null;
+    },
   ) {
     const next = new Map<
       string,
@@ -137,7 +210,7 @@ export class EntitlementsService {
       if (
         this.supportsRequiredHardware(
           capability.requiredHardware,
-          hardwareCapabilities,
+          hardware,
         )
       ) {
         next.set(stableKey, capability);
@@ -252,7 +325,11 @@ export class EntitlementsService {
     if (input.enforceHardware) {
       effective = this.applyHardwareFilter(
         effective,
-        input.hardwareCapabilities,
+        {
+          hardwareModel: input.hardwareModel,
+          hardwareProfile: input.hardwareProfile,
+          hardwareCapabilities: input.hardwareCapabilities,
+        },
       );
     }
 

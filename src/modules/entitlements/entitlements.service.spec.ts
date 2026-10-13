@@ -43,6 +43,21 @@ describe("EntitlementsService effective resolver", () => {
     requiredHardware: { capabilities: ["armMotion"] },
     isActive: true,
   };
+  const proIdentity = {
+    id: 5,
+    stableKey: "identity.recognition.pro",
+    name: "Identity Recognition Pro",
+    description: null,
+    category: "identity",
+    version: 1,
+    requiredHardware: {
+      models: ["MINI_ELF", "S5"],
+      capabilities: ["camera"],
+      minAndroidApiLevel: 28,
+      abi: ["arm64-v8a"],
+    },
+    isActive: true,
+  };
 
   const prisma = {
     organizationSubscription: { findFirst: jest.fn() },
@@ -196,5 +211,50 @@ describe("EntitlementsService effective resolver", () => {
     });
 
     expect(Array.from(result)).toEqual(["audio.speaker"]);
+  });
+
+  it("honors model, Android API, and ABI hardware requirements", async () => {
+    prisma.organizationSubscription.findFirst.mockResolvedValue({
+      id: 10,
+      orgId: 7,
+      planId: 2,
+      status: SubscriptionStatus.ACTIVE,
+      validFrom: new Date("2026-01-01T00:00:00.000Z"),
+      validUntil: new Date("2099-01-01T00:00:00.000Z"),
+      plan: {
+        id: 2,
+        stableKey: "pro",
+        version: 3,
+        isActive: true,
+        capabilities: [{ capability: proIdentity }],
+      },
+    });
+    prisma.organizationCapabilityOverride.findMany.mockResolvedValue([]);
+
+    const supported = await service.resolveCapabilityKeys({
+      orgId: 7,
+      hardwareModel: "S5",
+      hardwareProfile: {
+        model: "S5",
+        androidApiLevel: 31,
+        abi: "arm64-v8a",
+      },
+      hardwareCapabilities: { camera: true },
+      enforceHardware: true,
+    });
+    expect(Array.from(supported)).toEqual(["identity.recognition.pro"]);
+
+    const unsupported = await service.resolveCapabilityKeys({
+      orgId: 7,
+      hardwareModel: "ELF",
+      hardwareProfile: {
+        model: "ELF",
+        androidApiLevel: 23,
+        abi: "armeabi-v7a",
+      },
+      hardwareCapabilities: { camera: true },
+      enforceHardware: true,
+    });
+    expect(Array.from(unsupported)).toEqual([]);
   });
 });

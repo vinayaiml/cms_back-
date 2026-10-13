@@ -23,6 +23,8 @@ type RobotContext = {
   validUntil: Date;
   appVersion: string | null;
   deviceMetadata: Prisma.JsonValue | null;
+  hardwareModel?: string | null;
+  hardwareProfile?: Prisma.JsonValue | null;
   hardwareCapabilities: Prisma.JsonValue | null;
   org: OrgContext;
 };
@@ -317,6 +319,8 @@ export class RobotManifestResolver {
       : await this.entitlements.resolve({
           orgId: input.robot.orgId,
           robotId: input.robot.id,
+          hardwareModel: input.robot.hardwareModel,
+          hardwareProfile: input.robot.hardwareProfile,
           hardwareCapabilities: input.robot.hardwareCapabilities,
           enforceHardware: true,
         });

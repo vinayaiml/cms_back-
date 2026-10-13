@@ -567,12 +567,18 @@ export class RobotsService {
 
   private async getOrgEffectiveCapabilityKeys(
     orgId: number,
-    hardwareCapabilities?: Prisma.JsonValue | null,
+    hardware?: {
+      hardwareModel?: string | null;
+      hardwareProfile?: Prisma.JsonValue | null;
+      hardwareCapabilities?: Prisma.JsonValue | null;
+    },
   ) {
     return this.entitlements.resolveCapabilityKeys({
       orgId,
-      hardwareCapabilities,
-      enforceHardware: hardwareCapabilities !== undefined,
+      hardwareModel: hardware?.hardwareModel,
+      hardwareProfile: hardware?.hardwareProfile,
+      hardwareCapabilities: hardware?.hardwareCapabilities,
+      enforceHardware: hardware !== undefined,
     });
   }
 
@@ -1183,6 +1189,8 @@ export class RobotsService {
     const entitlements = await this.entitlements.resolve({
       orgId: robot.orgId,
       robotId: robot.id,
+      hardwareModel: robot.hardwareModel,
+      hardwareProfile: robot.hardwareProfile,
       hardwareCapabilities: robot.hardwareCapabilities,
       enforceHardware: true,
     });
@@ -1235,7 +1243,11 @@ export class RobotsService {
 
     const effectiveKeys = await this.getOrgEffectiveCapabilityKeys(
       robot.orgId,
-      robot.hardwareCapabilities,
+      {
+        hardwareModel: robot.hardwareModel,
+        hardwareProfile: robot.hardwareProfile,
+        hardwareCapabilities: robot.hardwareCapabilities,
+      },
     );
     if (!effectiveKeys.has(capability.stableKey)) {
       throw new ForbiddenException(

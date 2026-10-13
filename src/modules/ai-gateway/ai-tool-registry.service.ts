@@ -77,6 +77,8 @@ export class AiToolRegistryService {
         orgId: true,
         validUntil: true,
         revokedAt: true,
+        hardwareModel: true,
+        hardwareProfile: true,
         hardwareCapabilities: true,
         org: { select: { isActive: true } },
       },
@@ -94,6 +96,8 @@ export class AiToolRegistryService {
     const capabilityKeys = await this.entitlements.resolveCapabilityKeys({
       orgId,
       robotId,
+      hardwareModel: robot.hardwareModel,
+      hardwareProfile: robot.hardwareProfile,
       hardwareCapabilities: robot.hardwareCapabilities,
       enforceHardware: true,
     });
@@ -164,6 +168,8 @@ export class AiToolRegistryService {
     const capabilityKeys = await this.entitlements.resolveCapabilityKeys({
       orgId: robot.orgId,
       robotId: robot.id,
+      hardwareModel: robot.hardwareModel,
+      hardwareProfile: robot.hardwareProfile,
       hardwareCapabilities: robot.hardwareCapabilities,
       enforceHardware: true,
     });
